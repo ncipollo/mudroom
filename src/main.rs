@@ -1,3 +1,7 @@
+use clap::Parser;
+use mudroom::{cli::Cli, run};
+
 fn main() {
-    println!("Hello, world!");
+    let cli = Cli::parse();
+    println!("{}", run(cli));
 }
