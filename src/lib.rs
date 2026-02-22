@@ -1,10 +1,14 @@
 pub mod cli;
+pub mod tui;
 
 use cli::{Cli, Commands};
 
-pub fn run(cli: Cli) -> String {
+pub fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     match cli.command {
-        Some(Commands::Server) => "server mode".to_string(),
-        None | Some(Commands::Client) => "client mode".to_string(),
+        Some(Commands::Server) => {
+            println!("server mode");
+            Ok(())
+        }
+        None | Some(Commands::Client) => tui::run_client(),
     }
 }

@@ -1,0 +1,34 @@
+pub struct App {
+    pub should_quit: bool,
+    pub messages: Vec<String>,
+    pub input: String,
+    pub scroll_offset: usize,
+}
+
+impl App {
+    pub fn new() -> Self {
+        Self {
+            should_quit: false,
+            messages: vec![
+                "Welcome to mudroom.".to_string(),
+                "Type commands and press Enter.".to_string(),
+            ],
+            input: String::new(),
+            scroll_offset: 0,
+        }
+    }
+
+    pub fn scroll_up(&mut self) {
+        self.scroll_offset += 1;
+    }
+
+    pub fn scroll_down(&mut self) {
+        self.scroll_offset = self.scroll_offset.saturating_sub(1);
+    }
+}
+
+impl Default for App {
+    fn default() -> Self {
+        Self::new()
+    }
+}

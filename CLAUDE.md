@@ -9,3 +9,6 @@ Run the following commands after every code change and fix any issues before con
 
 ## Dependencies
 Always use exact versions for dependencies in `Cargo.toml` (e.g., `"4.5.60"` not `"4"`). Check `Cargo.lock` for the resolved version when pinning.
+
+## Module Conventions
+Never use `mod.rs`. Always use the modern Rust style: create a top-level file (e.g., `foo.rs`) as the module root, and a matching folder (`foo/`) for any submodules.

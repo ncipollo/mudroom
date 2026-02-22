@@ -25,17 +25,20 @@ mod tests {
     }
 
     #[test]
-    fn no_command_gives_client_mode() {
-        assert_eq!(crate::run(parse(&["mudroom"])), "client mode");
+    fn no_command_defaults_to_none() {
+        let cli = parse(&["mudroom"]);
+        assert!(cli.command.is_none());
     }
 
     #[test]
-    fn client_command_gives_client_mode() {
-        assert_eq!(crate::run(parse(&["mudroom", "client"])), "client mode");
+    fn client_subcommand_parses() {
+        let cli = parse(&["mudroom", "client"]);
+        assert_eq!(cli.command, Some(Commands::Client));
     }
 
     #[test]
-    fn server_command_gives_server_mode() {
-        assert_eq!(crate::run(parse(&["mudroom", "server"])), "server mode");
+    fn server_subcommand_parses() {
+        let cli = parse(&["mudroom", "server"]);
+        assert_eq!(cli.command, Some(Commands::Server));
     }
 }

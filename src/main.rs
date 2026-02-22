@@ -3,5 +3,8 @@ use mudroom::{cli::Cli, run};
 
 fn main() {
     let cli = Cli::parse();
-    println!("{}", run(cli));
+    if let Err(e) = run(cli) {
+        eprintln!("Error: {e}");
+        std::process::exit(1);
+    }
 }
