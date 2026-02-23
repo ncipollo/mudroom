@@ -1,9 +1,10 @@
 use clap::Parser;
 use mudroom::{cli::Cli, run};
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let cli = Cli::parse();
-    if let Err(e) = run(cli) {
+    if let Err(e) = run(cli).await {
         eprintln!("Error: {e}");
         std::process::exit(1);
     }

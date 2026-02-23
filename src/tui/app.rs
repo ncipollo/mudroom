@@ -1,3 +1,5 @@
+use crate::network::NetworkEvent;
+
 pub struct App {
     pub should_quit: bool,
     pub messages: Vec<String>,
@@ -24,6 +26,19 @@ impl App {
 
     pub fn scroll_down(&mut self) {
         self.scroll_offset = self.scroll_offset.saturating_sub(1);
+    }
+
+    pub fn handle_network_event(&mut self, event: NetworkEvent) {
+        match event {
+            NetworkEvent::StartSession { session_id } => {
+                self.messages.push(format!("Session started: {session_id}"))
+            }
+            NetworkEvent::EndSession { session_id } => {
+                self.messages.push(format!("Session ended: {session_id}"))
+            }
+            NetworkEvent::Ping => self.messages.push("[ping received]".to_string()),
+            NetworkEvent::Pong => self.messages.push("[pong received]".to_string()),
+        }
     }
 }
 
