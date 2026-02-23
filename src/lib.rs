@@ -1,5 +1,6 @@
 pub mod cli;
 pub mod network;
+pub mod state;
 pub mod tui;
 
 use cli::{Cli, Commands};
