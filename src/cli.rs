@@ -10,7 +10,11 @@ pub struct Cli {
 #[derive(Subcommand, Debug, PartialEq)]
 pub enum Commands {
     /// Launch in client mode
-    Client,
+    Client {
+        /// Direct server URL (skips discovery)
+        #[arg(long)]
+        url: Option<String>,
+    },
     /// Launch in server mode
     Server,
 }
@@ -33,7 +37,18 @@ mod tests {
     #[test]
     fn client_subcommand_parses() {
         let cli = parse(&["mudroom", "client"]);
-        assert_eq!(cli.command, Some(Commands::Client));
+        assert_eq!(cli.command, Some(Commands::Client { url: None }));
+    }
+
+    #[test]
+    fn client_subcommand_with_url_parses() {
+        let cli = parse(&["mudroom", "client", "--url", "http://localhost:8080"]);
+        assert_eq!(
+            cli.command,
+            Some(Commands::Client {
+                url: Some("http://localhost:8080".to_string())
+            })
+        );
     }
 
     #[test]
