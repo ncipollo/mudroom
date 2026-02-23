@@ -7,12 +7,15 @@ use cli::{Cli, Commands};
 pub async fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     match cli.command {
         Some(Commands::Server) => {
+            let filter = tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+            tracing_subscriber::fmt().with_env_filter(filter).init();
             let addr = network::server::start().await?;
             let discovery = network::discovery::DiscoveryServer::new(addr.port());
             tokio::spawn(async move {
                 let _ = discovery.run().await;
             });
-            println!("Server listening on {addr}");
+            tracing::info!("Server listening on {addr}");
             tokio::signal::ctrl_c().await?;
             Ok(())
         }

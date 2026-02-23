@@ -12,6 +12,8 @@ use tokio::sync::broadcast;
 use tokio_stream::StreamExt;
 use tokio_stream::wrappers::BroadcastStream;
 
+use tracing::info;
+
 use super::event::NetworkEvent;
 
 #[derive(Clone)]
@@ -27,6 +29,7 @@ struct SessionBody {
 async fn sse_handler(
     State(state): State<Arc<AppState>>,
 ) -> Sse<impl Stream<Item = Result<Event, axum::Error>>> {
+    info!("GET /events - client subscribed to SSE");
     let rx = state.tx.subscribe();
     let stream = BroadcastStream::new(rx).filter_map(|result| {
         result.ok().and_then(|event| {
@@ -39,6 +42,7 @@ async fn sse_handler(
 }
 
 async fn ping_handler(State(state): State<Arc<AppState>>) -> &'static str {
+    info!("POST /ping");
     let _ = state.tx.send(NetworkEvent::Pong);
     "ok"
 }
@@ -47,6 +51,7 @@ async fn session_start_handler(
     State(state): State<Arc<AppState>>,
     Json(body): Json<SessionBody>,
 ) -> &'static str {
+    info!(session_id = %body.session_id, "POST /session/start");
     let _ = state.tx.send(NetworkEvent::StartSession {
         session_id: body.session_id,
     });
@@ -57,6 +62,7 @@ async fn session_end_handler(
     State(state): State<Arc<AppState>>,
     Json(body): Json<SessionBody>,
 ) -> &'static str {
+    info!(session_id = %body.session_id, "POST /session/end");
     let _ = state.tx.send(NetworkEvent::EndSession {
         session_id: body.session_id,
     });
