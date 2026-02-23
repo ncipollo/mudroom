@@ -115,10 +115,12 @@ pub async fn run(
     let (discovery_tx, mut discovery_rx) = mpsc::channel::<DiscoveredServer>(32);
 
     tokio::spawn(async move {
-        if let Ok(servers) = discover(3000).await {
-            for s in servers {
-                if discovery_tx.send(s).await.is_err() {
-                    break;
+        loop {
+            if let Ok(servers) = discover(3000).await {
+                for s in servers {
+                    if discovery_tx.send(s).await.is_err() {
+                        return;
+                    }
                 }
             }
         }
@@ -147,7 +149,11 @@ pub async fn run(
             }
             maybe_server = discovery_rx.recv() => {
                 match maybe_server {
-                    Some(server) => app.servers.push(server),
+                    Some(server) => {
+                        if !app.servers.iter().any(|s| s.host == server.host && s.port == server.port) {
+                            app.servers.push(server);
+                        }
+                    }
                     None => app.discovering = false,
                 }
             }
