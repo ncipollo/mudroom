@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-type StateResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
+type StateResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 pub fn mudroom_dir() -> StateResult<PathBuf> {
     dirs::home_dir()
@@ -23,6 +23,22 @@ pub fn client_session_dir(server_id: &str) -> StateResult<PathBuf> {
 pub async fn create_state_dirs(server_id: &str) -> StateResult<()> {
     tokio::fs::create_dir_all(server_session_dir(server_id)?).await?;
     tokio::fs::create_dir_all(client_session_dir(server_id)?).await?;
+    Ok(())
+}
+
+pub fn server_session_file(name: &str) -> StateResult<PathBuf> {
+    Ok(session_dir()?.join("server").join(format!("{name}.json")))
+}
+
+pub fn client_session_file(server_id: &str) -> StateResult<PathBuf> {
+    Ok(session_dir()?
+        .join("client")
+        .join(format!("{server_id}.json")))
+}
+
+pub async fn create_session_base_dirs() -> StateResult<()> {
+    tokio::fs::create_dir_all(session_dir()?.join("server")).await?;
+    tokio::fs::create_dir_all(session_dir()?.join("client")).await?;
     Ok(())
 }
 
