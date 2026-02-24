@@ -16,7 +16,11 @@ pub enum Commands {
         url: Option<String>,
     },
     /// Launch in server mode
-    Server,
+    Server {
+        /// Optional name for this server
+        #[arg(long)]
+        name: Option<String>,
+    },
 }
 
 #[cfg(test)]
@@ -54,6 +58,17 @@ mod tests {
     #[test]
     fn server_subcommand_parses() {
         let cli = parse(&["mudroom", "server"]);
-        assert_eq!(cli.command, Some(Commands::Server));
+        assert_eq!(cli.command, Some(Commands::Server { name: None }));
+    }
+
+    #[test]
+    fn server_subcommand_with_name_parses() {
+        let cli = parse(&["mudroom", "server", "--name", "myserver"]);
+        assert_eq!(
+            cli.command,
+            Some(Commands::Server {
+                name: Some("myserver".to_string())
+            })
+        );
     }
 }

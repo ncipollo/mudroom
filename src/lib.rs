@@ -1,5 +1,6 @@
 pub mod cli;
 pub mod network;
+pub mod session;
 pub mod state;
 pub mod tui;
 
@@ -7,11 +8,14 @@ use cli::{Cli, Commands};
 
 pub async fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     match cli.command {
-        Some(Commands::Server) => {
+        Some(Commands::Server { name }) => {
             let filter = tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
             tracing_subscriber::fmt().with_env_filter(filter).init();
-            let addr = network::server::start().await?;
+            state::config::create_session_base_dirs().await?;
+            let server_session = session::ServerSession::load_or_create(name).await?;
+            tracing::info!(id = %server_session.id, name = ?server_session.name, "Server session loaded");
+            let addr = network::server::start(server_session).await?;
             let discovery = network::discovery::DiscoveryServer::new(addr.port());
             tokio::spawn(async move {
                 let _ = discovery.run().await;
