@@ -6,10 +6,14 @@ use crate::network::event::NetworkEvent;
 
 pub async fn connect_sse(
     url: String,
+    client_id: String,
     tx: mpsc::Sender<NetworkEvent>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let client = reqwest::Client::new();
-    let response = client.get(format!("{url}/events")).send().await?;
+    let response = client
+        .get(format!("{url}/events?client_id={client_id}"))
+        .send()
+        .await?;
     let mut stream = response.bytes_stream().eventsource();
 
     while let Some(event) = stream.next().await {

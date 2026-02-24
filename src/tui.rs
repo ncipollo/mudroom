@@ -19,20 +19,19 @@ pub async fn run_client(url: Option<String>) -> Result<(), Box<dyn std::error::E
     if let Some(ref server_url) = url {
         state::config::create_session_base_dirs().await?;
 
-        // First call to get the server_id.
-        let initial = network::client::start_session(server_url, None).await?;
-        let server_id = initial.server_id.clone();
+        // Fetch server identity without creating a session.
+        let server_info = network::client::get_server_info(server_url).await?;
+        let server_id = server_info.server_id;
 
-        // Try to reload a previously saved session for this server.
+        // Check for a previously saved session for this server.
         let saved = session::ClientSession::load(&server_id)
             .await
             .ok()
             .flatten();
-        let final_resp = if let Some(ref saved_session) = saved {
-            network::client::start_session(server_url, Some(saved_session.id.clone())).await?
-        } else {
-            initial
-        };
+        let saved_client_id = saved.map(|s| s.id);
+
+        // Single start_session call — reuse saved id or get a fresh one.
+        let final_resp = network::client::start_session(server_url, saved_client_id).await?;
 
         let client_session = session::ClientSession {
             id: final_resp.client_id.clone(),
@@ -42,9 +41,12 @@ pub async fn run_client(url: Option<String>) -> Result<(), Box<dyn std::error::E
 
         // Spawn SSE listener.
         let sse_url = server_url.clone();
+        let sse_client_id = client_session.id.clone();
         let sse_tx = net_tx.clone();
         tokio::spawn(async move {
-            network::client::connect_sse(sse_url, sse_tx).await.ok();
+            network::client::connect_sse(sse_url, sse_client_id, sse_tx)
+                .await
+                .ok();
         });
 
         // Spawn periodic ping loop.

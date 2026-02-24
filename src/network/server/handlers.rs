@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use axum::Json;
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use futures_util::stream::Stream;
 use tokio_stream::StreamExt;
@@ -11,14 +11,22 @@ use tracing::info;
 
 use super::state::{
     AppState, ConnectedClient, GuardedStream, PingBody, SessionEndBody, SessionStartBody,
-    SseCleanupGuard,
+    SseCleanupGuard, SseQuery,
 };
-use crate::network::event::{NetworkEvent, SessionStartResponse};
+use crate::network::event::{NetworkEvent, ServerInfoResponse, SessionStartResponse};
+
+pub async fn server_info_handler(State(state): State<Arc<AppState>>) -> Json<ServerInfoResponse> {
+    info!("GET /server/info");
+    Json(ServerInfoResponse {
+        server_id: state.server_session.id.clone(),
+    })
+}
 
 pub async fn sse_handler(
     State(state): State<Arc<AppState>>,
+    Query(query): Query<SseQuery>,
 ) -> Sse<impl Stream<Item = Result<Event, axum::Error>>> {
-    info!("GET /events - client subscribed to SSE");
+    info!(client_id = %query.client_id, "GET /events - client subscribed to SSE");
     let rx = state.tx.subscribe();
     let inner = BroadcastStream::new(rx).filter_map(|result| {
         result.ok().and_then(|event| {
@@ -28,7 +36,7 @@ pub async fn sse_handler(
         })
     });
     let guard = SseCleanupGuard {
-        client_id: String::new(),
+        client_id: query.client_id,
         connections: state.connections.clone(),
         tx: state.tx.clone(),
     };

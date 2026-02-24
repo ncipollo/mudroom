@@ -77,3 +77,8 @@ pub struct PingBody {
 pub struct SessionEndBody {
     pub session_id: String,
 }
+
+#[derive(Deserialize)]
+pub struct SseQuery {
+    pub client_id: String,
+}
