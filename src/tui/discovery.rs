@@ -79,7 +79,11 @@ fn render(frame: &mut ratatui::Frame, app: &DiscoveryApp) {
             } else {
                 Style::default()
             };
-            ListItem::new(Span::styled(format!("{} — {}", s.name, s.url()), style))
+            let label = match &s.name {
+                Some(name) => format!("{} — {}", name, s.url()),
+                None => s.url(),
+            };
+            ListItem::new(Span::styled(label, style))
         })
         .collect();
 

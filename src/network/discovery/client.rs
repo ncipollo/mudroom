@@ -10,7 +10,7 @@ const BROADCAST_ADDR: &str = "255.255.255.255";
 pub struct DiscoveredServer {
     pub host: String,
     pub port: u16,
-    pub name: String,
+    pub name: Option<String>,
 }
 
 impl DiscoveredServer {
