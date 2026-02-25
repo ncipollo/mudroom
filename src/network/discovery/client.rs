@@ -1,23 +1,11 @@
-use serde::Deserialize;
 use tokio::net::UdpSocket;
 use tokio::time::{Duration, sleep};
+
+use super::DiscoveredServer;
 
 const MAGIC: &[u8] = b"mdrm";
 const DISCOVERY_PORT: u16 = 7878;
 const BROADCAST_ADDR: &str = "255.255.255.255";
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct DiscoveredServer {
-    pub host: String,
-    pub port: u16,
-    pub name: Option<String>,
-}
-
-impl DiscoveredServer {
-    pub fn url(&self) -> String {
-        format!("http://{}:{}", self.host, self.port)
-    }
-}
 
 pub async fn discover(
     timeout_ms: u64,
