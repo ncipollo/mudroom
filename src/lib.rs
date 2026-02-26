@@ -15,8 +15,9 @@ pub async fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             state::config::create_session_base_dirs().await?;
             let server_session = session::ServerSession::load_or_create(name).await?;
             tracing::info!(id = %server_session.id, name = ?server_session.name, "Server session loaded");
+            let session_name = server_session.name.clone();
             let addr = network::server::start(server_session).await?;
-            let discovery = network::discovery::DiscoveryServer::new(addr.port());
+            let discovery = network::discovery::DiscoveryServer::new(addr.port(), session_name);
             tokio::spawn(async move {
                 let _ = discovery.run().await;
             });
