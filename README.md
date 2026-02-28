@@ -33,7 +33,3 @@ Or launch the discovery UI to find servers on your local network:
 mudroom client
 mudroom
 ```
-
-## License
-
-MIT
