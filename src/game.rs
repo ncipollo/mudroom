@@ -1,7 +1,7 @@
-pub mod universe;
+pub mod map;
 
-pub use universe::Universe;
-pub use universe::dungeon::Dungeon;
-pub use universe::navigation::Navigation;
-pub use universe::room::Room;
-pub use universe::world::World;
+pub use map::Dungeon;
+pub use map::Navigation;
+pub use map::Room;
+pub use map::Universe;
+pub use map::World;
