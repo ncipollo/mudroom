@@ -1,7 +1,11 @@
 [package]
 name = "mudroom"
-version = "0.1.0"
+description = "A TUI client and server for multiplayer text adventure games."
 edition = "2024"
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/ncipollo/mudroom"
+version = "0.1.0"
 
 [dependencies]
 axum = "0.8.8"
