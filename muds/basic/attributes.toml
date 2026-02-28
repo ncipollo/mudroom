@@ -1,0 +1,79 @@
+[[attributes]]
+id = "hp"
+title = "Hit Points"
+description = "The amount of damage you can sustain before falling."
+min_value = 0
+max_value = 999
+attribute_type = "hp"
+
+[[attributes]]
+id = "mp"
+title = "Mana Points"
+description = "The magical energy available for spells and abilities."
+min_value = 0
+max_value = 999
+attribute_type = "mp"
+
+[[attributes]]
+id = "level"
+title = "Level"
+description = "Your overall experience level."
+min_value = 1
+max_value = 100
+attribute_type = "level"
+
+[[attributes]]
+id = "xp"
+title = "Experience Points"
+description = "Points accumulated through deeds and adventure."
+min_value = 0
+max_value = 9223372036854775807
+attribute_type = "xp"
+
+[[attributes]]
+id = "strength"
+title = "Strength"
+description = "Raw physical power and carrying capacity."
+min_value = 1
+max_value = 20
+attribute_type = "stat"
+
+[[attributes]]
+id = "dexterity"
+title = "Dexterity"
+description = "Agility, reflexes, and hand-eye coordination."
+min_value = 1
+max_value = 20
+attribute_type = "stat"
+
+[[attributes]]
+id = "constitution"
+title = "Constitution"
+description = "Endurance, stamina, and resistance to harm."
+min_value = 1
+max_value = 20
+attribute_type = "stat"
+
+[[attributes]]
+id = "intelligence"
+title = "Intelligence"
+description = "Reasoning ability, memory, and arcane aptitude."
+min_value = 1
+max_value = 20
+attribute_type = "stat"
+
+[[attributes]]
+id = "wisdom"
+title = "Wisdom"
+description = "Perception, intuition, and willpower."
+min_value = 1
+max_value = 20
+attribute_type = "stat"
+
+[[attributes]]
+id = "charisma"
+title = "Charisma"
+description = "Force of personality, persuasiveness, and leadership."
+min_value = 1
+max_value = 20
+attribute_type = "stat"

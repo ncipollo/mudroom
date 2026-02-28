@@ -5,12 +5,12 @@ use super::Room;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Dungeon {
-    pub id: i64,
-    pub rooms: HashMap<i64, Room>,
+    pub id: String,
+    pub rooms: HashMap<String, Room>,
 }
 
 impl Dungeon {
-    pub fn new(id: i64) -> Self {
+    pub fn new(id: String) -> Self {
         Self {
             id,
             rooms: HashMap::new(),
@@ -20,6 +20,6 @@ impl Dungeon {
 
 impl Default for Dungeon {
     fn default() -> Self {
-        Self::new(crate::game::next_id())
+        Self::new(uuid::Uuid::new_v4().to_string())
     }
 }

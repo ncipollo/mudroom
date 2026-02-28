@@ -9,21 +9,31 @@ use cli::{Cli, Commands};
 
 pub async fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     match cli.command {
-        Some(Commands::Server { name }) => run_server(name).await,
+        Some(Commands::Server { name, config }) => run_server(name, config).await,
         Some(Commands::Client { url: Some(url) }) => tui::run_client(Some(url)).await,
         None | Some(Commands::Client { url: None }) => run_discovery().await,
     }
 }
 
-async fn run_server(name: Option<String>) -> Result<(), Box<dyn std::error::Error>> {
+async fn run_server(
+    name: Option<String>,
+    config: Option<String>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
     tracing_subscriber::fmt().with_env_filter(filter).init();
     state::config::create_session_base_dirs().await?;
     let server_session = session::ServerSession::load_or_create(name).await?;
     tracing::info!(id = %server_session.id, name = ?server_session.name, "Server session loaded");
+    let config_path = config.as_deref().map(std::path::Path::new);
+    let game_state = game::GameState::load(config_path)?;
+    tracing::info!(
+        attribute_count = game_state.attribute_config.attributes.len(),
+        config_dir = ?config,
+        "Game state loaded"
+    );
     let session_name = server_session.name.clone();
-    let addr = network::server::start(server_session).await?;
+    let addr = network::server::start(server_session, game_state).await?;
     let discovery = network::discovery::DiscoveryServer::new(addr.port(), session_name);
     tokio::spawn(async move {
         let _ = discovery.run().await;

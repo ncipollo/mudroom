@@ -20,6 +20,9 @@ pub enum Commands {
         /// Optional name for this server
         #[arg(long)]
         name: Option<String>,
+        /// Path to config directory containing game data files
+        #[arg(long)]
+        config: Option<String>,
     },
 }
 
@@ -58,7 +61,13 @@ mod tests {
     #[test]
     fn server_subcommand_parses() {
         let cli = parse(&["mudroom", "server"]);
-        assert_eq!(cli.command, Some(Commands::Server { name: None }));
+        assert_eq!(
+            cli.command,
+            Some(Commands::Server {
+                name: None,
+                config: None
+            })
+        );
     }
 
     #[test]
@@ -67,7 +76,20 @@ mod tests {
         assert_eq!(
             cli.command,
             Some(Commands::Server {
-                name: Some("myserver".to_string())
+                name: Some("myserver".to_string()),
+                config: None
+            })
+        );
+    }
+
+    #[test]
+    fn server_subcommand_with_config_parses() {
+        let cli = parse(&["mudroom", "server", "--config", "muds/basic"]);
+        assert_eq!(
+            cli.command,
+            Some(Commands::Server {
+                name: None,
+                config: Some("muds/basic".to_string())
             })
         );
     }

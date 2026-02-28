@@ -1,14 +1,20 @@
 pub mod component;
+pub mod config;
 pub mod entity;
+pub mod game_state;
 pub mod id;
 pub mod map;
 
 pub use component::Attribute;
+pub use component::AttributeDefinition;
+pub use component::AttributeType;
 pub use component::Check;
 pub use component::CheckedDescription;
 pub use component::Description;
+pub use config::AttributeConfig;
 pub use entity::Entity;
 pub use entity::EntityType;
+pub use game_state::GameState;
 pub use id::next_id;
 pub use map::Dungeon;
 pub use map::Navigation;
