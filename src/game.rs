@@ -1,7 +1,12 @@
+pub mod component;
 pub mod entity;
 pub mod id;
 pub mod map;
 
+pub use component::Attribute;
+pub use component::Check;
+pub use component::CheckedDescription;
+pub use component::Description;
 pub use entity::Entity;
 pub use entity::EntityType;
 pub use id::next_id;
