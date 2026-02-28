@@ -2,9 +2,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Navigation {
-    pub world_id: Option<i64>,
-    pub dungeon_id: Option<i64>,
-    pub room_id: Option<i64>,
+    pub world_id: Option<String>,
+    pub dungeon_id: Option<String>,
+    pub room_id: Option<String>,
 }
 
 impl Navigation {

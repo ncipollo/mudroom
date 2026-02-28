@@ -6,7 +6,7 @@ use crate::game::Entity;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Room {
-    pub id: i64,
+    pub id: String,
     pub description: Description,
     pub entities: Vec<Entity>,
     pub north: Option<Navigation>,
@@ -16,7 +16,7 @@ pub struct Room {
 }
 
 impl Room {
-    pub fn new(id: i64, description: Description) -> Self {
+    pub fn new(id: String, description: Description) -> Self {
         Self {
             id,
             description,
