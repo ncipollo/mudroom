@@ -1,12 +1,13 @@
 use serde::{Deserialize, Serialize};
 
 use super::Navigation;
+use crate::game::Description;
 use crate::game::Entity;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Room {
     pub id: i64,
-    pub description: String,
+    pub description: Description,
     pub entities: Vec<Entity>,
     pub north: Option<Navigation>,
     pub south: Option<Navigation>,
@@ -15,7 +16,7 @@ pub struct Room {
 }
 
 impl Room {
-    pub fn new(id: i64, description: String) -> Self {
+    pub fn new(id: i64, description: Description) -> Self {
         Self {
             id,
             description,
