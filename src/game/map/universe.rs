@@ -13,14 +13,14 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Universe {
-    pub id: String,
-    pub worlds: HashMap<String, World>,
+    pub id: i64,
+    pub worlds: HashMap<i64, World>,
 }
 
 impl Universe {
-    pub fn new() -> Self {
+    pub fn new(id: i64) -> Self {
         Self {
-            id: uuid::Uuid::new_v4().to_string(),
+            id,
             worlds: HashMap::new(),
         }
     }
@@ -28,6 +28,6 @@ impl Universe {
 
 impl Default for Universe {
     fn default() -> Self {
-        Self::new()
+        Self::new(crate::game::next_id())
     }
 }
