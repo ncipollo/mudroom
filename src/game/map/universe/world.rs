@@ -5,14 +5,14 @@ use super::Dungeon;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct World {
-    pub id: String,
-    pub dungeons: HashMap<String, Dungeon>,
+    pub id: i64,
+    pub dungeons: HashMap<i64, Dungeon>,
 }
 
 impl World {
-    pub fn new() -> Self {
+    pub fn new(id: i64) -> Self {
         Self {
-            id: uuid::Uuid::new_v4().to_string(),
+            id,
             dungeons: HashMap::new(),
         }
     }
@@ -20,6 +20,6 @@ impl World {
 
 impl Default for World {
     fn default() -> Self {
-        Self::new()
+        Self::new(crate::game::next_id())
     }
 }
