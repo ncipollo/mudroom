@@ -1,4 +1,5 @@
 pub mod cli;
+pub mod game;
 pub mod network;
 pub mod session;
 pub mod state;
