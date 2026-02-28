@@ -5,7 +5,7 @@ edition = "2024"
 license = "MIT"
 readme = "README.md"
 repository = "https://github.com/ncipollo/mudroom"
-version = "0.1.1"
+version = "0.1.2"
 
 [dependencies]
 axum = "0.8.8"
