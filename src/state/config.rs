@@ -36,6 +36,11 @@ pub fn client_session_file(server_id: &str) -> StateResult<PathBuf> {
         .join(format!("{server_id}.json")))
 }
 
+pub fn database_url() -> StateResult<String> {
+    let path = mudroom_dir()?.join("mudroom.db");
+    Ok(format!("sqlite:{}?mode=rwc", path.display()))
+}
+
 pub async fn create_session_base_dirs() -> StateResult<()> {
     tokio::fs::create_dir_all(session_dir()?.join("server")).await?;
     tokio::fs::create_dir_all(session_dir()?.join("client")).await?;

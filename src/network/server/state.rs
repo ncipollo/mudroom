@@ -6,6 +6,7 @@ use std::time::Instant;
 
 use crate::game::GameState;
 use crate::network::event::NetworkEvent;
+use crate::persistence::Database;
 use crate::session::ServerSession;
 use futures_util::stream::Stream;
 use serde::Deserialize;
@@ -23,6 +24,8 @@ pub struct AppState {
     pub server_session: ServerSession,
     #[allow(dead_code)]
     pub game_state: Arc<GameState>,
+    #[allow(dead_code)]
+    pub db: Database,
     pub tx: broadcast::Sender<NetworkEvent>,
     pub connections: Arc<RwLock<HashMap<String, ConnectedClient>>>,
 }

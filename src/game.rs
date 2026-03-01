@@ -11,6 +11,7 @@ pub use component::AttributeType;
 pub use component::Check;
 pub use component::CheckedDescription;
 pub use component::Description;
+pub use component::Location;
 pub use config::AttributeConfig;
 pub use entity::Entity;
 pub use entity::EntityType;
