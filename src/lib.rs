@@ -1,6 +1,7 @@
 pub mod cli;
 pub mod game;
 pub mod network;
+pub mod persistence;
 pub mod session;
 pub mod state;
 pub mod tui;
@@ -32,8 +33,10 @@ async fn run_server(
         config_dir = ?config,
         "Game state loaded"
     );
+    let db = persistence::Database::connect().await?;
+    tracing::info!("Database connected");
     let session_name = server_session.name.clone();
-    let addr = network::server::start(server_session, game_state).await?;
+    let addr = network::server::start(server_session, game_state, db).await?;
     let discovery = network::discovery::DiscoveryServer::new(addr.port(), session_name);
     tokio::spawn(async move {
         let _ = discovery.run().await;
