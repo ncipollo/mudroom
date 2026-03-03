@@ -20,12 +20,29 @@ async fn run_server(
     name: Option<String>,
     config: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
-    tracing_subscriber::fmt().with_env_filter(filter).init();
+    init_tracing();
     state::config::create_session_base_dirs().await?;
     let server_session = session::ServerSession::load_or_create(name).await?;
     tracing::info!(id = %server_session.id, name = ?server_session.name, "Server session loaded");
+    let game_state = load_game_state(&config)?;
+    let server_key = server_session.name.as_deref().unwrap_or("unnamed");
+    let db = persistence::Database::connect(server_key).await?;
+    tracing::info!("Database connected");
+    let session_name = server_session.name.clone();
+    let addr = network::server::start(server_session, game_state, db).await?;
+    start_discovery(addr.port(), session_name);
+    tracing::info!("Server listening on {addr}");
+    tokio::signal::ctrl_c().await?;
+    Ok(())
+}
+
+fn init_tracing() {
+    let filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+    tracing_subscriber::fmt().with_env_filter(filter).init();
+}
+
+fn load_game_state(config: &Option<String>) -> Result<game::GameState, Box<dyn std::error::Error>> {
     let config_path = config.as_deref().map(std::path::Path::new);
     let game_state = game::GameState::load(config_path)?;
     tracing::info!(
@@ -33,18 +50,14 @@ async fn run_server(
         config_dir = ?config,
         "Game state loaded"
     );
-    let server_key = server_session.name.as_deref().unwrap_or("unnamed");
-    let db = persistence::Database::connect(server_key).await?;
-    tracing::info!("Database connected");
-    let session_name = server_session.name.clone();
-    let addr = network::server::start(server_session, game_state, db).await?;
-    let discovery = network::discovery::DiscoveryServer::new(addr.port(), session_name);
+    Ok(game_state)
+}
+
+fn start_discovery(port: u16, session_name: Option<String>) {
+    let discovery = network::discovery::DiscoveryServer::new(port, session_name);
     tokio::spawn(async move {
         let _ = discovery.run().await;
     });
-    tracing::info!("Server listening on {addr}");
-    tokio::signal::ctrl_c().await?;
-    Ok(())
 }
 
 async fn run_discovery() -> Result<(), Box<dyn std::error::Error>> {
