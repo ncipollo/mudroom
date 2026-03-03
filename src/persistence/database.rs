@@ -3,7 +3,7 @@ use sqlx::sqlite::SqliteConnectOptions;
 use std::str::FromStr;
 
 use crate::persistence::error::PersistenceError;
-use crate::state::config::database_url;
+use crate::state::config::{database_url, server_session_dir};
 
 #[derive(Clone)]
 pub struct Database {
@@ -11,8 +11,10 @@ pub struct Database {
 }
 
 impl Database {
-    pub async fn connect() -> Result<Self, PersistenceError> {
-        let url = database_url().map_err(|_| PersistenceError::NoHomeDir)?;
+    pub async fn connect(server_name: &str) -> Result<Self, PersistenceError> {
+        let dir = server_session_dir(server_name).map_err(|_| PersistenceError::NoHomeDir)?;
+        tokio::fs::create_dir_all(&dir).await?;
+        let url = database_url(server_name).map_err(|_| PersistenceError::NoHomeDir)?;
         Self::connect_with_url(&url).await
     }
 

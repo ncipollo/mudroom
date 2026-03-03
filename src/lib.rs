@@ -33,7 +33,8 @@ async fn run_server(
         config_dir = ?config,
         "Game state loaded"
     );
-    let db = persistence::Database::connect().await?;
+    let server_key = server_session.name.as_deref().unwrap_or("unnamed");
+    let db = persistence::Database::connect(server_key).await?;
     tracing::info!("Database connected");
     let session_name = server_session.name.clone();
     let addr = network::server::start(server_session, game_state, db).await?;

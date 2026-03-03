@@ -8,6 +8,8 @@ pub enum PersistenceError {
     Migrate(#[from] sqlx::migrate::MigrateError),
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
     #[error("Could not determine home directory")]
     NoHomeDir,
 }
