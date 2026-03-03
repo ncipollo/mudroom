@@ -36,6 +36,11 @@ pub fn client_session_file(server_id: &str) -> StateResult<PathBuf> {
         .join(format!("{server_id}.json")))
 }
 
+pub fn database_url(server_name: &str) -> StateResult<String> {
+    let path = server_session_dir(server_name)?.join("mudroom.db");
+    Ok(format!("sqlite:{}?mode=rwc", path.display()))
+}
+
 pub async fn create_session_base_dirs() -> StateResult<()> {
     tokio::fs::create_dir_all(session_dir()?.join("server")).await?;
     tokio::fs::create_dir_all(session_dir()?.join("client")).await?;
@@ -68,5 +73,11 @@ mod tests {
     fn client_session_dir_has_correct_path() {
         let path = client_session_dir("abc").expect("home dir should be available");
         assert!(path.ends_with("session/client/abc"));
+    }
+
+    #[test]
+    fn database_url_points_to_server_session_dir() {
+        let url = database_url("myserver").expect("home dir should be available");
+        assert!(url.contains("session/server/myserver/mudroom.db"));
     }
 }

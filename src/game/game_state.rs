@@ -1,9 +1,14 @@
+use std::collections::HashMap;
 use std::path::Path;
 
+use tokio::sync::RwLock;
+
 use crate::game::config::AttributeConfig;
+use crate::game::entity::Entity;
 
 pub struct GameState {
     pub attribute_config: AttributeConfig,
+    pub entities: RwLock<HashMap<i64, Entity>>,
 }
 
 impl GameState {
@@ -18,7 +23,10 @@ impl GameState {
         } else {
             AttributeConfig::default_config()
         };
-        Ok(Self { attribute_config })
+        Ok(Self {
+            attribute_config,
+            entities: RwLock::new(HashMap::new()),
+        })
     }
 }
 
@@ -62,5 +70,12 @@ attribute_type = "hp"
         let state = GameState::load(Some(dir.path())).unwrap();
         assert_eq!(state.attribute_config.attributes.len(), 1);
         assert_eq!(state.attribute_config.attributes[0].id, "custom_hp");
+    }
+
+    #[tokio::test]
+    async fn load_initializes_empty_entities() {
+        let state = GameState::load(None).unwrap();
+        let entities = state.entities.read().await;
+        assert!(entities.is_empty());
     }
 }
