@@ -1,6 +1,7 @@
 pub mod component;
 pub mod config;
 pub mod entity;
+pub mod game_loop;
 pub mod game_state;
 pub mod id;
 pub mod map;
@@ -13,6 +14,8 @@ pub use component::CheckedDescription;
 pub use component::Description;
 pub use component::Location;
 pub use config::AttributeConfig;
+pub use config::GameLoopConfig;
+pub use config::MudConfig;
 pub use entity::Entity;
 pub use entity::EntityType;
 pub use game_state::GameState;

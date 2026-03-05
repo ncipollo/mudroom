@@ -3,12 +3,13 @@ use std::path::Path;
 
 use tokio::sync::RwLock;
 
-use crate::game::config::AttributeConfig;
+use crate::game::config::{AttributeConfig, MudConfig};
 use crate::game::entity::Entity;
 
 pub struct GameState {
     pub attribute_config: AttributeConfig,
-    pub entities: RwLock<HashMap<i64, Entity>>,
+    pub mud_config: MudConfig,
+    pub active_entities: RwLock<HashMap<i64, Entity>>,
 }
 
 impl GameState {
@@ -23,9 +24,22 @@ impl GameState {
         } else {
             AttributeConfig::default_config()
         };
+
+        let mud_config = if let Some(dir) = config_dir {
+            let path = dir.join("mud.toml");
+            if path.exists() {
+                MudConfig::load(&path)?
+            } else {
+                MudConfig::default_config()
+            }
+        } else {
+            MudConfig::default_config()
+        };
+
         Ok(Self {
             attribute_config,
-            entities: RwLock::new(HashMap::new()),
+            mud_config,
+            active_entities: RwLock::new(HashMap::new()),
         })
     }
 }
@@ -72,10 +86,39 @@ attribute_type = "hp"
         assert_eq!(state.attribute_config.attributes[0].id, "custom_hp");
     }
 
+    #[test]
+    fn load_with_mud_toml_reads_file() {
+        let dir = TempDir::new().unwrap();
+        let toml_path = dir.path().join("mud.toml");
+        let mut file = std::fs::File::create(&toml_path).unwrap();
+        file.write_all(
+            br#"
+[game_loop]
+tick_rate = 500
+max_turn_ticks = 15
+world_update_ticks = 300
+"#,
+        )
+        .unwrap();
+
+        let state = GameState::load(Some(dir.path())).unwrap();
+        assert_eq!(state.mud_config.game_loop.tick_rate, 500);
+        assert_eq!(state.mud_config.game_loop.max_turn_ticks, 15);
+        assert_eq!(state.mud_config.game_loop.world_update_ticks, 300);
+    }
+
+    #[test]
+    fn load_without_mud_toml_uses_defaults() {
+        let state = GameState::load(None).unwrap();
+        assert_eq!(state.mud_config.game_loop.tick_rate, 1000);
+        assert_eq!(state.mud_config.game_loop.max_turn_ticks, 30);
+        assert_eq!(state.mud_config.game_loop.world_update_ticks, 600);
+    }
+
     #[tokio::test]
     async fn load_initializes_empty_entities() {
         let state = GameState::load(None).unwrap();
-        let entities = state.entities.read().await;
+        let entities = state.active_entities.read().await;
         assert!(entities.is_empty());
     }
 }
