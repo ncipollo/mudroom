@@ -6,9 +6,15 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph},
 };
 
-use super::app::App;
+use super::app::{App, AppMode};
+use super::player_select;
 
 pub fn render(frame: &mut Frame, app: &App) {
+    if app.mode == AppMode::PlayerSelect {
+        player_select::render(frame, app);
+        return;
+    }
+
     let areas = Layout::vertical([
         Constraint::Fill(1),
         Constraint::Length(3),
