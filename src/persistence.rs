@@ -4,6 +4,7 @@ pub mod dungeon_repo;
 pub mod entity_repo;
 pub mod error;
 pub mod interaction_repo;
+pub mod player_repo;
 pub mod room_repo;
 pub mod world_repo;
 

@@ -2,6 +2,7 @@ mod app;
 mod discovery;
 mod event;
 mod layout;
+mod player_select;
 
 pub use app::App;
 
@@ -61,7 +62,11 @@ pub async fn run_client(url: Option<String>) -> Result<(), Box<dyn std::error::E
         client_session_info = Some((client_session, server_url.clone()));
     }
 
-    let mut app = App::new();
+    let mut app = if let Some((ref client_session, ref server_url)) = client_session_info {
+        App::with_player_select(server_url.clone(), client_session.id.clone())
+    } else {
+        App::new()
+    };
     let mut terminal = ratatui::init();
     crossterm::execute!(std::io::stdout(), crossterm::event::EnableMouseCapture)?;
 
