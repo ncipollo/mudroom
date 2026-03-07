@@ -7,18 +7,28 @@ pub enum AppMode {
     Game,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct ConnectionState {
+    pub server_url: Option<String>,
+    pub client_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct PlayerSelectState {
+    pub players: Vec<PlayerInfo>,
+    pub selected_index: usize,
+    pub creating_player: bool,
+    pub player_name_input: String,
+}
+
 pub struct App {
     pub should_quit: bool,
     pub messages: Vec<String>,
     pub input: String,
     pub scroll_offset: usize,
     pub mode: AppMode,
-    pub server_url: Option<String>,
-    pub client_id: Option<String>,
-    pub players: Vec<PlayerInfo>,
-    pub selected_index: usize,
-    pub creating_player: bool,
-    pub player_name_input: String,
+    pub connection: ConnectionState,
+    pub player_select: PlayerSelectState,
 }
 
 impl App {
@@ -32,12 +42,8 @@ impl App {
             input: String::new(),
             scroll_offset: 0,
             mode: AppMode::Game,
-            server_url: None,
-            client_id: None,
-            players: Vec::new(),
-            selected_index: 0,
-            creating_player: false,
-            player_name_input: String::new(),
+            connection: ConnectionState::default(),
+            player_select: PlayerSelectState::default(),
         }
     }
 
@@ -48,12 +54,11 @@ impl App {
             input: String::new(),
             scroll_offset: 0,
             mode: AppMode::PlayerSelect,
-            server_url: Some(server_url),
-            client_id: Some(client_id),
-            players: Vec::new(),
-            selected_index: 0,
-            creating_player: false,
-            player_name_input: String::new(),
+            connection: ConnectionState {
+                server_url: Some(server_url),
+                client_id: Some(client_id),
+            },
+            player_select: PlayerSelectState::default(),
         }
     }
 
@@ -66,30 +71,31 @@ impl App {
     }
 
     pub fn select_next(&mut self) {
-        let total = self.players.len() + 1; // +1 for "Create New Player"
+        let total = self.player_select.players.len() + 1; // +1 for "Create New Player"
         if total > 0 {
-            self.selected_index = (self.selected_index + 1) % total;
+            self.player_select.selected_index = (self.player_select.selected_index + 1) % total;
         }
     }
 
     pub fn select_prev(&mut self) {
-        let total = self.players.len() + 1;
+        let total = self.player_select.players.len() + 1;
         if total > 0 {
-            self.selected_index = self.selected_index.saturating_sub(1);
-            if self.selected_index == 0 && self.selected_index == total {
-                self.selected_index = total - 1;
+            self.player_select.selected_index = self.player_select.selected_index.saturating_sub(1);
+            if self.player_select.selected_index == 0 && self.player_select.selected_index == total
+            {
+                self.player_select.selected_index = total - 1;
             }
         }
     }
 
     pub fn start_create(&mut self) {
-        self.creating_player = true;
-        self.player_name_input.clear();
+        self.player_select.creating_player = true;
+        self.player_select.player_name_input.clear();
     }
 
     pub fn cancel_create(&mut self) {
-        self.creating_player = false;
-        self.player_name_input.clear();
+        self.player_select.creating_player = false;
+        self.player_select.player_name_input.clear();
     }
 
     pub fn handle_network_event(&mut self, event: NetworkEvent) {

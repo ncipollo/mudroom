@@ -13,29 +13,32 @@ pub fn render(frame: &mut Frame, app: &App) {
 
     let title = "Select a Player (↑↓ to navigate, Enter to select, Esc to cancel create)";
     let mut items: Vec<ListItem> = app
+        .player_select
         .players
         .iter()
         .enumerate()
         .map(|(i, p)| {
-            let style = if i == app.selected_index && !app.creating_player {
-                Style::default()
-                    .fg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default()
-            };
+            let style =
+                if i == app.player_select.selected_index && !app.player_select.creating_player {
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default()
+                };
             ListItem::new(Line::from(Span::styled(p.name.clone(), style)))
         })
         .collect();
 
-    let create_idx = app.players.len();
-    let create_style = if app.selected_index == create_idx && !app.creating_player {
-        Style::default()
-            .fg(Color::Green)
-            .add_modifier(Modifier::BOLD)
-    } else {
-        Style::default().fg(Color::Green)
-    };
+    let create_idx = app.player_select.players.len();
+    let create_style =
+        if app.player_select.selected_index == create_idx && !app.player_select.creating_player {
+            Style::default()
+                .fg(Color::Green)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::Green)
+        };
     items.push(ListItem::new(Line::from(Span::styled(
         "[ Create New Player ]",
         create_style,
@@ -44,12 +47,12 @@ pub fn render(frame: &mut Frame, app: &App) {
     let list = List::new(items).block(Block::default().title(title).borders(Borders::ALL));
     frame.render_widget(list, areas[0]);
 
-    let input_text = if app.creating_player {
-        format!("Name: {}_", app.player_name_input)
+    let input_text = if app.player_select.creating_player {
+        format!("Name: {}_", app.player_select.player_name_input)
     } else {
         String::new()
     };
-    let input_title = if app.creating_player {
+    let input_title = if app.player_select.creating_player {
         "Enter player name"
     } else {
         "Input"
