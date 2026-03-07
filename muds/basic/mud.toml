@@ -1,0 +1,4 @@
+[game_loop]
+tick_rate = 1000
+max_turn_ticks = 30
+world_update_ticks = 600

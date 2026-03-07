@@ -10,7 +10,7 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::{RwLock, broadcast};
 
-use crate::game::GameState;
+use crate::game::{self, GameState};
 use crate::network::event::NetworkEvent;
 use crate::persistence::Database;
 use crate::session::ServerSession;
@@ -32,6 +32,8 @@ pub async fn start(
         tx: tx.clone(),
         connections: connections.clone(),
     });
+
+    tokio::spawn(game::game_loop::run(state.game_state.clone()));
 
     let router = router::build_router(state);
     let listener = TcpListener::bind("0.0.0.0:0").await?;
