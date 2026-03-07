@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::game::component::Attribute;
+use crate::game::component::Interaction;
 use crate::game::component::Location;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -17,6 +18,7 @@ pub struct Entity {
     pub entity_type: EntityType,
     pub location: Location,
     pub attributes: HashMap<String, Attribute>,
+    pub interactions: Vec<Interaction>,
 }
 
 impl Entity {
@@ -26,6 +28,7 @@ impl Entity {
             entity_type,
             location,
             attributes: HashMap::new(),
+            interactions: Vec::new(),
         }
     }
 }
