@@ -18,10 +18,13 @@ pub async fn run(
 
     // Load player list immediately if in PlayerSelect mode
     if app.mode == AppMode::PlayerSelect
-        && let (Some(url), Some(client_id)) = (app.server_url.clone(), app.client_id.clone())
+        && let (Some(url), Some(client_id)) = (
+            app.connection.server_url.clone(),
+            app.connection.client_id.clone(),
+        )
         && let Ok(players) = list_players(&url, &client_id).await
     {
-        app.players = players;
+        app.player_select.players = players;
     }
 
     while !app.should_quit {
@@ -66,25 +69,27 @@ async fn handle_player_select_key(app: &mut App, modifiers: KeyModifiers, code: 
         return;
     }
 
-    if app.creating_player {
+    if app.player_select.creating_player {
         match code {
             KeyCode::Esc => app.cancel_create(),
             KeyCode::Backspace => {
-                app.player_name_input.pop();
+                app.player_select.player_name_input.pop();
             }
             KeyCode::Enter => {
-                let name = app.player_name_input.trim().to_string();
+                let name = app.player_select.player_name_input.trim().to_string();
                 if !name.is_empty()
-                    && let (Some(url), Some(client_id)) =
-                        (app.server_url.clone(), app.client_id.clone())
+                    && let (Some(url), Some(client_id)) = (
+                        app.connection.server_url.clone(),
+                        app.connection.client_id.clone(),
+                    )
                     && let Ok(info) = create_player(&url, &client_id, &name).await
                 {
-                    app.players.push(info);
+                    app.player_select.players.push(info);
                     app.cancel_create();
                     app.mode = AppMode::Game;
                 }
             }
-            KeyCode::Char(c) => app.player_name_input.push(c),
+            KeyCode::Char(c) => app.player_select.player_name_input.push(c),
             _ => {}
         }
         return;
@@ -94,14 +99,19 @@ async fn handle_player_select_key(app: &mut App, modifiers: KeyModifiers, code: 
         KeyCode::Up => app.select_prev(),
         KeyCode::Down => app.select_next(),
         KeyCode::Enter => {
-            let create_idx = app.players.len();
-            if app.selected_index == create_idx {
+            let create_idx = app.player_select.players.len();
+            if app.player_select.selected_index == create_idx {
                 app.start_create();
-            } else if let Some(player) = app.players.get(app.selected_index) {
+            } else if let Some(player) = app
+                .player_select
+                .players
+                .get(app.player_select.selected_index)
+            {
                 let player_id = player.id;
-                if let (Some(url), Some(client_id)) =
-                    (app.server_url.clone(), app.client_id.clone())
-                    && select_player(&url, &client_id, player_id).await.is_ok()
+                if let (Some(url), Some(client_id)) = (
+                    app.connection.server_url.clone(),
+                    app.connection.client_id.clone(),
+                ) && select_player(&url, &client_id, player_id).await.is_ok()
                 {
                     app.mode = AppMode::Game;
                 }
