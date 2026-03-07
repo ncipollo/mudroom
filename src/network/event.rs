@@ -11,13 +11,33 @@ pub struct SessionStartResponse {
     pub server_id: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlayerInfo {
+    pub id: i64,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlayerListResponse {
+    pub players: Vec<PlayerInfo>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum NetworkEvent {
-    StartSession { session_id: String },
-    EndSession { session_id: String },
+    StartSession {
+        session_id: String,
+    },
+    EndSession {
+        session_id: String,
+    },
     Ping,
     Pong,
+    PlayerSelected {
+        client_id: String,
+        player_id: i64,
+        player_name: String,
+    },
 }
 
 #[cfg(test)]
