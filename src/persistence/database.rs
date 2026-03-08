@@ -41,14 +41,44 @@ impl Database {
 mod tests {
     use super::*;
 
+    async fn table_exists(db: &Database, name: &str) -> bool {
+        let row: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name = ?")
+                .bind(name)
+                .fetch_one(db.pool())
+                .await
+                .unwrap();
+        row.0 == 1
+    }
+
+    async fn index_exists(db: &Database, name: &str) -> bool {
+        let row: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name = ?")
+                .bind(name)
+                .fetch_one(db.pool())
+                .await
+                .unwrap();
+        row.0 == 1
+    }
+
     #[tokio::test]
-    async fn connect_in_memory_runs_migrations() {
+    async fn migration_1_creates_core_tables() {
         let db = Database::connect_in_memory().await.unwrap();
-        // Verify that the tables exist by querying sqlite_master
-        let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('worlds','dungeons','rooms','entities','attributes')")
-            .fetch_one(db.pool())
-            .await
-            .unwrap();
-        assert_eq!(count.0, 5);
+        for table in &["worlds", "dungeons", "rooms", "entities", "attributes"] {
+            assert!(table_exists(&db, table).await, "missing table: {table}");
+        }
+    }
+
+    #[tokio::test]
+    async fn migration_2_creates_interactions_table() {
+        let db = Database::connect_in_memory().await.unwrap();
+        assert!(table_exists(&db, "interactions").await);
+    }
+
+    #[tokio::test]
+    async fn migration_3_creates_players_table_and_index() {
+        let db = Database::connect_in_memory().await.unwrap();
+        assert!(table_exists(&db, "players").await);
+        assert!(index_exists(&db, "idx_players_client_id").await);
     }
 }
