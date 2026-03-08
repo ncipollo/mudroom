@@ -22,9 +22,7 @@ pub struct ConnectedClient {
 #[derive(Clone)]
 pub struct AppState {
     pub server_session: ServerSession,
-    #[allow(dead_code)]
     pub game_state: Arc<GameState>,
-    #[allow(dead_code)]
     pub db: Database,
     pub tx: broadcast::Sender<NetworkEvent>,
     pub connections: Arc<RwLock<HashMap<String, ConnectedClient>>>,
@@ -87,4 +85,21 @@ pub struct SessionEndBody {
 #[derive(Deserialize)]
 pub struct SseQuery {
     pub client_id: String,
+}
+
+#[derive(Deserialize)]
+pub struct PlayerListBody {
+    pub client_id: String,
+}
+
+#[derive(Deserialize)]
+pub struct PlayerCreateBody {
+    pub client_id: String,
+    pub name: String,
+}
+
+#[derive(Deserialize)]
+pub struct PlayerSelectBody {
+    pub client_id: String,
+    pub player_id: i64,
 }

@@ -6,12 +6,14 @@ use tokio::sync::RwLock;
 use crate::game::config::{AttributeConfig, MudConfig};
 use crate::game::entity::Entity;
 use crate::game::mailbox::Mailboxes;
+use crate::game::player::Player;
 
 pub struct GameState {
     pub attribute_config: AttributeConfig,
     pub mud_config: MudConfig,
     pub active_entities: RwLock<HashMap<i64, Entity>>,
     pub mailboxes: Mailboxes,
+    pub active_players: RwLock<HashMap<String, Player>>,
 }
 
 impl GameState {
@@ -43,6 +45,7 @@ impl GameState {
             mud_config,
             active_entities: RwLock::new(HashMap::new()),
             mailboxes: Mailboxes::new(),
+            active_players: RwLock::new(HashMap::new()),
         })
     }
 }
