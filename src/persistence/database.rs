@@ -98,6 +98,7 @@ mod tests {
             "attributes",
             "interactions",
             "players",
+            "server_state",
         ] {
             assert!(table_exists(pool, table).await, "missing table: {table}");
         }
@@ -134,5 +135,15 @@ mod tests {
         run_up_to(&pool, 3).await;
         assert!(table_exists(&pool, "players").await);
         assert!(index_exists(&pool, "idx_players_client_id").await);
+    }
+
+    #[tokio::test]
+    async fn migration_4_adds_server_state_table() {
+        let pool = bare_pool().await;
+        run_up_to(&pool, 3).await;
+        assert!(!table_exists(&pool, "server_state").await);
+
+        run_up_to(&pool, 4).await;
+        assert!(table_exists(&pool, "server_state").await);
     }
 }

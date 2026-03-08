@@ -1,0 +1,1 @@
+CREATE TABLE IF NOT EXISTS server_state (key TEXT PRIMARY KEY NOT NULL, value TEXT);

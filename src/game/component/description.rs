@@ -17,6 +17,7 @@ impl CheckedDescription {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Description {
     pub basic: Option<String>,
+    #[serde(default)]
     pub checked: Vec<CheckedDescription>,
 }
 

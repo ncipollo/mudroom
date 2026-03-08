@@ -1,0 +1,5 @@
+[description]
+basic = "You stand at the crossroads of a small town. A tavern lies to the north."
+
+[north]
+room_id = "tavern"
