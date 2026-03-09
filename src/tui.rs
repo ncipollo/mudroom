@@ -1,4 +1,5 @@
 mod app;
+mod commands;
 mod discovery;
 mod event;
 mod layout;

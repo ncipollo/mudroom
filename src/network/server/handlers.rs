@@ -2,6 +2,35 @@ pub mod player;
 
 pub use player::{player_create_handler, player_list_handler, player_select_handler};
 
+use serde::Deserialize;
+
+use crate::game::Interaction;
+
+#[derive(Deserialize)]
+pub struct SendInteractionRequest {
+    pub client_id: String,
+    pub interaction: Interaction,
+}
+
+pub async fn send_interaction_handler(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<SendInteractionRequest>,
+) -> StatusCode {
+    tracing::info!(client_id = %req.client_id, "POST /interactions");
+    let players = state.game_state.active_players.read().await;
+    let player = match players.get(&req.client_id) {
+        Some(p) => p.clone(),
+        None => return StatusCode::NOT_FOUND,
+    };
+    drop(players);
+    state
+        .game_state
+        .mailboxes
+        .push(player.entity_id, req.interaction)
+        .await;
+    StatusCode::OK
+}
+
 use std::sync::Arc;
 use std::time::Instant;
 

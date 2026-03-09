@@ -3,10 +3,13 @@ use futures_util::StreamExt;
 use ratatui::DefaultTerminal;
 use tokio::sync::mpsc;
 
+use crate::game::{Interaction, Movement};
 use crate::network::NetworkEvent;
+use crate::network::client::send_interaction;
 use crate::network::client::{create_player, list_players, select_player};
 
 use super::app::{App, AppMode};
+use super::commands;
 use super::layout;
 
 pub async fn run(
@@ -39,7 +42,7 @@ pub async fn run(
                                 handle_player_select_key(app, key.modifiers, key.code).await;
                             }
                             AppMode::Game => {
-                                handle_game_key(app, key.modifiers, key.code);
+                                handle_game_key(app, key.modifiers, key.code).await;
                             }
                         }
                     }
@@ -84,9 +87,12 @@ async fn handle_player_select_key(app: &mut App, modifiers: KeyModifiers, code: 
                     )
                     && let Ok(info) = create_player(&url, &client_id, &name).await
                 {
+                    let player_id = info.id;
                     app.player_select.players.push(info);
                     app.cancel_create();
-                    app.mode = AppMode::Game;
+                    if select_player(&url, &client_id, player_id).await.is_ok() {
+                        app.mode = AppMode::Game;
+                    }
                 }
             }
             KeyCode::Char(c) => app.player_select.player_name_input.push(c),
@@ -121,7 +127,7 @@ async fn handle_player_select_key(app: &mut App, modifiers: KeyModifiers, code: 
     }
 }
 
-fn handle_game_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
+async fn handle_game_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
     match (modifiers, code) {
         (KeyModifiers::CONTROL, KeyCode::Char('c')) => {
             app.should_quit = true;
@@ -133,8 +139,18 @@ fn handle_game_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
             app.input.pop();
         }
         (_, KeyCode::Enter) => {
-            let msg = app.input.drain(..).collect();
-            app.messages.push(msg);
+            let input: String = app.input.drain(..).collect();
+            let cmd = commands::parse(&input);
+            if let commands::Command::Move(direction) = cmd
+                && let (Some(url), Some(client_id)) = (
+                    app.connection.server_url.as_deref(),
+                    app.connection.client_id.as_deref(),
+                )
+            {
+                let interaction = Interaction::Movement(Movement::TryDirection(direction));
+                let _ = send_interaction(url, client_id, &interaction).await;
+            }
+            app.messages.push(input);
             app.scroll_offset = 0;
         }
         _ => {}

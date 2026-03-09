@@ -2,10 +2,12 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use tokio::sync::RwLock;
+use tokio::sync::broadcast;
 
 use crate::game::config::{AttributeConfig, MudConfig};
 use crate::game::entity::Entity;
 use crate::game::mailbox::Mailboxes;
+use crate::game::messaging::PlayerMessage;
 use crate::game::player::Player;
 
 pub struct GameState {
@@ -14,6 +16,7 @@ pub struct GameState {
     pub active_entities: RwLock<HashMap<i64, Entity>>,
     pub mailboxes: Mailboxes,
     pub active_players: RwLock<HashMap<String, Player>>,
+    pub message_tx: broadcast::Sender<PlayerMessage>,
 }
 
 impl GameState {
@@ -40,12 +43,15 @@ impl GameState {
             MudConfig::default_config()
         };
 
+        let (message_tx, _) = broadcast::channel::<PlayerMessage>(64);
+
         Ok(Self {
             attribute_config,
             mud_config,
             active_entities: RwLock::new(HashMap::new()),
             mailboxes: Mailboxes::new(),
             active_players: RwLock::new(HashMap::new()),
+            message_tx,
         })
     }
 }

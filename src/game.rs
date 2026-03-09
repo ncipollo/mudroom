@@ -6,6 +6,7 @@ pub mod game_state;
 pub mod id;
 pub mod mailbox;
 pub mod map;
+pub mod messaging;
 pub mod player;
 
 pub use component::Attribute;
@@ -34,4 +35,6 @@ pub use map::Navigation;
 pub use map::Room;
 pub use map::Universe;
 pub use map::World;
+pub use messaging::PlayerMessage;
+pub use messaging::announce;
 pub use player::Player;

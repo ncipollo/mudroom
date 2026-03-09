@@ -1,9 +1,11 @@
+mod game;
 mod info;
 mod ping;
 mod player;
 mod session;
 mod sse;
 
+pub use game::send_interaction;
 pub use info::get_server_info;
 pub use ping::run_ping_loop;
 pub use player::{create_player, list_players, select_player};
