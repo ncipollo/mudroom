@@ -20,6 +20,6 @@ impl World {
 
 impl Default for World {
     fn default() -> Self {
-        Self::new(uuid::Uuid::new_v4().to_string())
+        Self::new("default".to_string())
     }
 }

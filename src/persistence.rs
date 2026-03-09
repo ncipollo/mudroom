@@ -6,6 +6,7 @@ pub mod error;
 pub mod interaction_repo;
 pub mod player_repo;
 pub mod room_repo;
+pub mod server_state_repo;
 pub mod world_repo;
 
 pub use database::Database;

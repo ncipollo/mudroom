@@ -28,6 +28,6 @@ impl Universe {
 
 impl Default for Universe {
     fn default() -> Self {
-        Self::new(uuid::Uuid::new_v4().to_string())
+        Self::new("universe".to_string())
     }
 }

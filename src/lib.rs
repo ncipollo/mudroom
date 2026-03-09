@@ -10,7 +10,11 @@ use cli::{Cli, Commands};
 
 pub async fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     match cli.command {
-        Some(Commands::Server { name, config }) => run_server(name, config).await,
+        Some(Commands::Server {
+            name,
+            config,
+            reload_maps,
+        }) => run_server(name, config, reload_maps).await,
         Some(Commands::Client { url: Some(url) }) => tui::run_client(Some(url)).await,
         None | Some(Commands::Client { url: None }) => run_discovery().await,
     }
@@ -19,6 +23,7 @@ pub async fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
 async fn run_server(
     name: Option<String>,
     config: Option<String>,
+    reload_maps: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     init_tracing();
     state::config::create_session_base_dirs().await?;
@@ -28,8 +33,19 @@ async fn run_server(
     let server_key = server_session.name.as_deref().unwrap_or("unnamed");
     let db = persistence::Database::connect(server_key).await?;
     tracing::info!("Database connected");
+
+    let config_path = config.as_deref().map(std::path::Path::new);
+    if reload_maps || game::should_auto_load(db.pool()).await? {
+        tracing::info!(forced = reload_maps, "Loading maps from config");
+        let universe = game::load_map(config_path)?;
+        game::load_map_into_db(db.pool(), &universe).await?;
+        tracing::info!("Maps loaded into database");
+    }
+
     let session_name = server_session.name.clone();
-    let addr = network::server::start(server_session, game_state, db).await?;
+    let config_path_buf = config_path.map(|p| p.to_path_buf());
+    let addr =
+        network::server::start(server_session, game_state, db.clone(), config_path_buf).await?;
     start_discovery(addr.port(), session_name);
     tracing::info!("Server listening on {addr}");
     tokio::signal::ctrl_c().await?;

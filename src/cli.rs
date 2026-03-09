@@ -23,6 +23,9 @@ pub enum Commands {
         /// Path to config directory containing game data files
         #[arg(long)]
         config: Option<String>,
+        /// Force map reload from config on startup, even if maps were previously loaded
+        #[arg(long)]
+        reload_maps: bool,
     },
 }
 
@@ -65,7 +68,8 @@ mod tests {
             cli.command,
             Some(Commands::Server {
                 name: None,
-                config: None
+                config: None,
+                reload_maps: false,
             })
         );
     }
@@ -77,7 +81,8 @@ mod tests {
             cli.command,
             Some(Commands::Server {
                 name: Some("myserver".to_string()),
-                config: None
+                config: None,
+                reload_maps: false,
             })
         );
     }
@@ -89,7 +94,21 @@ mod tests {
             cli.command,
             Some(Commands::Server {
                 name: None,
-                config: Some("muds/basic".to_string())
+                config: Some("muds/basic".to_string()),
+                reload_maps: false,
+            })
+        );
+    }
+
+    #[test]
+    fn server_subcommand_with_reload_maps_parses() {
+        let cli = parse(&["mudroom", "server", "--reload-maps"]);
+        assert_eq!(
+            cli.command,
+            Some(Commands::Server {
+                name: None,
+                config: None,
+                reload_maps: true,
             })
         );
     }

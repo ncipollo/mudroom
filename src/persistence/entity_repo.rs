@@ -91,6 +91,14 @@ pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), PersistenceError> 
     Ok(())
 }
 
+pub async fn delete_by_room(pool: &SqlitePool, room_id: &str) -> Result<(), PersistenceError> {
+    sqlx::query("DELETE FROM entities WHERE room_id = ?")
+        .bind(room_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
 fn entity_type_to_str(et: &EntityType) -> &'static str {
     match et {
         EntityType::Player => "player",
@@ -204,5 +212,28 @@ mod tests {
 
         let found = find_by_id(db.pool(), 1).await.unwrap();
         assert!(found.is_none());
+    }
+
+    #[tokio::test]
+    async fn delete_by_room_removes_all_entities_in_room() {
+        let db = Database::connect_in_memory().await.unwrap();
+        setup(&db).await;
+        insert(
+            db.pool(),
+            &Entity::new(1, EntityType::Player, test_location()),
+        )
+        .await
+        .unwrap();
+        insert(
+            db.pool(),
+            &Entity::new(2, EntityType::Character, test_location()),
+        )
+        .await
+        .unwrap();
+
+        delete_by_room(db.pool(), "r1").await.unwrap();
+
+        let entities = find_by_location(db.pool(), &test_location()).await.unwrap();
+        assert!(entities.is_empty());
     }
 }

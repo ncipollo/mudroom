@@ -16,14 +16,15 @@ impl CheckedDescription {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Description {
-    pub basic: Option<String>,
+    pub standard: Option<String>,
+    #[serde(default)]
     pub checked: Vec<CheckedDescription>,
 }
 
 impl Description {
-    pub fn new(basic: Option<String>) -> Self {
+    pub fn new(standard: Option<String>) -> Self {
         Self {
-            basic,
+            standard,
             checked: Vec::new(),
         }
     }

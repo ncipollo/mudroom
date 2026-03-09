@@ -7,6 +7,7 @@ use std::time::Instant;
 
 use axum::Json;
 use axum::extract::{Query, State};
+use axum::http::StatusCode;
 use axum::response::sse::{Event, KeepAlive, Sse};
 use futures_util::stream::Stream;
 use tokio_stream::StreamExt;
@@ -17,6 +18,7 @@ use super::state::{
     AppState, ConnectedClient, GuardedStream, PingBody, SessionEndBody, SessionStartBody,
     SseCleanupGuard, SseQuery,
 };
+use crate::game;
 use crate::network::event::{NetworkEvent, ServerInfoResponse, SessionStartResponse};
 
 pub async fn server_info_handler(State(state): State<Arc<AppState>>) -> Json<ServerInfoResponse> {
@@ -96,4 +98,23 @@ pub async fn session_end_handler(
         session_id: body.session_id,
     });
     "ok"
+}
+
+pub async fn maps_reload_handler(
+    State(state): State<Arc<AppState>>,
+) -> Result<&'static str, StatusCode> {
+    info!("POST /maps/reload");
+    let config_path = state.config_path.as_deref();
+    let universe = game::load_map(config_path).map_err(|e| {
+        tracing::error!(error = %e, "Failed to load map");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    game::load_map_into_db(state.db.pool(), &universe)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "Failed to load map into database");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    info!("Maps reloaded");
+    Ok("ok")
 }
