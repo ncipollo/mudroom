@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
@@ -26,6 +27,7 @@ pub struct AppState {
     pub db: Database,
     pub tx: broadcast::Sender<NetworkEvent>,
     pub connections: Arc<RwLock<HashMap<String, ConnectedClient>>>,
+    pub config_path: Option<PathBuf>,
 }
 
 // --- SSE disconnect guard ---

@@ -4,8 +4,9 @@ use axum::Router;
 use axum::routing::{get, post};
 
 use super::handlers::{
-    ping_handler, player_create_handler, player_list_handler, player_select_handler,
-    server_info_handler, session_end_handler, session_start_handler, sse_handler,
+    maps_reload_handler, ping_handler, player_create_handler, player_list_handler,
+    player_select_handler, server_info_handler, session_end_handler, session_start_handler,
+    sse_handler,
 };
 use super::state::AppState;
 
@@ -19,5 +20,6 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/players/list", post(player_list_handler))
         .route("/players/create", post(player_create_handler))
         .route("/players/select", post(player_select_handler))
+        .route("/maps/reload", post(maps_reload_handler))
         .with_state(state)
 }

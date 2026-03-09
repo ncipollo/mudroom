@@ -167,7 +167,7 @@ mod tests {
             "maps/world1/dungeon1/room1.toml",
             r#"
 [description]
-basic = "A room."
+standard = "A room."
 "#,
         );
 
@@ -178,7 +178,7 @@ basic = "A room."
         let dungeon = &world.dungeons["dungeon1"];
         assert!(dungeon.rooms.contains_key("room1"));
         let room = &dungeon.rooms["room1"];
-        assert_eq!(room.description.basic.as_deref(), Some("A room."));
+        assert_eq!(room.description.standard.as_deref(), Some("A room."));
     }
 
     #[test]
@@ -222,7 +222,7 @@ basic = "A room."
             r#"
 name = "Custom Room"
 [description]
-basic = "A custom room."
+standard = "A custom room."
 "#,
         );
 
@@ -240,7 +240,7 @@ basic = "A custom room."
             "maps/w1/d1/room.toml",
             r#"
 [description]
-basic = "Main room."
+standard = "Main room."
 [north]
 room_id = "tavern"
 "#,

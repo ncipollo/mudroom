@@ -1,5 +1,5 @@
 [description]
-basic = "A warm tavern with a crackling fireplace. The town square is to the south."
+standard = "A warm tavern with a crackling fireplace. The town square is to the south."
 
 [south]
 room_id = "default"
