@@ -141,18 +141,27 @@ async fn handle_game_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) 
         (_, KeyCode::Enter) => {
             let input: String = app.input.drain(..).collect();
             let cmd = commands::parse(&input);
-            if let commands::Command::Move(direction) = cmd
-                && let (Some(url), Some(client_id)) = (
-                    app.connection.server_url.as_deref(),
-                    app.connection.client_id.as_deref(),
-                )
-            {
-                let interaction = Interaction::Movement(Movement::TryDirection(direction));
-                let _ = send_interaction(url, client_id, &interaction).await;
+            let url = app.connection.server_url.as_deref();
+            let client_id = app.connection.client_id.as_deref();
+            match cmd {
+                commands::Command::Move(direction) => {
+                    if let (Some(url), Some(client_id)) = (url, client_id) {
+                        let interaction = Interaction::Movement(Movement::TryDirection(direction));
+                        let _ = send_interaction(url, client_id, &interaction).await;
+                    }
+                }
+                commands::Command::Look => {
+                    if let (Some(url), Some(client_id)) = (url, client_id) {
+                        let _ = send_interaction(url, client_id, &Interaction::Look).await;
+                    }
+                }
+                _ => {}
             }
             app.messages.push(input);
             app.scroll_offset = 0;
         }
+        (_, KeyCode::PageUp) => app.scroll_up(),
+        (_, KeyCode::PageDown) => app.scroll_down(),
         _ => {}
     }
 }

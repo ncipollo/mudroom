@@ -14,6 +14,9 @@ pub enum Commands {
         /// Direct server URL (skips discovery)
         #[arg(long)]
         url: Option<String>,
+        /// Enable debug output (e.g. show ping/pong messages)
+        #[arg(long)]
+        debug: bool,
     },
     /// Launch in server mode
     Server {
@@ -47,7 +50,13 @@ mod tests {
     #[test]
     fn client_subcommand_parses() {
         let cli = parse(&["mudroom", "client"]);
-        assert_eq!(cli.command, Some(Commands::Client { url: None }));
+        assert_eq!(
+            cli.command,
+            Some(Commands::Client {
+                url: None,
+                debug: false,
+            })
+        );
     }
 
     #[test]
@@ -56,7 +65,20 @@ mod tests {
         assert_eq!(
             cli.command,
             Some(Commands::Client {
-                url: Some("http://localhost:8080".to_string())
+                url: Some("http://localhost:8080".to_string()),
+                debug: false,
+            })
+        );
+    }
+
+    #[test]
+    fn client_subcommand_with_debug_parses() {
+        let cli = parse(&["mudroom", "client", "--debug"]);
+        assert_eq!(
+            cli.command,
+            Some(Commands::Client {
+                url: None,
+                debug: true,
             })
         );
     }

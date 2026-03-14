@@ -2,6 +2,7 @@ use crate::game::Direction;
 
 pub enum Command {
     Move(Direction),
+    Look,
     #[allow(dead_code)]
     Enter(String),
     Unknown,
@@ -16,6 +17,7 @@ pub fn parse(input: &str) -> Command {
         "s" | "south" => Command::Move(Direction::South),
         "e" | "east" => Command::Move(Direction::East),
         "w" | "west" => Command::Move(Direction::West),
+        "l" | "look" => Command::Look,
         _ => {
             if let Some(target) = lower.strip_prefix("enter ") {
                 Command::Enter(target.to_string())
