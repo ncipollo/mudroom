@@ -12,12 +12,13 @@ use crate::session::ServerSession;
 use futures_util::stream::Stream;
 use serde::Deserialize;
 use tokio::sync::RwLock;
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, mpsc};
 use tracing::info;
 
 #[derive(Clone)]
 pub struct ConnectedClient {
     pub last_ping: Instant,
+    pub personal_tx: mpsc::Sender<NetworkEvent>,
 }
 
 #[derive(Clone)]

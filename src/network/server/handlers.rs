@@ -40,7 +40,7 @@ use axum::http::StatusCode;
 use axum::response::sse::{Event, KeepAlive, Sse};
 use futures_util::stream::Stream;
 use tokio_stream::StreamExt;
-use tokio_stream::wrappers::BroadcastStream;
+use tokio_stream::wrappers::{BroadcastStream, ReceiverStream};
 use tracing::info;
 
 use super::state::{
@@ -62,13 +62,21 @@ pub async fn sse_handler(
     Query(query): Query<SseQuery>,
 ) -> Sse<impl Stream<Item = Result<Event, axum::Error>>> {
     info!(client_id = %query.client_id, "GET /events - client subscribed to SSE");
+    let (personal_tx, personal_rx) = tokio::sync::mpsc::channel::<NetworkEvent>(128);
+    state.connections.write().await.insert(
+        query.client_id.clone(),
+        ConnectedClient {
+            last_ping: Instant::now(),
+            personal_tx,
+        },
+    );
     let rx = state.tx.subscribe();
-    let inner = BroadcastStream::new(rx).filter_map(|result| {
-        result.ok().and_then(|event| {
-            serde_json::to_string(&event)
-                .ok()
-                .map(|data| Ok(Event::default().data(data)))
-        })
+    let broadcast_stream = BroadcastStream::new(rx).filter_map(|r| r.ok());
+    let personal_stream = ReceiverStream::new(personal_rx);
+    let inner = broadcast_stream.merge(personal_stream).filter_map(|event| {
+        serde_json::to_string(&event)
+            .ok()
+            .map(|data| Ok(Event::default().data(data)))
     });
     let guard = SseCleanupGuard {
         client_id: query.client_id,
@@ -90,12 +98,6 @@ pub async fn session_start_handler(
         .client_id
         .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
     info!(client_id = %client_id, "POST /session/start");
-    state.connections.write().await.insert(
-        client_id.clone(),
-        ConnectedClient {
-            last_ping: Instant::now(),
-        },
-    );
     let _ = state.tx.send(NetworkEvent::StartSession {
         session_id: client_id.clone(),
     });

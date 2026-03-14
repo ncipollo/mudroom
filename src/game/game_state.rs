@@ -43,7 +43,7 @@ impl GameState {
             MudConfig::default_config()
         };
 
-        let (message_tx, _) = broadcast::channel::<PlayerMessage>(64);
+        let (message_tx, _) = broadcast::channel::<PlayerMessage>(512);
 
         Ok(Self {
             attribute_config,

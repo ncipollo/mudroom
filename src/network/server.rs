@@ -23,7 +23,7 @@ pub async fn start(
     db: Database,
     config_path: Option<PathBuf>,
 ) -> Result<SocketAddr, Box<dyn std::error::Error>> {
-    let (tx, _) = broadcast::channel::<NetworkEvent>(64);
+    let (tx, _) = broadcast::channel::<NetworkEvent>(256);
     let connections: Arc<RwLock<HashMap<String, ConnectedClient>>> =
         Arc::new(RwLock::new(HashMap::new()));
 
@@ -37,14 +37,29 @@ pub async fn start(
     });
 
     let mut msg_rx = state.game_state.message_tx.subscribe();
-    let tx_clone = tx.clone();
+    let connections_relay = state.connections.clone();
+    let game_state_relay = state.game_state.clone();
     tokio::spawn(async move {
         while let Ok(pm) = msg_rx.recv().await {
             if let game::messaging::Message::Complete(content) = pm.message {
-                let _ = tx_clone.send(NetworkEvent::Message {
-                    player_id: pm.player_id,
-                    content,
-                });
+                let players = game_state_relay.active_players.read().await;
+                let client_id = players
+                    .iter()
+                    .find(|(_, p)| p.id == pm.player_id)
+                    .map(|(cid, _): (&String, _)| cid.clone());
+                drop(players);
+                if let Some(cid) = client_id {
+                    let conns = connections_relay.read().await;
+                    if let Some(client) = conns.get(&cid) {
+                        let _ = client
+                            .personal_tx
+                            .send(NetworkEvent::Message {
+                                player_id: pm.player_id,
+                                content,
+                            })
+                            .await;
+                    }
+                }
             }
         }
     });
