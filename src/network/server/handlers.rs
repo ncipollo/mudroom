@@ -107,12 +107,10 @@ pub async fn ping_handler(
     info!(client_id = %body.client_id, "POST /ping");
     let personal_tx = {
         let mut conns = state.connections.write().await;
-        conns
-            .get_mut(&body.client_id)
-            .map(|client| {
-                client.last_ping = Instant::now();
-                client.personal_tx.clone()
-            })
+        conns.get_mut(&body.client_id).map(|client| {
+            client.last_ping = Instant::now();
+            client.personal_tx.clone()
+        })
     };
     if let Some(tx) = personal_tx {
         let _ = tx.send(NetworkEvent::Pong).await;

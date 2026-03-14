@@ -19,7 +19,8 @@ pub async fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             url: Some(url),
             debug,
         }) => tui::run_client(Some(url), debug).await,
-        None | Some(Commands::Client { url: None, .. }) => run_discovery().await,
+        Some(Commands::Client { url: None, debug }) => run_discovery(debug).await,
+        None => run_discovery(false).await,
     }
 }
 
@@ -110,14 +111,14 @@ fn start_discovery(port: u16, session_name: Option<String>) {
     });
 }
 
-async fn run_discovery() -> Result<(), Box<dyn std::error::Error>> {
+async fn run_discovery(debug: bool) -> Result<(), Box<dyn std::error::Error>> {
     let mut terminal = ratatui::init();
     crossterm::execute!(std::io::stdout(), crossterm::event::EnableMouseCapture)?;
     let selected = tui::run_discovery(&mut terminal).await;
     crossterm::execute!(std::io::stdout(), crossterm::event::DisableMouseCapture)?;
     ratatui::restore();
     match selected? {
-        Some(url) => tui::run_client(Some(url), false).await,
+        Some(url) => tui::run_client(Some(url), debug).await,
         None => Ok(()),
     }
 }
