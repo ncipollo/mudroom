@@ -36,7 +36,23 @@ pub async fn start(
         config_path,
     });
 
-    tokio::spawn(game::game_loop::run(state.game_state.clone()));
+    let mut msg_rx = state.game_state.message_tx.subscribe();
+    let tx_clone = tx.clone();
+    tokio::spawn(async move {
+        while let Ok(pm) = msg_rx.recv().await {
+            if let game::messaging::Message::Complete(content) = pm.message {
+                let _ = tx_clone.send(NetworkEvent::Message {
+                    player_id: pm.player_id,
+                    content,
+                });
+            }
+        }
+    });
+
+    tokio::spawn(game::game_loop::run(
+        state.game_state.clone(),
+        state.db.clone(),
+    ));
 
     let router = router::build_router(state);
     let listener = TcpListener::bind("0.0.0.0:0").await?;

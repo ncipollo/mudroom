@@ -105,6 +105,13 @@ pub async fn player_select_handler(
         .await
         .insert(entity.id, entity);
 
+    state
+        .game_state
+        .active_players
+        .write()
+        .await
+        .insert(body.client_id.clone(), player.clone());
+
     let _ = state.tx.send(NetworkEvent::PlayerSelected {
         client_id: body.client_id,
         player_id: player.id,

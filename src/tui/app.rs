@@ -29,6 +29,7 @@ pub struct App {
     pub mode: AppMode,
     pub connection: ConnectionState,
     pub player_select: PlayerSelectState,
+    pub current_player_id: Option<i64>,
 }
 
 impl App {
@@ -44,6 +45,7 @@ impl App {
             mode: AppMode::Game,
             connection: ConnectionState::default(),
             player_select: PlayerSelectState::default(),
+            current_player_id: None,
         }
     }
 
@@ -59,6 +61,7 @@ impl App {
                 client_id: Some(client_id),
             },
             player_select: PlayerSelectState::default(),
+            current_player_id: None,
         }
     }
 
@@ -108,8 +111,18 @@ impl App {
             }
             NetworkEvent::Ping => self.messages.push("[ping received]".to_string()),
             NetworkEvent::Pong => self.messages.push("[pong received]".to_string()),
-            NetworkEvent::PlayerSelected { player_name, .. } => {
-                self.messages.push(format!("Playing as: {player_name}"))
+            NetworkEvent::PlayerSelected {
+                player_name,
+                player_id,
+                ..
+            } => {
+                self.current_player_id = Some(player_id);
+                self.messages.push(format!("Playing as: {player_name}"));
+            }
+            NetworkEvent::Message { player_id, content } => {
+                if Some(player_id) == self.current_player_id {
+                    self.messages.push(content);
+                }
             }
         }
     }

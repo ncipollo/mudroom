@@ -38,6 +38,10 @@ pub enum NetworkEvent {
         player_id: i64,
         player_name: String,
     },
+    Message {
+        player_id: i64,
+        content: String,
+    },
 }
 
 #[cfg(test)]

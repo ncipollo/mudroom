@@ -8,8 +8,9 @@ use std::sync::Arc;
 use tokio::time::{Duration, interval};
 
 use crate::game::GameState;
+use crate::persistence::Database;
 
-pub async fn run(game_state: Arc<GameState>) {
+pub async fn run(game_state: Arc<GameState>, db: Database) {
     let tick_rate = game_state.mud_config.game_loop.tick_rate;
     let world_update_ticks = game_state.mud_config.game_loop.world_update_ticks;
 
@@ -19,7 +20,7 @@ pub async fn run(game_state: Arc<GameState>) {
     loop {
         ticker.tick().await;
 
-        interactions::process(&game_state, tick).await;
+        interactions::process(&game_state, &db, tick).await;
         effects::process(&game_state, tick).await;
         attributes::process(&game_state, tick).await;
 
