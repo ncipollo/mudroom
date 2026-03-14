@@ -12,7 +12,10 @@ use tokio::sync::mpsc;
 
 use crate::{network, session, state};
 
-pub async fn run_client(url: Option<String>) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn run_client(
+    url: Option<String>,
+    debug: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
     let (net_tx, net_rx) = mpsc::channel(64);
 
     // Track session info for cleanup on exit.
@@ -64,9 +67,9 @@ pub async fn run_client(url: Option<String>) -> Result<(), Box<dyn std::error::E
     }
 
     let mut app = if let Some((ref client_session, ref server_url)) = client_session_info {
-        App::with_player_select(server_url.clone(), client_session.id.clone())
+        App::with_player_select(server_url.clone(), client_session.id.clone(), debug)
     } else {
-        App::new()
+        App::new(debug)
     };
     let mut terminal = ratatui::init();
     crossterm::execute!(std::io::stdout(), crossterm::event::EnableMouseCapture)?;

@@ -30,10 +30,11 @@ pub struct App {
     pub connection: ConnectionState,
     pub player_select: PlayerSelectState,
     pub current_player_id: Option<i64>,
+    pub debug: bool,
 }
 
 impl App {
-    pub fn new() -> Self {
+    pub fn new(debug: bool) -> Self {
         Self {
             should_quit: false,
             messages: vec![
@@ -46,10 +47,11 @@ impl App {
             connection: ConnectionState::default(),
             player_select: PlayerSelectState::default(),
             current_player_id: None,
+            debug,
         }
     }
 
-    pub fn with_player_select(server_url: String, client_id: String) -> Self {
+    pub fn with_player_select(server_url: String, client_id: String, debug: bool) -> Self {
         Self {
             should_quit: false,
             messages: Vec::new(),
@@ -62,6 +64,7 @@ impl App {
             },
             player_select: PlayerSelectState::default(),
             current_player_id: None,
+            debug,
         }
     }
 
@@ -109,8 +112,16 @@ impl App {
             NetworkEvent::EndSession { session_id } => {
                 self.messages.push(format!("Session ended: {session_id}"))
             }
-            NetworkEvent::Ping => self.messages.push("[ping received]".to_string()),
-            NetworkEvent::Pong => self.messages.push("[pong received]".to_string()),
+            NetworkEvent::Ping => {
+                if self.debug {
+                    self.messages.push("[ping received]".to_string());
+                }
+            }
+            NetworkEvent::Pong => {
+                if self.debug {
+                    self.messages.push("[pong received]".to_string());
+                }
+            }
             NetworkEvent::PlayerSelected {
                 player_name,
                 player_id,
@@ -130,6 +141,6 @@ impl App {
 
 impl Default for App {
     fn default() -> Self {
-        Self::new()
+        Self::new(false)
     }
 }

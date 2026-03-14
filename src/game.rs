@@ -37,5 +37,5 @@ pub use map::Room;
 pub use map::Universe;
 pub use map::World;
 pub use messaging::PlayerMessage;
-pub use messaging::announce;
+pub use messaging::message;
 pub use player::Player;

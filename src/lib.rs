@@ -15,8 +15,11 @@ pub async fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             config,
             reload_maps,
         }) => run_server(name, config, reload_maps).await,
-        Some(Commands::Client { url: Some(url) }) => tui::run_client(Some(url)).await,
-        None | Some(Commands::Client { url: None }) => run_discovery().await,
+        Some(Commands::Client {
+            url: Some(url),
+            debug,
+        }) => tui::run_client(Some(url), debug).await,
+        None | Some(Commands::Client { url: None, .. }) => run_discovery().await,
     }
 }
 
@@ -114,7 +117,7 @@ async fn run_discovery() -> Result<(), Box<dyn std::error::Error>> {
     crossterm::execute!(std::io::stdout(), crossterm::event::DisableMouseCapture)?;
     ratatui::restore();
     match selected? {
-        Some(url) => tui::run_client(Some(url)).await,
+        Some(url) => tui::run_client(Some(url), false).await,
         None => Ok(()),
     }
 }
