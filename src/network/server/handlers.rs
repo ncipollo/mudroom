@@ -40,7 +40,7 @@ use axum::http::StatusCode;
 use axum::response::sse::{Event, KeepAlive, Sse};
 use futures_util::stream::Stream;
 use tokio_stream::StreamExt;
-use tokio_stream::wrappers::{BroadcastStream, ReceiverStream};
+use tokio_stream::wrappers::ReceiverStream;
 use tracing::info;
 
 use super::state::{
@@ -70,10 +70,7 @@ pub async fn sse_handler(
             personal_tx,
         },
     );
-    let rx = state.tx.subscribe();
-    let broadcast_stream = BroadcastStream::new(rx).filter_map(|r| r.ok());
-    let personal_stream = ReceiverStream::new(personal_rx);
-    let inner = broadcast_stream.merge(personal_stream).filter_map(|event| {
+    let inner = ReceiverStream::new(personal_rx).filter_map(|event| {
         serde_json::to_string(&event)
             .ok()
             .map(|data| Ok(Event::default().data(data)))
@@ -81,7 +78,6 @@ pub async fn sse_handler(
     let guard = SseCleanupGuard {
         client_id: query.client_id,
         connections: state.connections.clone(),
-        tx: state.tx.clone(),
     };
     let stream = GuardedStream {
         inner,
@@ -98,9 +94,6 @@ pub async fn session_start_handler(
         .client_id
         .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
     info!(client_id = %client_id, "POST /session/start");
-    let _ = state.tx.send(NetworkEvent::StartSession {
-        session_id: client_id.clone(),
-    });
     Json(SessionStartResponse {
         client_id,
         server_id: state.server_session.id.clone(),
@@ -112,10 +105,18 @@ pub async fn ping_handler(
     Json(body): Json<PingBody>,
 ) -> &'static str {
     info!(client_id = %body.client_id, "POST /ping");
-    if let Some(client) = state.connections.write().await.get_mut(&body.client_id) {
-        client.last_ping = Instant::now();
+    let personal_tx = {
+        let mut conns = state.connections.write().await;
+        conns
+            .get_mut(&body.client_id)
+            .map(|client| {
+                client.last_ping = Instant::now();
+                client.personal_tx.clone()
+            })
+    };
+    if let Some(tx) = personal_tx {
+        let _ = tx.send(NetworkEvent::Pong).await;
     }
-    let _ = state.tx.send(NetworkEvent::Pong);
     "ok"
 }
 
@@ -125,9 +126,6 @@ pub async fn session_end_handler(
 ) -> &'static str {
     info!(session_id = %body.session_id, "POST /session/end");
     state.connections.write().await.remove(&body.session_id);
-    let _ = state.tx.send(NetworkEvent::EndSession {
-        session_id: body.session_id,
-    });
     "ok"
 }
 

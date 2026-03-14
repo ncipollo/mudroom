@@ -11,8 +11,8 @@ use crate::persistence::Database;
 use crate::session::ServerSession;
 use futures_util::stream::Stream;
 use serde::Deserialize;
+use tokio::sync::mpsc;
 use tokio::sync::RwLock;
-use tokio::sync::{broadcast, mpsc};
 use tracing::info;
 
 #[derive(Clone)]
@@ -26,7 +26,6 @@ pub struct AppState {
     pub server_session: ServerSession,
     pub game_state: Arc<GameState>,
     pub db: Database,
-    pub tx: broadcast::Sender<NetworkEvent>,
     pub connections: Arc<RwLock<HashMap<String, ConnectedClient>>>,
     pub config_path: Option<PathBuf>,
 }
@@ -36,19 +35,14 @@ pub struct AppState {
 pub struct SseCleanupGuard {
     pub client_id: String,
     pub connections: Arc<RwLock<HashMap<String, ConnectedClient>>>,
-    pub tx: broadcast::Sender<NetworkEvent>,
 }
 
 impl Drop for SseCleanupGuard {
     fn drop(&mut self) {
         let client_id = self.client_id.clone();
         let connections = self.connections.clone();
-        let tx = self.tx.clone();
         tokio::spawn(async move {
             connections.write().await.remove(&client_id);
-            let _ = tx.send(NetworkEvent::EndSession {
-                session_id: client_id.clone(),
-            });
             info!(client_id = %client_id, "SSE disconnected — session ended");
         });
     }

@@ -90,11 +90,17 @@ pub async fn player_select_handler(
         .await
         .insert(body.client_id.clone(), player.clone());
 
-    let _ = state.tx.send(NetworkEvent::PlayerSelected {
-        client_id: body.client_id,
-        player_id: player.id,
-        player_name: player.name.clone(),
-    });
+    let conns = state.connections.read().await;
+    if let Some(client) = conns.get(&body.client_id) {
+        let _ = client
+            .personal_tx
+            .send(NetworkEvent::PlayerSelected {
+                client_id: body.client_id,
+                player_id: player.id,
+                player_name: player.name.clone(),
+            })
+            .await;
+    }
 
     Ok(Json(PlayerInfo {
         id: player.id,

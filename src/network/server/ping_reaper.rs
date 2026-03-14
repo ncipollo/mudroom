@@ -3,16 +3,11 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use tokio::sync::RwLock;
-use tokio::sync::broadcast;
 use tracing::info;
 
 use super::state::ConnectedClient;
-use crate::network::event::NetworkEvent;
 
-pub async fn run_ping_reaper(
-    connections: Arc<RwLock<HashMap<String, ConnectedClient>>>,
-    tx: broadcast::Sender<NetworkEvent>,
-) {
+pub async fn run_ping_reaper(connections: Arc<RwLock<HashMap<String, ConnectedClient>>>) {
     let timeout = std::time::Duration::from_secs(30);
     let interval = std::time::Duration::from_secs(10);
     loop {
@@ -29,9 +24,6 @@ pub async fn run_ping_reaper(
             let mut guard = connections.write().await;
             for id in stale {
                 guard.remove(&id);
-                let _ = tx.send(NetworkEvent::EndSession {
-                    session_id: id.clone(),
-                });
                 info!(client_id = %id, "Ping reaper removed stale client");
             }
         }

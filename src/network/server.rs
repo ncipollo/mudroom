@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use tokio::net::TcpListener;
-use tokio::sync::{RwLock, broadcast};
+use tokio::sync::RwLock;
 
 use crate::game::{self, GameState};
 use crate::network::event::NetworkEvent;
@@ -23,7 +23,6 @@ pub async fn start(
     db: Database,
     config_path: Option<PathBuf>,
 ) -> Result<SocketAddr, Box<dyn std::error::Error>> {
-    let (tx, _) = broadcast::channel::<NetworkEvent>(256);
     let connections: Arc<RwLock<HashMap<String, ConnectedClient>>> =
         Arc::new(RwLock::new(HashMap::new()));
 
@@ -31,7 +30,6 @@ pub async fn start(
         server_session,
         game_state: Arc::new(game_state),
         db,
-        tx: tx.clone(),
         connections: connections.clone(),
         config_path,
     });
@@ -77,7 +75,7 @@ pub async fn start(
         axum::serve(listener, router).await.ok();
     });
 
-    tokio::spawn(ping_reaper::run_ping_reaper(connections, tx));
+    tokio::spawn(ping_reaper::run_ping_reaper(connections));
 
     Ok(addr)
 }
