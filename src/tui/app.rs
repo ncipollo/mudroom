@@ -1,6 +1,28 @@
 use crate::network::NetworkEvent;
 use crate::network::event::PlayerInfo;
 
+#[derive(Debug, Clone)]
+pub struct AppMessage {
+    pub text: String,
+    pub debug: bool,
+}
+
+impl AppMessage {
+    pub fn normal(text: impl Into<String>) -> Self {
+        Self {
+            text: text.into(),
+            debug: false,
+        }
+    }
+
+    pub fn debug(text: impl Into<String>) -> Self {
+        Self {
+            text: text.into(),
+            debug: true,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum AppMode {
     PlayerSelect,
@@ -23,7 +45,7 @@ pub struct PlayerSelectState {
 
 pub struct App {
     pub should_quit: bool,
-    pub messages: Vec<String>,
+    pub messages: Vec<AppMessage>,
     pub input: String,
     pub scroll_offset: usize,
     pub mode: AppMode,
@@ -38,8 +60,8 @@ impl App {
         Self {
             should_quit: false,
             messages: vec![
-                "Welcome to mudroom.".to_string(),
-                "Type commands and press Enter.".to_string(),
+                AppMessage::normal("Welcome to mudroom."),
+                AppMessage::normal("Type commands and press Enter."),
             ],
             input: String::new(),
             scroll_offset: 0,
@@ -54,7 +76,7 @@ impl App {
     pub fn with_player_select(server_url: String, client_id: String, debug: bool) -> Self {
         Self {
             should_quit: false,
-            messages: Vec::new(),
+            messages: Vec::<AppMessage>::new(),
             input: String::new(),
             scroll_offset: 0,
             mode: AppMode::PlayerSelect,
@@ -106,20 +128,20 @@ impl App {
 
     pub fn handle_network_event(&mut self, event: NetworkEvent) {
         match event {
-            NetworkEvent::StartSession { session_id } => {
-                self.messages.push(format!("Session started: {session_id}"))
-            }
-            NetworkEvent::EndSession { session_id } => {
-                self.messages.push(format!("Session ended: {session_id}"))
-            }
+            NetworkEvent::StartSession { session_id } => self
+                .messages
+                .push(AppMessage::normal(format!("Session started: {session_id}"))),
+            NetworkEvent::EndSession { session_id } => self
+                .messages
+                .push(AppMessage::normal(format!("Session ended: {session_id}"))),
             NetworkEvent::Ping => {
                 if self.debug {
-                    self.messages.push("[ping received]".to_string());
+                    self.messages.push(AppMessage::debug("[ping received]"));
                 }
             }
             NetworkEvent::Pong => {
                 if self.debug {
-                    self.messages.push("[pong received]".to_string());
+                    self.messages.push(AppMessage::debug("[pong received]"));
                 }
             }
             NetworkEvent::PlayerSelected {
@@ -128,11 +150,12 @@ impl App {
                 ..
             } => {
                 self.current_player_id = Some(player_id);
-                self.messages.push(format!("Playing as: {player_name}"));
+                self.messages
+                    .push(AppMessage::normal(format!("Playing as: {player_name}")));
             }
             NetworkEvent::Message { player_id, content } => {
                 if Some(player_id) == self.current_player_id {
-                    self.messages.push(content);
+                    self.messages.push(AppMessage::normal(content));
                 }
             }
         }

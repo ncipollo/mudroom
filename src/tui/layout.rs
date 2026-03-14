@@ -2,7 +2,7 @@ use ratatui::{
     Frame,
     layout::{Constraint, Layout},
     style::{Color, Style},
-    text::Text,
+    text::{Line, Span, Text},
     widgets::{Block, Borders, Paragraph},
 };
 
@@ -29,9 +29,19 @@ pub fn render(frame: &mut Frame, app: &App) {
     let effective_offset = app.scroll_offset.min(max_offset);
     let end = total.saturating_sub(effective_offset);
     let start = end.saturating_sub(visible_lines);
-    let log_text = app.messages[start..end].join("\n");
-    let log =
-        Paragraph::new(log_text).block(Block::default().title("Messages").borders(Borders::ALL));
+    let log_lines: Vec<Line> = app.messages[start..end]
+        .iter()
+        .map(|msg| {
+            let style = if msg.debug {
+                Style::default().fg(Color::DarkGray)
+            } else {
+                Style::default()
+            };
+            Line::from(Span::styled(msg.text.clone(), style))
+        })
+        .collect();
+    let log = Paragraph::new(Text::from(log_lines))
+        .block(Block::default().title("Messages").borders(Borders::ALL));
     frame.render_widget(log, areas[0]);
 
     // Status bar

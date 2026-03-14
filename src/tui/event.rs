@@ -8,7 +8,7 @@ use crate::network::NetworkEvent;
 use crate::network::client::send_interaction;
 use crate::network::client::{create_player, list_players, select_player};
 
-use super::app::{App, AppMode};
+use super::app::{App, AppMessage, AppMode};
 use super::commands;
 use super::layout;
 
@@ -157,7 +157,7 @@ async fn handle_game_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) 
                 }
                 _ => {}
             }
-            app.messages.push(input);
+            app.messages.push(AppMessage::normal(input));
             app.scroll_offset = 0;
         }
         (_, KeyCode::PageUp) => app.scroll_up(),
