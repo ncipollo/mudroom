@@ -22,6 +22,7 @@ pub use component::Movement;
 pub use config::AttributeConfig;
 pub use config::GameLoopConfig;
 pub use config::MudConfig;
+pub use config::SpawnConfig;
 pub use config::load_map;
 pub use config::load_map_into_db;
 pub use config::should_auto_load;

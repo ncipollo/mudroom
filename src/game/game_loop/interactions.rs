@@ -44,7 +44,8 @@ async fn process_move(
         }
     };
 
-    let room = match room_repo::find_by_id(db.pool(), &location.room_id).await {
+    let room = match room_repo::find_by_id(db.pool(), &location.dungeon_id, &location.room_id).await
+    {
         Ok(Some(r)) => r,
         _ => return,
     };

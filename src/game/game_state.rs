@@ -109,6 +109,11 @@ attribute_type = "hp"
 tick_rate = 500
 max_turn_ticks = 15
 world_update_ticks = 300
+
+[spawn]
+world_id = "default"
+dungeon_id = "default"
+room_id = "default"
 "#,
         )
         .unwrap();

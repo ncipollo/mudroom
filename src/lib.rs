@@ -29,12 +29,19 @@ async fn run_server(
     state::config::create_session_base_dirs().await?;
     let server_session = session::ServerSession::load_or_create(name).await?;
     tracing::info!(id = %server_session.id, name = ?server_session.name, "Server session loaded");
-    let game_state = load_game_state(&config)?;
+
+    let config_path_buf = config
+        .as_deref()
+        .map(std::path::PathBuf::from)
+        .or_else(find_config_dir);
+    tracing::info!(config_dir = ?config_path_buf, "Config directory resolved");
+
+    let game_state = load_game_state(&config_path_buf)?;
     let server_key = server_session.name.as_deref().unwrap_or("unnamed");
     let db = persistence::Database::connect(server_key).await?;
     tracing::info!("Database connected");
 
-    let config_path = config.as_deref().map(std::path::Path::new);
+    let config_path = config_path_buf.as_deref();
     if reload_maps || game::should_auto_load(db.pool()).await? {
         tracing::info!(forced = reload_maps, "Loading maps from config");
         let universe = game::load_map(config_path)?;
@@ -43,7 +50,6 @@ async fn run_server(
     }
 
     let session_name = server_session.name.clone();
-    let config_path_buf = config_path.map(|p| p.to_path_buf());
     let addr =
         network::server::start(server_session, game_state, db.clone(), config_path_buf).await?;
     start_discovery(addr.port(), session_name);
@@ -52,18 +58,43 @@ async fn run_server(
     Ok(())
 }
 
+fn find_config_dir() -> Option<std::path::PathBuf> {
+    let cwd = std::env::current_dir().ok()?;
+
+    // Check working directory itself
+    if cwd.join("mud.toml").exists() {
+        return Some(cwd);
+    }
+
+    // Check immediate subdirectories of muds/
+    let muds_dir = cwd.join("muds");
+    if muds_dir.is_dir()
+        && let Ok(entries) = std::fs::read_dir(&muds_dir)
+    {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() && path.join("mud.toml").exists() {
+                return Some(path);
+            }
+        }
+    }
+
+    None
+}
+
 fn init_tracing() {
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
     tracing_subscriber::fmt().with_env_filter(filter).init();
 }
 
-fn load_game_state(config: &Option<String>) -> Result<game::GameState, Box<dyn std::error::Error>> {
-    let config_path = config.as_deref().map(std::path::Path::new);
-    let game_state = game::GameState::load(config_path)?;
+fn load_game_state(
+    config_dir: &Option<std::path::PathBuf>,
+) -> Result<game::GameState, Box<dyn std::error::Error>> {
+    let game_state = game::GameState::load(config_dir.as_deref())?;
     tracing::info!(
         attribute_count = game_state.attribute_config.attributes.len(),
-        config_dir = ?config,
+        config_dir = ?config_dir,
         "Game state loaded"
     );
     Ok(game_state)

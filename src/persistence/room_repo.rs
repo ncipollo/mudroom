@@ -38,10 +38,41 @@ pub async fn insert(
     Ok(())
 }
 
-pub async fn find_by_id(pool: &SqlitePool, id: &str) -> Result<Option<Room>, PersistenceError> {
+pub async fn insert_if_missing(
+    pool: &SqlitePool,
+    room: &Room,
+    dungeon_id: &str,
+) -> Result<(), PersistenceError> {
+    let description_json = serde_json::to_string(&room.description)?;
+    let north_json = room.north.as_ref().map(serde_json::to_string).transpose()?;
+    let south_json = room.south.as_ref().map(serde_json::to_string).transpose()?;
+    let east_json = room.east.as_ref().map(serde_json::to_string).transpose()?;
+    let west_json = room.west.as_ref().map(serde_json::to_string).transpose()?;
+
+    sqlx::query(
+        "INSERT OR IGNORE INTO rooms (id, dungeon_id, description_json, north_json, south_json, east_json, west_json) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(&room.id)
+    .bind(dungeon_id)
+    .bind(&description_json)
+    .bind(&north_json)
+    .bind(&south_json)
+    .bind(&east_json)
+    .bind(&west_json)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn find_by_id(
+    pool: &SqlitePool,
+    dungeon_id: &str,
+    id: &str,
+) -> Result<Option<Room>, PersistenceError> {
     let row: Option<RoomRow> = sqlx::query_as(
-            "SELECT id, description_json, north_json, south_json, east_json, west_json FROM rooms WHERE id = ?",
+            "SELECT id, description_json, north_json, south_json, east_json, west_json FROM rooms WHERE dungeon_id = ? AND id = ?",
         )
+        .bind(dungeon_id)
         .bind(id)
         .fetch_optional(pool)
         .await?;
@@ -131,7 +162,7 @@ mod tests {
         let room = make_room("r1");
         insert(db.pool(), &room, "d1").await.unwrap();
 
-        let found = find_by_id(db.pool(), "r1").await.unwrap().unwrap();
+        let found = find_by_id(db.pool(), "d1", "r1").await.unwrap().unwrap();
         assert_eq!(found.id, "r1");
         assert_eq!(found.description.standard.as_deref(), Some("A room."));
     }
@@ -139,7 +170,7 @@ mod tests {
     #[tokio::test]
     async fn find_by_id_returns_none_for_missing() {
         let db = Database::connect_in_memory().await.unwrap();
-        let found = find_by_id(db.pool(), "nonexistent").await.unwrap();
+        let found = find_by_id(db.pool(), "d1", "nonexistent").await.unwrap();
         assert!(found.is_none());
     }
 
@@ -161,7 +192,7 @@ mod tests {
         insert(db.pool(), &make_room("r1"), "d1").await.unwrap();
         delete(db.pool(), "r1").await.unwrap();
 
-        let found = find_by_id(db.pool(), "r1").await.unwrap();
+        let found = find_by_id(db.pool(), "d1", "r1").await.unwrap();
         assert!(found.is_none());
     }
 
@@ -177,7 +208,7 @@ mod tests {
         });
         insert(db.pool(), &room, "d1").await.unwrap();
 
-        let found = find_by_id(db.pool(), "r1").await.unwrap().unwrap();
+        let found = find_by_id(db.pool(), "d1", "r1").await.unwrap().unwrap();
         let north = found.north.unwrap();
         assert_eq!(north.world_id.as_deref(), Some("w1"));
         assert_eq!(north.room_id.as_deref(), Some("r2"));

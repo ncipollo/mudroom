@@ -5,37 +5,10 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use tracing::info;
 
-use crate::game::{Description, Dungeon, Entity, EntityType, Location, Room, World, next_id};
+use crate::game::{Entity, EntityType, Location, next_id};
 use crate::network::event::{NetworkEvent, PlayerInfo, PlayerListResponse};
 use crate::network::server::state::{AppState, PlayerCreateBody, PlayerListBody, PlayerSelectBody};
-use crate::persistence::{dungeon_repo, entity_repo, player_repo, room_repo, world_repo};
-
-const DEFAULT_WORLD_ID: &str = "default";
-const DEFAULT_DUNGEON_ID: &str = "default";
-const DEFAULT_ROOM_ID: &str = "default";
-
-async fn ensure_default_spawn(pool: &sqlx::SqlitePool) -> Result<Location, StatusCode> {
-    let world = World::new(DEFAULT_WORLD_ID.to_string());
-    world_repo::insert(pool, &world)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    let dungeon = Dungeon::new(DEFAULT_DUNGEON_ID.to_string());
-    dungeon_repo::insert(pool, &dungeon, DEFAULT_WORLD_ID)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    let room = Room::new(DEFAULT_ROOM_ID.to_string(), Description::new(None));
-    room_repo::insert(pool, &room, DEFAULT_DUNGEON_ID)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    Ok(Location {
-        world_id: DEFAULT_WORLD_ID.to_string(),
-        dungeon_id: DEFAULT_DUNGEON_ID.to_string(),
-        room_id: DEFAULT_ROOM_ID.to_string(),
-    })
-}
+use crate::persistence::{entity_repo, player_repo};
 
 pub async fn player_list_handler(
     State(state): State<Arc<AppState>>,
@@ -63,7 +36,12 @@ pub async fn player_create_handler(
 ) -> Result<Json<PlayerInfo>, StatusCode> {
     info!(client_id = %body.client_id, name = %body.name, "POST /players/create");
     let pool = state.db.pool();
-    let location = ensure_default_spawn(pool).await?;
+    let spawn = &state.game_state.mud_config.spawn;
+    let location = Location {
+        world_id: spawn.world_id.clone(),
+        dungeon_id: spawn.dungeon_id.clone(),
+        room_id: spawn.room_id.clone(),
+    };
     let entity_id = next_id();
     let entity = Entity::new(entity_id, EntityType::Player, location);
     entity_repo::insert(pool, &entity)

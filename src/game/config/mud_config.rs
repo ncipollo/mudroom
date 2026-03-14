@@ -5,8 +5,26 @@ use serde::{Deserialize, Serialize};
 use crate::game::config::game_loop_config::GameLoopConfig;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SpawnConfig {
+    pub world_id: String,
+    pub dungeon_id: String,
+    pub room_id: String,
+}
+
+impl SpawnConfig {
+    pub fn default_config() -> Self {
+        Self {
+            world_id: "default".to_string(),
+            dungeon_id: "default".to_string(),
+            room_id: "default".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MudConfig {
     pub game_loop: GameLoopConfig,
+    pub spawn: SpawnConfig,
 }
 
 impl MudConfig {
@@ -19,6 +37,7 @@ impl MudConfig {
     pub fn default_config() -> Self {
         Self {
             game_loop: GameLoopConfig::default_config(),
+            spawn: SpawnConfig::default_config(),
         }
     }
 }
@@ -35,6 +54,9 @@ mod tests {
         assert_eq!(config.game_loop.tick_rate, 1000);
         assert_eq!(config.game_loop.max_turn_ticks, 30);
         assert_eq!(config.game_loop.world_update_ticks, 600);
+        assert_eq!(config.spawn.world_id, "default");
+        assert_eq!(config.spawn.dungeon_id, "default");
+        assert_eq!(config.spawn.room_id, "default");
     }
 
     #[test]
@@ -44,6 +66,11 @@ mod tests {
 tick_rate = 500
 max_turn_ticks = 15
 world_update_ticks = 300
+
+[spawn]
+world_id = "overworld"
+dungeon_id = "town"
+room_id = "square"
 "#;
         let mut file = NamedTempFile::new().unwrap();
         file.write_all(toml.as_bytes()).unwrap();
@@ -51,5 +78,8 @@ world_update_ticks = 300
         assert_eq!(config.game_loop.tick_rate, 500);
         assert_eq!(config.game_loop.max_turn_ticks, 15);
         assert_eq!(config.game_loop.world_update_ticks, 300);
+        assert_eq!(config.spawn.world_id, "overworld");
+        assert_eq!(config.spawn.dungeon_id, "town");
+        assert_eq!(config.spawn.room_id, "square");
     }
 }

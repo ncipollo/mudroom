@@ -131,7 +131,7 @@ mod tests {
         assert!(world.is_some());
         let dungeon = dungeon_repo::find_by_id(db.pool(), "d1").await.unwrap();
         assert!(dungeon.is_some());
-        let room = room_repo::find_by_id(db.pool(), "r1").await.unwrap();
+        let room = room_repo::find_by_id(db.pool(), "d1", "r1").await.unwrap();
         assert!(room.is_some());
     }
 
@@ -159,9 +159,9 @@ mod tests {
         let universe2 = make_universe();
         load_map_into_db(db.pool(), &universe2).await.unwrap();
 
-        let room = room_repo::find_by_id(db.pool(), "r2").await.unwrap();
+        let room = room_repo::find_by_id(db.pool(), "d1", "r2").await.unwrap();
         assert!(room.is_none());
-        let room1 = room_repo::find_by_id(db.pool(), "r1").await.unwrap();
+        let room1 = room_repo::find_by_id(db.pool(), "d1", "r1").await.unwrap();
         assert!(room1.is_some());
     }
 

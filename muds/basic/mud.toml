@@ -2,3 +2,8 @@
 tick_rate = 1000
 max_turn_ticks = 30
 world_update_ticks = 600
+
+[spawn]
+world_id = "default"
+dungeon_id = "default"
+room_id = "default"
