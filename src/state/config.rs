@@ -47,6 +47,30 @@ pub async fn create_session_base_dirs() -> StateResult<()> {
     Ok(())
 }
 
+pub fn find_config_dir() -> Option<PathBuf> {
+    let cwd = std::env::current_dir().ok()?;
+
+    // Check working directory itself
+    if cwd.join("mud.toml").exists() {
+        return Some(cwd);
+    }
+
+    // Check immediate subdirectories of muds/
+    let muds_dir = cwd.join("muds");
+    if muds_dir.is_dir()
+        && let Ok(entries) = std::fs::read_dir(&muds_dir)
+    {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() && path.join("mud.toml").exists() {
+                return Some(path);
+            }
+        }
+    }
+
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

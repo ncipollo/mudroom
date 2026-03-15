@@ -7,7 +7,6 @@ mod player_select;
 
 pub use app::App;
 
-use ratatui::DefaultTerminal;
 use tokio::sync::mpsc;
 
 use crate::{network, session, state};
@@ -88,8 +87,14 @@ pub async fn run_client(
     result
 }
 
-pub async fn run_discovery(
-    terminal: &mut DefaultTerminal,
-) -> Result<Option<String>, Box<dyn std::error::Error>> {
-    discovery::run(terminal).await
+pub async fn run_discovery(debug: bool) -> Result<(), Box<dyn std::error::Error>> {
+    let mut terminal = ratatui::init();
+    crossterm::execute!(std::io::stdout(), crossterm::event::EnableMouseCapture)?;
+    let selected = discovery::run(&mut terminal).await;
+    crossterm::execute!(std::io::stdout(), crossterm::event::DisableMouseCapture)?;
+    ratatui::restore();
+    match selected? {
+        Some(url) => run_client(Some(url), debug).await,
+        None => Ok(()),
+    }
 }
