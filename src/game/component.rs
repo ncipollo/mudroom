@@ -2,6 +2,7 @@ pub mod attribute;
 pub mod attribute_definition;
 pub mod check;
 pub mod description;
+pub mod effect;
 pub mod interaction;
 pub mod location;
 
@@ -11,6 +12,10 @@ pub use attribute_definition::AttributeType;
 pub use check::Check;
 pub use description::CheckedDescription;
 pub use description::Description;
+pub use effect::Effect;
+pub use effect::EffectDescription;
+pub use effect::EffectType;
+pub use effect::TriggerInfo;
 pub use interaction::Direction;
 pub use interaction::Interaction;
 pub use interaction::Movement;

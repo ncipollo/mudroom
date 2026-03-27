@@ -1,3 +1,5 @@
+entities = ["entities/innkeeper"]
+
 [description]
 standard = "A warm tavern with a crackling fireplace. The town square is to the south."
 

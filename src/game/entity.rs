@@ -10,6 +10,7 @@ use crate::game::component::Location;
 pub enum EntityType {
     Player,
     Character,
+    Object,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -19,6 +20,7 @@ pub struct Entity {
     pub location: Location,
     pub attributes: HashMap<String, Attribute>,
     pub interactions: Vec<Interaction>,
+    pub config_id: Option<String>,
 }
 
 impl Entity {
@@ -29,6 +31,7 @@ impl Entity {
             location,
             attributes: HashMap::new(),
             interactions: Vec::new(),
+            config_id: None,
         }
     }
 }

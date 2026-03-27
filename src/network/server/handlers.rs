@@ -142,6 +142,18 @@ pub async fn maps_reload_handler(
             tracing::error!(error = %e, "Failed to load map into database");
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
+    if let Some(config_dir) = config_path {
+        let entity_configs = game::load_entity_configs(config_dir).map_err(|e| {
+            tracing::error!(error = %e, "Failed to load entity configs");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+        game::load_entities_into_db(state.db.pool(), &universe, &entity_configs)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to load entities into database");
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+    }
     info!("Maps reloaded");
     Ok("ok")
 }

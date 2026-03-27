@@ -11,6 +11,8 @@ pub struct Room {
     pub south: Option<Navigation>,
     pub east: Option<Navigation>,
     pub west: Option<Navigation>,
+    #[serde(default)]
+    pub entities: Vec<String>,
 }
 
 impl Room {
@@ -22,6 +24,7 @@ impl Room {
             south: None,
             east: None,
             west: None,
+            entities: Vec::new(),
         }
     }
 }

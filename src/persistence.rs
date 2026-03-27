@@ -1,6 +1,7 @@
 pub mod attribute_repo;
 pub mod database;
 pub mod dungeon_repo;
+pub mod entity_effect_repo;
 pub mod entity_repo;
 pub mod error;
 pub mod interaction_repo;

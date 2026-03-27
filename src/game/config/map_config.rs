@@ -12,6 +12,8 @@ pub struct RoomConfig {
     pub south: Option<Navigation>,
     pub east: Option<Navigation>,
     pub west: Option<Navigation>,
+    #[serde(default)]
+    pub entities: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -92,6 +94,7 @@ pub fn load_map(config_dir: Option<&Path>) -> Result<Universe, Box<dyn Error>> {
                     south: config.south,
                     east: config.east,
                     west: config.west,
+                    entities: config.entities,
                 };
                 dungeon.rooms.insert(room_name, room);
             }

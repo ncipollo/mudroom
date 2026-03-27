@@ -1,8 +1,12 @@
 use sqlx::SqlitePool;
+use std::collections::HashMap;
 use std::error::Error;
 
-use crate::game::Universe;
-use crate::persistence::{dungeon_repo, entity_repo, room_repo, server_state_repo, world_repo};
+use crate::game::config::entity_config::EntityTypeConfig;
+use crate::game::{EntityConfig, EntityType, Location, Universe};
+use crate::persistence::{
+    dungeon_repo, entity_effect_repo, entity_repo, room_repo, server_state_repo, world_repo,
+};
 
 const LAST_MAP_LOAD_KEY: &str = "last_map_load_date";
 
@@ -87,10 +91,52 @@ async fn delete_world_cascade(pool: &SqlitePool, world_id: &str) -> Result<(), B
     Ok(())
 }
 
+pub async fn load_entities_into_db(
+    pool: &SqlitePool,
+    universe: &Universe,
+    entity_configs: &HashMap<String, EntityConfig>,
+) -> Result<(), Box<dyn Error>> {
+    for world in universe.worlds.values() {
+        for dungeon in world.dungeons.values() {
+            for room in dungeon.rooms.values() {
+                for config_id in &room.entities {
+                    let Some(config) = entity_configs.get(config_id) else {
+                        continue;
+                    };
+                    let entity_type = match config.entity_type {
+                        EntityTypeConfig::Character => EntityType::Character,
+                        EntityTypeConfig::Object => EntityType::Object,
+                    };
+                    let location = Location {
+                        world_id: world.id.clone(),
+                        dungeon_id: dungeon.id.clone(),
+                        room_id: room.id.clone(),
+                    };
+
+                    let (entity_id, is_new) = entity_repo::insert_config_entity_if_missing(
+                        pool,
+                        &entity_type,
+                        &location,
+                        config_id,
+                    )
+                    .await?;
+
+                    if is_new {
+                        for effect in &config.entity_effects {
+                            entity_effect_repo::insert(pool, entity_id, effect).await?;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::{Description, Dungeon, Room, World};
+    use crate::game::{Description, Dungeon, EntityConfig, Room, World};
     use crate::persistence::database::Database;
 
     fn make_universe() -> Universe {
@@ -182,5 +228,82 @@ mod tests {
 
         let world = world_repo::find_by_id(db.pool(), "w2").await.unwrap();
         assert!(world.is_none());
+    }
+
+    fn make_universe_with_entity() -> Universe {
+        let mut universe = Universe::default();
+        let mut world = World::new("w1".to_string());
+        let mut dungeon = Dungeon::new("d1".to_string());
+        let mut room = Room::new(
+            "r1".to_string(),
+            Description::new(Some("A room.".to_string())),
+        );
+        room.entities.push("entities/innkeeper".to_string());
+        dungeon.rooms.insert("r1".to_string(), room);
+        world.dungeons.insert("d1".to_string(), dungeon);
+        universe.worlds.insert("w1".to_string(), world);
+        universe
+    }
+
+    fn make_entity_configs() -> HashMap<String, EntityConfig> {
+        use crate::game::config::entity_config::{EntityConfig, EntityTypeConfig};
+        let config = EntityConfig {
+            id: Some("entities/innkeeper".to_string()),
+            entity_type: EntityTypeConfig::Character,
+            persona: None,
+            attributes: vec![],
+            entity_effects: vec![],
+        };
+        let mut map = HashMap::new();
+        map.insert("entities/innkeeper".to_string(), config);
+        map
+    }
+
+    #[tokio::test]
+    async fn load_entities_into_db_inserts_entity() {
+        let db = Database::connect_in_memory().await.unwrap();
+        let universe = make_universe_with_entity();
+        load_map_into_db(db.pool(), &universe).await.unwrap();
+        let configs = make_entity_configs();
+        load_entities_into_db(db.pool(), &universe, &configs)
+            .await
+            .unwrap();
+
+        let loc = crate::game::Location {
+            world_id: "w1".to_string(),
+            dungeon_id: "d1".to_string(),
+            room_id: "r1".to_string(),
+        };
+        let entities = entity_repo::find_by_location(db.pool(), &loc)
+            .await
+            .unwrap();
+        assert_eq!(entities.len(), 1);
+        assert_eq!(entities[0].config_id.as_deref(), Some("entities/innkeeper"));
+    }
+
+    #[tokio::test]
+    async fn load_entities_into_db_is_idempotent() {
+        let db = Database::connect_in_memory().await.unwrap();
+        let universe = make_universe_with_entity();
+        load_map_into_db(db.pool(), &universe).await.unwrap();
+        let configs = make_entity_configs();
+
+        // Call twice
+        load_entities_into_db(db.pool(), &universe, &configs)
+            .await
+            .unwrap();
+        load_entities_into_db(db.pool(), &universe, &configs)
+            .await
+            .unwrap();
+
+        let loc = crate::game::Location {
+            world_id: "w1".to_string(),
+            dungeon_id: "d1".to_string(),
+            room_id: "r1".to_string(),
+        };
+        let entities = entity_repo::find_by_location(db.pool(), &loc)
+            .await
+            .unwrap();
+        assert_eq!(entities.len(), 1);
     }
 }

@@ -1,50 +1,102 @@
 use sqlx::SqlitePool;
 
-use crate::game::{Entity, EntityType, Location};
+use crate::game::{Entity, EntityType, Location, next_id};
 use crate::persistence::error::PersistenceError;
 
 pub async fn insert(pool: &SqlitePool, entity: &Entity) -> Result<(), PersistenceError> {
     let entity_type = entity_type_to_str(&entity.entity_type);
     sqlx::query(
-        "INSERT OR REPLACE INTO entities (id, entity_type, world_id, dungeon_id, room_id) VALUES (?, ?, ?, ?, ?)",
+        "INSERT OR REPLACE INTO entities (id, entity_type, world_id, dungeon_id, room_id, config_id) VALUES (?, ?, ?, ?, ?, ?)",
     )
     .bind(entity.id)
     .bind(entity_type)
     .bind(&entity.location.world_id)
     .bind(&entity.location.dungeon_id)
     .bind(&entity.location.room_id)
+    .bind(&entity.config_id)
     .execute(pool)
     .await?;
     Ok(())
 }
 
+/// Insert a config entity if no entity with the same config_id + original location exists.
+/// Returns `(entity_id, is_new)` — id of the existing or newly inserted entity, and whether it
+/// was just created. Current location is preserved on conflict (entity may have moved).
+pub async fn insert_config_entity_if_missing(
+    pool: &SqlitePool,
+    entity_type: &EntityType,
+    location: &Location,
+    config_id: &str,
+) -> Result<(i64, bool), PersistenceError> {
+    let id = next_id();
+    let entity_type_str = entity_type_to_str(entity_type);
+    sqlx::query(
+        "INSERT INTO entities
+             (id, entity_type, world_id, dungeon_id, room_id, config_id,
+              original_world_id, original_dungeon_id, original_room_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(config_id, original_world_id, original_dungeon_id, original_room_id)
+             WHERE config_id IS NOT NULL
+         DO UPDATE SET
+             entity_type = excluded.entity_type",
+    )
+    .bind(id)
+    .bind(entity_type_str)
+    .bind(&location.world_id)
+    .bind(&location.dungeon_id)
+    .bind(&location.room_id)
+    .bind(config_id)
+    .bind(&location.world_id)
+    .bind(&location.dungeon_id)
+    .bind(&location.room_id)
+    .execute(pool)
+    .await?;
+
+    let (entity_id,): (i64,) = sqlx::query_as(
+        "SELECT id FROM entities
+         WHERE config_id = ? AND original_world_id = ? AND original_dungeon_id = ? AND original_room_id = ?",
+    )
+    .bind(config_id)
+    .bind(&location.world_id)
+    .bind(&location.dungeon_id)
+    .bind(&location.room_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok((entity_id, entity_id == id))
+}
+
 pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<Entity>, PersistenceError> {
-    let row: Option<(i64, String, String, String, String)> = sqlx::query_as(
-        "SELECT id, entity_type, world_id, dungeon_id, room_id FROM entities WHERE id = ?",
+    let row: Option<(i64, String, String, String, String, Option<String>)> = sqlx::query_as(
+        "SELECT id, entity_type, world_id, dungeon_id, room_id, config_id FROM entities WHERE id = ?",
     )
     .bind(id)
     .fetch_optional(pool)
     .await?;
 
-    Ok(row.map(|(id, et, world_id, dungeon_id, room_id)| {
-        Entity::new(
-            id,
-            entity_type_from_str(&et),
-            Location {
-                world_id,
-                dungeon_id,
-                room_id,
-            },
-        )
-    }))
+    Ok(
+        row.map(|(id, et, world_id, dungeon_id, room_id, config_id)| {
+            let mut entity = Entity::new(
+                id,
+                entity_type_from_str(&et),
+                Location {
+                    world_id,
+                    dungeon_id,
+                    room_id,
+                },
+            );
+            entity.config_id = config_id;
+            entity
+        }),
+    )
 }
 
 pub async fn find_by_location(
     pool: &SqlitePool,
     location: &Location,
 ) -> Result<Vec<Entity>, PersistenceError> {
-    let rows: Vec<(i64, String, String, String, String)> = sqlx::query_as(
-        "SELECT id, entity_type, world_id, dungeon_id, room_id FROM entities WHERE world_id = ? AND dungeon_id = ? AND room_id = ?",
+    let rows: Vec<(i64, String, String, String, String, Option<String>)> = sqlx::query_as(
+        "SELECT id, entity_type, world_id, dungeon_id, room_id, config_id FROM entities WHERE world_id = ? AND dungeon_id = ? AND room_id = ?",
     )
     .bind(&location.world_id)
     .bind(&location.dungeon_id)
@@ -54,8 +106,8 @@ pub async fn find_by_location(
 
     Ok(rows
         .into_iter()
-        .map(|(id, et, world_id, dungeon_id, room_id)| {
-            Entity::new(
+        .map(|(id, et, world_id, dungeon_id, room_id, config_id)| {
+            let mut entity = Entity::new(
                 id,
                 entity_type_from_str(&et),
                 Location {
@@ -63,7 +115,9 @@ pub async fn find_by_location(
                     dungeon_id,
                     room_id,
                 },
-            )
+            );
+            entity.config_id = config_id;
+            entity
         })
         .collect())
 }
@@ -103,12 +157,14 @@ fn entity_type_to_str(et: &EntityType) -> &'static str {
     match et {
         EntityType::Player => "player",
         EntityType::Character => "character",
+        EntityType::Object => "object",
     }
 }
 
 fn entity_type_from_str(s: &str) -> EntityType {
     match s {
         "player" => EntityType::Player,
+        "object" => EntityType::Object,
         _ => EntityType::Character,
     }
 }
@@ -235,5 +291,54 @@ mod tests {
 
         let entities = find_by_location(db.pool(), &test_location()).await.unwrap();
         assert!(entities.is_empty());
+    }
+
+    #[tokio::test]
+    async fn insert_config_entity_if_missing_inserts_new() {
+        let db = Database::connect_in_memory().await.unwrap();
+        setup(&db).await;
+
+        let (id, is_new) = insert_config_entity_if_missing(
+            db.pool(),
+            &EntityType::Character,
+            &test_location(),
+            "entities/innkeeper",
+        )
+        .await
+        .unwrap();
+        assert!(id > 0);
+        assert!(is_new);
+
+        let found = find_by_id(db.pool(), id).await.unwrap().unwrap();
+        assert_eq!(found.config_id.as_deref(), Some("entities/innkeeper"));
+    }
+
+    #[tokio::test]
+    async fn insert_config_entity_if_missing_returns_existing_id() {
+        let db = Database::connect_in_memory().await.unwrap();
+        setup(&db).await;
+
+        let (id1, is_new1) = insert_config_entity_if_missing(
+            db.pool(),
+            &EntityType::Character,
+            &test_location(),
+            "entities/innkeeper",
+        )
+        .await
+        .unwrap();
+        let (id2, is_new2) = insert_config_entity_if_missing(
+            db.pool(),
+            &EntityType::Character,
+            &test_location(),
+            "entities/innkeeper",
+        )
+        .await
+        .unwrap();
+        assert_eq!(id1, id2);
+        assert!(is_new1);
+        assert!(!is_new2);
+
+        let entities = find_by_location(db.pool(), &test_location()).await.unwrap();
+        assert_eq!(entities.len(), 1);
     }
 }
