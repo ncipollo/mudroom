@@ -58,6 +58,11 @@ pub async fn run_server(
         let universe = game::load_map(config_path)?;
         game::load_map_into_db(db.pool(), &universe).await?;
         tracing::info!("Maps loaded into database");
+        if let Some(config_dir) = config_path {
+            let entity_configs = game::load_entity_configs(config_dir)?;
+            game::load_entities_into_db(db.pool(), &universe, &entity_configs).await?;
+            tracing::info!("Entities loaded into database");
+        }
     }
 
     let session_name = server_session.name.clone();

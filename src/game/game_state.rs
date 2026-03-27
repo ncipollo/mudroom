@@ -107,8 +107,8 @@ attribute_type = "hp"
             br#"
 [game_loop]
 tick_rate = 500
-max_turn_ticks = 15
-world_update_ticks = 300
+max_turn_ms = 15000
+world_update_ms = 300000
 
 [spawn]
 world_id = "default"
@@ -120,16 +120,16 @@ room_id = "default"
 
         let state = GameState::load(Some(dir.path())).unwrap();
         assert_eq!(state.mud_config.game_loop.tick_rate, 500);
-        assert_eq!(state.mud_config.game_loop.max_turn_ticks, 15);
-        assert_eq!(state.mud_config.game_loop.world_update_ticks, 300);
+        assert_eq!(state.mud_config.game_loop.max_turn_ms, 15000);
+        assert_eq!(state.mud_config.game_loop.world_update_ms, 300000);
     }
 
     #[test]
     fn load_without_mud_toml_uses_defaults() {
         let state = GameState::load(None).unwrap();
         assert_eq!(state.mud_config.game_loop.tick_rate, 1000);
-        assert_eq!(state.mud_config.game_loop.max_turn_ticks, 30);
-        assert_eq!(state.mud_config.game_loop.world_update_ticks, 600);
+        assert_eq!(state.mud_config.game_loop.max_turn_ms, 30_000);
+        assert_eq!(state.mud_config.game_loop.world_update_ms, 600_000);
     }
 
     #[tokio::test]

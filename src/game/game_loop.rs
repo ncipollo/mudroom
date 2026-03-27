@@ -12,7 +12,8 @@ use crate::persistence::Database;
 
 pub async fn run(game_state: Arc<GameState>, db: Database) {
     let tick_rate = game_state.mud_config.game_loop.tick_rate;
-    let world_update_ticks = game_state.mud_config.game_loop.world_update_ticks;
+    let world_update_ms = game_state.mud_config.game_loop.world_update_ms;
+    let world_update_ticks = (world_update_ms / tick_rate).max(1);
 
     let mut ticker = interval(Duration::from_millis(tick_rate));
     let mut tick: u64 = 0;
