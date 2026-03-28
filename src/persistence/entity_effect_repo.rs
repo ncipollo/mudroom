@@ -91,9 +91,8 @@ mod tests {
             dungeon_id: "d1".to_string(),
             room_id: "r1".to_string(),
         };
-        let entity = Entity::new(1, EntityType::Character, loc);
-        entity_repo::insert(db.pool(), &entity).await.unwrap();
-        1
+        let entity = Entity::new(0, EntityType::Character, loc);
+        entity_repo::insert(db.pool(), &entity).await.unwrap()
     }
 
     fn make_effect() -> Effect {

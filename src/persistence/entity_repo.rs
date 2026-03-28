@@ -1,14 +1,13 @@
 use sqlx::SqlitePool;
 
-use crate::game::{Entity, EntityType, Location, next_id};
+use crate::game::{Entity, EntityType, Location};
 use crate::persistence::error::PersistenceError;
 
-pub async fn insert(pool: &SqlitePool, entity: &Entity) -> Result<(), PersistenceError> {
+pub async fn insert(pool: &SqlitePool, entity: &Entity) -> Result<i64, PersistenceError> {
     let entity_type = entity_type_to_str(&entity.entity_type);
-    sqlx::query(
-        "INSERT OR REPLACE INTO entities (id, entity_type, world_id, dungeon_id, room_id, config_id) VALUES (?, ?, ?, ?, ?, ?)",
+    let result = sqlx::query(
+        "INSERT INTO entities (entity_type, world_id, dungeon_id, room_id, config_id) VALUES (?, ?, ?, ?, ?)",
     )
-    .bind(entity.id)
     .bind(entity_type)
     .bind(&entity.location.world_id)
     .bind(&entity.location.dungeon_id)
@@ -16,7 +15,7 @@ pub async fn insert(pool: &SqlitePool, entity: &Entity) -> Result<(), Persistenc
     .bind(&entity.config_id)
     .execute(pool)
     .await?;
-    Ok(())
+    Ok(result.last_insert_rowid())
 }
 
 /// Insert a config entity if no entity with the same config_id + original location exists.
@@ -28,19 +27,34 @@ pub async fn insert_config_entity_if_missing(
     location: &Location,
     config_id: &str,
 ) -> Result<(i64, bool), PersistenceError> {
-    let id = next_id();
     let entity_type_str = entity_type_to_str(entity_type);
-    sqlx::query(
-        "INSERT INTO entities
-             (id, entity_type, world_id, dungeon_id, room_id, config_id,
-              original_world_id, original_dungeon_id, original_room_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(config_id, original_world_id, original_dungeon_id, original_room_id)
-             WHERE config_id IS NOT NULL
-         DO UPDATE SET
-             entity_type = excluded.entity_type",
+
+    let existing: Option<(i64,)> = sqlx::query_as(
+        "SELECT id FROM entities
+         WHERE config_id = ? AND original_world_id = ? AND original_dungeon_id = ? AND original_room_id = ?",
     )
-    .bind(id)
+    .bind(config_id)
+    .bind(&location.world_id)
+    .bind(&location.dungeon_id)
+    .bind(&location.room_id)
+    .fetch_optional(pool)
+    .await?;
+
+    if let Some((id,)) = existing {
+        sqlx::query("UPDATE entities SET entity_type = ? WHERE id = ?")
+            .bind(entity_type_str)
+            .bind(id)
+            .execute(pool)
+            .await?;
+        return Ok((id, false));
+    }
+
+    let result = sqlx::query(
+        "INSERT INTO entities
+             (entity_type, world_id, dungeon_id, room_id, config_id,
+              original_world_id, original_dungeon_id, original_room_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+    )
     .bind(entity_type_str)
     .bind(&location.world_id)
     .bind(&location.dungeon_id)
@@ -52,18 +66,7 @@ pub async fn insert_config_entity_if_missing(
     .execute(pool)
     .await?;
 
-    let (entity_id,): (i64,) = sqlx::query_as(
-        "SELECT id FROM entities
-         WHERE config_id = ? AND original_world_id = ? AND original_dungeon_id = ? AND original_room_id = ?",
-    )
-    .bind(config_id)
-    .bind(&location.world_id)
-    .bind(&location.dungeon_id)
-    .bind(&location.room_id)
-    .fetch_one(pool)
-    .await?;
-
-    Ok((entity_id, entity_id == id))
+    Ok((result.last_insert_rowid(), true))
 }
 
 pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<Entity>, PersistenceError> {
@@ -200,11 +203,11 @@ mod tests {
     async fn insert_and_find_by_id() {
         let db = Database::connect_in_memory().await.unwrap();
         setup(&db).await;
-        let entity = Entity::new(1, EntityType::Player, test_location());
-        insert(db.pool(), &entity).await.unwrap();
+        let entity = Entity::new(0, EntityType::Player, test_location());
+        let id = insert(db.pool(), &entity).await.unwrap();
 
-        let found = find_by_id(db.pool(), 1).await.unwrap().unwrap();
-        assert_eq!(found.id, 1);
+        let found = find_by_id(db.pool(), id).await.unwrap().unwrap();
+        assert_eq!(found.id, id);
         assert_eq!(found.location.world_id, "w1");
     }
 
@@ -221,13 +224,13 @@ mod tests {
         setup(&db).await;
         insert(
             db.pool(),
-            &Entity::new(1, EntityType::Player, test_location()),
+            &Entity::new(0, EntityType::Player, test_location()),
         )
         .await
         .unwrap();
         insert(
             db.pool(),
-            &Entity::new(2, EntityType::Character, test_location()),
+            &Entity::new(0, EntityType::Character, test_location()),
         )
         .await
         .unwrap();
@@ -244,17 +247,17 @@ mod tests {
         let room2 = Room::new("r2".to_string(), Description::new(None));
         room_repo::insert(db.pool(), &room2, "d1").await.unwrap();
 
-        let entity = Entity::new(1, EntityType::Player, test_location());
-        insert(db.pool(), &entity).await.unwrap();
+        let entity = Entity::new(0, EntityType::Player, test_location());
+        let id = insert(db.pool(), &entity).await.unwrap();
 
         let new_loc = Location {
             world_id: "w1".to_string(),
             dungeon_id: "d1".to_string(),
             room_id: "r2".to_string(),
         };
-        update_location(db.pool(), 1, &new_loc).await.unwrap();
+        update_location(db.pool(), id, &new_loc).await.unwrap();
 
-        let found = find_by_id(db.pool(), 1).await.unwrap().unwrap();
+        let found = find_by_id(db.pool(), id).await.unwrap().unwrap();
         assert_eq!(found.location.room_id, "r2");
     }
 
@@ -262,11 +265,11 @@ mod tests {
     async fn delete_removes_entity() {
         let db = Database::connect_in_memory().await.unwrap();
         setup(&db).await;
-        let entity = Entity::new(1, EntityType::Player, test_location());
-        insert(db.pool(), &entity).await.unwrap();
-        delete(db.pool(), 1).await.unwrap();
+        let entity = Entity::new(0, EntityType::Player, test_location());
+        let id = insert(db.pool(), &entity).await.unwrap();
+        delete(db.pool(), id).await.unwrap();
 
-        let found = find_by_id(db.pool(), 1).await.unwrap();
+        let found = find_by_id(db.pool(), id).await.unwrap();
         assert!(found.is_none());
     }
 
@@ -276,13 +279,13 @@ mod tests {
         setup(&db).await;
         insert(
             db.pool(),
-            &Entity::new(1, EntityType::Player, test_location()),
+            &Entity::new(0, EntityType::Player, test_location()),
         )
         .await
         .unwrap();
         insert(
             db.pool(),
-            &Entity::new(2, EntityType::Character, test_location()),
+            &Entity::new(0, EntityType::Character, test_location()),
         )
         .await
         .unwrap();

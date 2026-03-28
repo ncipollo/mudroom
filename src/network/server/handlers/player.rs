@@ -5,7 +5,7 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use tracing::info;
 
-use crate::game::{Entity, EntityType, Location, next_id};
+use crate::game::{Entity, EntityType, Location};
 use crate::network::event::{NetworkEvent, PlayerInfo, PlayerListResponse};
 use crate::network::server::state::{AppState, PlayerCreateBody, PlayerListBody, PlayerSelectBody};
 use crate::persistence::{entity_repo, player_repo};
@@ -42,9 +42,8 @@ pub async fn player_create_handler(
         dungeon_id: spawn.dungeon_id.clone(),
         room_id: spawn.room_id.clone(),
     };
-    let entity_id = next_id();
-    let entity = Entity::new(entity_id, EntityType::Player, location);
-    entity_repo::insert(pool, &entity)
+    let entity = Entity::new(0, EntityType::Player, location);
+    let entity_id = entity_repo::insert(pool, &entity)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let player_id = player_repo::insert(pool, &body.client_id, &body.name, entity_id)

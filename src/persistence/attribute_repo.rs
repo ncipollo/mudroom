@@ -67,9 +67,8 @@ mod tests {
             dungeon_id: "d1".to_string(),
             room_id: "r1".to_string(),
         };
-        let entity = Entity::new(42, EntityType::Player, loc);
-        entity_repo::insert(db.pool(), &entity).await.unwrap();
-        42
+        let entity = Entity::new(0, EntityType::Player, loc);
+        entity_repo::insert(db.pool(), &entity).await.unwrap()
     }
 
     #[tokio::test]
