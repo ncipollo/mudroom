@@ -109,7 +109,7 @@ attribute_type = "hp"
         file.write_all(
             br#"
 [game_loop]
-tick_rate = 500
+tick_rate_ms = 500
 max_engage_ms = 15000
 world_update_ms = 300000
 
@@ -122,7 +122,7 @@ room_id = "default"
         .unwrap();
 
         let state = GameState::load(Some(dir.path())).unwrap();
-        assert_eq!(state.mud_config.game_loop.tick_rate, 500);
+        assert_eq!(state.mud_config.game_loop.tick_rate_ms, 500);
         assert_eq!(state.mud_config.game_loop.max_engage_ms, 15000);
         assert_eq!(state.mud_config.game_loop.world_update_ms, 300000);
     }
@@ -130,7 +130,7 @@ room_id = "default"
     #[test]
     fn load_without_mud_toml_uses_defaults() {
         let state = GameState::load(None).unwrap();
-        assert_eq!(state.mud_config.game_loop.tick_rate, 1000);
+        assert_eq!(state.mud_config.game_loop.tick_rate_ms, 1000);
         assert_eq!(state.mud_config.game_loop.max_engage_ms, 30_000);
         assert_eq!(state.mud_config.game_loop.world_update_ms, 600_000);
     }

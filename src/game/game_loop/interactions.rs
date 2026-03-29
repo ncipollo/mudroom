@@ -3,6 +3,8 @@ mod movement;
 
 use std::sync::Arc;
 
+use tracing;
+
 use crate::game::component::interaction::Movement;
 use crate::game::player::Player;
 use crate::game::{GameState, Interaction};

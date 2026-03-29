@@ -2,20 +2,21 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicI64, Ordering};
 
 use tokio::sync::RwLock;
+use tracing;
 
 use crate::game::engagement::Engagement;
 use crate::game::engagement::EngagementType;
 use crate::game::engagement::TurnAction;
 
 pub struct Engagements {
-    inner: RwLock<HashMap<i64, Engagement>>,
+    engagements_by_id: RwLock<HashMap<i64, Engagement>>,
     next_id: AtomicI64,
 }
 
 impl Engagements {
     pub fn new() -> Self {
         Self {
-            inner: RwLock::new(HashMap::new()),
+            engagements_by_id: RwLock::new(HashMap::new()),
             next_id: AtomicI64::new(1),
         }
     }
@@ -24,18 +25,19 @@ impl Engagements {
     pub async fn add(&self, engagement_type: EngagementType, entity_ids: Vec<i64>) -> i64 {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let engagement = Engagement::new(id, engagement_type, entity_ids);
-        self.inner.write().await.insert(id, engagement);
+        self.engagements_by_id.write().await.insert(id, engagement);
         id
     }
 
     pub async fn remove(&self, engagement_id: i64) {
-        self.inner.write().await.remove(&engagement_id);
+        self.engagements_by_id.write().await.remove(&engagement_id);
     }
 
-    /// Find the engagement containing the given entity and submit a turn action if it's their turn.
-    /// Returns true if the action was accepted.
+    /// Find the engagement containing the given entity and submit a turn action.
+    /// Entities may submit actions off-turn; they are stored per-entity and resolved in order.
+    /// Returns true if the entity is part of an engagement.
     pub async fn submit_action_for_entity(&self, entity_id: i64, action: TurnAction) -> bool {
-        let mut map = self.inner.write().await;
+        let mut map = self.engagements_by_id.write().await;
         for engagement in map.values_mut() {
             if engagement.entity_ids.contains(&entity_id) {
                 return engagement.submit_action(entity_id, action);
@@ -47,23 +49,22 @@ impl Engagements {
     /// Process one game tick for all engagements. Resolves or times out the current turn
     /// for each engagement where applicable.
     pub async fn process_tick(&self, max_engage_ticks: u64) {
-        let mut map = self.inner.write().await;
+        let mut map = self.engagements_by_id.write().await;
         for engagement in map.values_mut() {
             if engagement.should_advance(max_engage_ticks) {
                 let current = engagement.current_entity();
-                match &engagement.pending_action {
-                    Some(action) => {
+                if let Some(id) = current {
+                    if let Some(action) = engagement.pending_actions.get(&id) {
                         tracing::debug!(
                             engagement_id = engagement.id,
-                            entity_id = ?current,
+                            entity_id = id,
                             action = ?action,
                             "resolving turn action"
                         );
-                    }
-                    None => {
+                    } else {
                         tracing::debug!(
                             engagement_id = engagement.id,
-                            entity_id = ?current,
+                            entity_id = id,
                             "turn timed out, advancing"
                         );
                     }
@@ -101,7 +102,7 @@ mod tests {
         let engagements = Engagements::new();
         let id = engagements.add(EngagementType::Battle, vec![1, 2]).await;
         engagements.remove(id).await;
-        let map = engagements.inner.read().await;
+        let map = engagements.engagements_by_id.read().await;
         assert!(!map.contains_key(&id));
     }
 
@@ -121,13 +122,28 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn submit_action_for_wrong_turn_entity_fails() {
+    async fn submit_action_for_off_turn_entity_succeeds() {
         let engagements = Engagements::new();
         engagements.add(EngagementType::Battle, vec![10, 20]).await;
-        // Entity 20 is not the current turn (10 is first, sorted ascending)
+        // Entity 20 is not the current turn but can still pre-submit an action
         let accepted = engagements
             .submit_action_for_entity(
                 20,
+                TurnAction::SendMessage {
+                    content: "attack".to_string(),
+                },
+            )
+            .await;
+        assert!(accepted);
+    }
+
+    #[tokio::test]
+    async fn submit_action_for_unknown_entity_fails() {
+        let engagements = Engagements::new();
+        engagements.add(EngagementType::Battle, vec![10, 20]).await;
+        let accepted = engagements
+            .submit_action_for_entity(
+                99,
                 TurnAction::SendMessage {
                     content: "attack".to_string(),
                 },
@@ -149,7 +165,7 @@ mod tests {
             )
             .await;
         engagements.process_tick(30).await;
-        let map = engagements.inner.read().await;
+        let map = engagements.engagements_by_id.read().await;
         let eng = map.values().next().unwrap();
         assert_eq!(eng.current_entity(), Some(20));
     }
@@ -159,7 +175,7 @@ mod tests {
         let engagements = Engagements::new();
         engagements.add(EngagementType::Battle, vec![10, 20]).await;
         engagements.process_tick(30).await;
-        let map = engagements.inner.read().await;
+        let map = engagements.engagements_by_id.read().await;
         let eng = map.values().next().unwrap();
         assert_eq!(eng.ticks_on_current_turn, 1);
         assert_eq!(eng.current_entity(), Some(10));
@@ -173,7 +189,7 @@ mod tests {
         for _ in 0..=3 {
             engagements.process_tick(3).await;
         }
-        let map = engagements.inner.read().await;
+        let map = engagements.engagements_by_id.read().await;
         let eng = map.values().next().unwrap();
         assert_eq!(eng.current_entity(), Some(20));
     }
