@@ -2,6 +2,7 @@ use sqlx::SqlitePool;
 use std::collections::HashMap;
 use std::error::Error;
 
+use crate::game::component::Attribute;
 use crate::game::config::entity_config::EntityTypeConfig;
 use crate::game::{EntityConfig, EntityType, Location, Universe};
 use crate::persistence::{
@@ -126,10 +127,44 @@ pub async fn load_entities_into_db(
                             entity_effect_repo::insert(pool, entity_id, effect).await?;
                         }
                     }
+
+                    if !config.attributes.is_empty() {
+                        sync_entity_attributes(pool, entity_id, config).await?;
+                    }
                 }
             }
         }
     }
+    Ok(())
+}
+
+async fn sync_entity_attributes(
+    pool: &SqlitePool,
+    entity_id: i64,
+    config: &EntityConfig,
+) -> Result<(), Box<dyn Error>> {
+    let existing = entity_repo::find_by_id(pool, entity_id).await?;
+    let db_attrs = existing.map(|e| e.attributes).unwrap_or_default();
+    let attrs: HashMap<String, Attribute> = config
+        .attributes
+        .iter()
+        .map(|sa| {
+            let current_value = db_attrs
+                .get(&sa.definition_id)
+                .map(|a| a.current_value.clamp(sa.min_value, sa.max_value))
+                .unwrap_or(sa.current_value);
+            (
+                sa.definition_id.clone(),
+                Attribute::new(
+                    sa.definition_id.clone(),
+                    sa.min_value,
+                    sa.max_value,
+                    current_value,
+                ),
+            )
+        })
+        .collect();
+    entity_repo::update_attributes(pool, entity_id, &attrs).await?;
     Ok(())
 }
 
@@ -259,22 +294,64 @@ mod tests {
         map
     }
 
-    #[tokio::test]
-    async fn load_entities_into_db_inserts_entity() {
-        let db = Database::connect_in_memory().await.unwrap();
-        let universe = make_universe_with_entity();
-        load_map_into_db(db.pool(), &universe).await.unwrap();
-        let configs = make_entity_configs();
-        load_entities_into_db(db.pool(), &universe, &configs)
-            .await
-            .unwrap();
+    fn make_entity_configs_with_attributes() -> HashMap<String, EntityConfig> {
+        use crate::game::config::entity_config::{
+            EntityConfig, EntityTypeConfig, StartingAttribute,
+        };
+        let config = EntityConfig {
+            id: Some("entities/innkeeper".to_string()),
+            entity_type: EntityTypeConfig::Character,
+            persona: None,
+            attributes: vec![
+                StartingAttribute {
+                    definition_id: "hp".to_string(),
+                    min_value: 0,
+                    max_value: 100,
+                    current_value: 100,
+                },
+                StartingAttribute {
+                    definition_id: "mp".to_string(),
+                    min_value: 0,
+                    max_value: 50,
+                    current_value: 50,
+                },
+            ],
+            entity_effects: vec![],
+        };
+        let mut map = HashMap::new();
+        map.insert("entities/innkeeper".to_string(), config);
+        map
+    }
 
-        let loc = crate::game::Location {
+    fn innkeeper_location() -> crate::game::Location {
+        crate::game::Location {
             world_id: "w1".to_string(),
             dungeon_id: "d1".to_string(),
             room_id: "r1".to_string(),
-        };
-        let entities = entity_repo::find_by_location(db.pool(), &loc)
+        }
+    }
+
+    async fn load_innkeeper(db: &Database, configs: &HashMap<String, EntityConfig>) {
+        let universe = make_universe_with_entity();
+        load_map_into_db(db.pool(), &universe).await.unwrap();
+        load_entities_into_db(db.pool(), &universe, configs)
+            .await
+            .unwrap();
+    }
+
+    async fn find_innkeeper_attrs(db: &Database) -> HashMap<String, Attribute> {
+        let entities = entity_repo::find_by_location(db.pool(), &innkeeper_location())
+            .await
+            .unwrap();
+        entities.into_iter().next().unwrap().attributes
+    }
+
+    #[tokio::test]
+    async fn load_entities_into_db_inserts_entity() {
+        let db = Database::connect_in_memory().await.unwrap();
+        load_innkeeper(&db, &make_entity_configs()).await;
+
+        let entities = entity_repo::find_by_location(db.pool(), &innkeeper_location())
             .await
             .unwrap();
         assert_eq!(entities.len(), 1);
@@ -287,8 +364,6 @@ mod tests {
         let universe = make_universe_with_entity();
         load_map_into_db(db.pool(), &universe).await.unwrap();
         let configs = make_entity_configs();
-
-        // Call twice
         load_entities_into_db(db.pool(), &universe, &configs)
             .await
             .unwrap();
@@ -296,14 +371,92 @@ mod tests {
             .await
             .unwrap();
 
-        let loc = crate::game::Location {
-            world_id: "w1".to_string(),
-            dungeon_id: "d1".to_string(),
-            room_id: "r1".to_string(),
-        };
-        let entities = entity_repo::find_by_location(db.pool(), &loc)
+        let entities = entity_repo::find_by_location(db.pool(), &innkeeper_location())
             .await
             .unwrap();
         assert_eq!(entities.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn load_entities_populates_starting_attributes() {
+        let db = Database::connect_in_memory().await.unwrap();
+        load_innkeeper(&db, &make_entity_configs_with_attributes()).await;
+
+        let attrs = find_innkeeper_attrs(&db).await;
+        assert_eq!(attrs["hp"], Attribute::new("hp".to_string(), 0, 100, 100));
+        assert_eq!(attrs["mp"], Attribute::new("mp".to_string(), 0, 50, 50));
+    }
+
+    #[tokio::test]
+    async fn load_entities_restores_empty_attributes_from_config() {
+        let db = Database::connect_in_memory().await.unwrap();
+        load_innkeeper(&db, &make_entity_configs()).await;
+        assert!(find_innkeeper_attrs(&db).await.is_empty());
+
+        let universe = make_universe_with_entity();
+        load_entities_into_db(db.pool(), &universe, &make_entity_configs_with_attributes())
+            .await
+            .unwrap();
+
+        let attrs = find_innkeeper_attrs(&db).await;
+        assert_eq!(attrs["hp"], Attribute::new("hp".to_string(), 0, 100, 100));
+        assert_eq!(attrs["mp"], Attribute::new("mp".to_string(), 0, 50, 50));
+    }
+
+    #[tokio::test]
+    async fn load_entities_preserves_current_value_and_updates_min_max() {
+        use crate::game::config::entity_config::{
+            EntityConfig, EntityTypeConfig, StartingAttribute,
+        };
+
+        let db = Database::connect_in_memory().await.unwrap();
+        load_innkeeper(&db, &make_entity_configs_with_attributes()).await;
+
+        // Drain hp to 75 in DB
+        let entities = entity_repo::find_by_location(db.pool(), &innkeeper_location())
+            .await
+            .unwrap();
+        let entity_id = entities[0].id;
+        let mut attrs = entities[0].attributes.clone();
+        attrs.get_mut("hp").unwrap().current_value = 75;
+        entity_repo::update_attributes(db.pool(), entity_id, &attrs)
+            .await
+            .unwrap();
+
+        // Reload with tightened ranges: hp 10..90, mp 0..30
+        let mut new_configs = HashMap::new();
+        new_configs.insert(
+            "entities/innkeeper".to_string(),
+            EntityConfig {
+                id: Some("entities/innkeeper".to_string()),
+                entity_type: EntityTypeConfig::Character,
+                persona: None,
+                attributes: vec![
+                    StartingAttribute {
+                        definition_id: "hp".to_string(),
+                        min_value: 10,
+                        max_value: 90,
+                        current_value: 90,
+                    },
+                    StartingAttribute {
+                        definition_id: "mp".to_string(),
+                        min_value: 0,
+                        max_value: 30,
+                        current_value: 30,
+                    },
+                ],
+                entity_effects: vec![],
+            },
+        );
+        let universe = make_universe_with_entity();
+        load_entities_into_db(db.pool(), &universe, &new_configs)
+            .await
+            .unwrap();
+
+        let attrs = find_innkeeper_attrs(&db).await;
+        // hp current_value 75 preserved, range updated to 10..90
+        assert_eq!(attrs["hp"], Attribute::new("hp".to_string(), 10, 90, 75));
+        // mp current_value 50 clamped to new max 30
+        assert_eq!(attrs["mp"], Attribute::new("mp".to_string(), 0, 30, 30));
     }
 }
