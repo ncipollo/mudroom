@@ -52,7 +52,7 @@ mod tests {
     fn default_config_has_expected_values() {
         let config = MudConfig::default_config();
         assert_eq!(config.game_loop.tick_rate, 1000);
-        assert_eq!(config.game_loop.max_turn_ms, 30_000);
+        assert_eq!(config.game_loop.max_engage_ms, 30_000);
         assert_eq!(config.game_loop.world_update_ms, 600_000);
         assert_eq!(config.spawn.world_id, "default");
         assert_eq!(config.spawn.dungeon_id, "default");
@@ -64,7 +64,7 @@ mod tests {
         let toml = r#"
 [game_loop]
 tick_rate = 500
-max_turn_ms = 15000
+max_engage_ms = 15000
 world_update_ms = 300000
 
 [spawn]
@@ -76,7 +76,7 @@ room_id = "square"
         file.write_all(toml.as_bytes()).unwrap();
         let config = MudConfig::load(file.path()).unwrap();
         assert_eq!(config.game_loop.tick_rate, 500);
-        assert_eq!(config.game_loop.max_turn_ms, 15000);
+        assert_eq!(config.game_loop.max_engage_ms, 15000);
         assert_eq!(config.game_loop.world_update_ms, 300000);
         assert_eq!(config.spawn.world_id, "overworld");
         assert_eq!(config.spawn.dungeon_id, "town");

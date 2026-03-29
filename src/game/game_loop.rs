@@ -1,5 +1,6 @@
 pub mod attributes;
 pub mod effects;
+pub mod engagement;
 pub mod interactions;
 pub mod world_update;
 
@@ -22,6 +23,7 @@ pub async fn run(game_state: Arc<GameState>, db: Database) {
         ticker.tick().await;
 
         interactions::process(&game_state, &db, tick).await;
+        engagement::process(&game_state, tick).await;
         effects::process(&game_state, tick).await;
         attributes::process(&game_state, tick).await;
 

@@ -1,0 +1,180 @@
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicI64, Ordering};
+
+use tokio::sync::RwLock;
+
+use crate::game::engagement::Engagement;
+use crate::game::engagement::EngagementType;
+use crate::game::engagement::TurnAction;
+
+pub struct Engagements {
+    inner: RwLock<HashMap<i64, Engagement>>,
+    next_id: AtomicI64,
+}
+
+impl Engagements {
+    pub fn new() -> Self {
+        Self {
+            inner: RwLock::new(HashMap::new()),
+            next_id: AtomicI64::new(1),
+        }
+    }
+
+    /// Create and add a new engagement. Returns the new engagement's id.
+    pub async fn add(&self, engagement_type: EngagementType, entity_ids: Vec<i64>) -> i64 {
+        let id = self.next_id.fetch_add(1, Ordering::Relaxed);
+        let engagement = Engagement::new(id, engagement_type, entity_ids);
+        self.inner.write().await.insert(id, engagement);
+        id
+    }
+
+    pub async fn remove(&self, engagement_id: i64) {
+        self.inner.write().await.remove(&engagement_id);
+    }
+
+    /// Find the engagement containing the given entity and submit a turn action if it's their turn.
+    /// Returns true if the action was accepted.
+    pub async fn submit_action_for_entity(&self, entity_id: i64, action: TurnAction) -> bool {
+        let mut map = self.inner.write().await;
+        for engagement in map.values_mut() {
+            if engagement.entity_ids.contains(&entity_id) {
+                return engagement.submit_action(entity_id, action);
+            }
+        }
+        false
+    }
+
+    /// Process one game tick for all engagements. Resolves or times out the current turn
+    /// for each engagement where applicable.
+    pub async fn process_tick(&self, max_engage_ticks: u64) {
+        let mut map = self.inner.write().await;
+        for engagement in map.values_mut() {
+            if engagement.should_advance(max_engage_ticks) {
+                let current = engagement.current_entity();
+                match &engagement.pending_action {
+                    Some(action) => {
+                        tracing::debug!(
+                            engagement_id = engagement.id,
+                            entity_id = ?current,
+                            action = ?action,
+                            "resolving turn action"
+                        );
+                    }
+                    None => {
+                        tracing::debug!(
+                            engagement_id = engagement.id,
+                            entity_id = ?current,
+                            "turn timed out, advancing"
+                        );
+                    }
+                }
+                engagement.advance_turn();
+            } else {
+                engagement.ticks_on_current_turn += 1;
+            }
+        }
+    }
+}
+
+impl Default for Engagements {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn add_returns_sequential_ids() {
+        let engagements = Engagements::new();
+        let id1 = engagements.add(EngagementType::Battle, vec![1, 2]).await;
+        let id2 = engagements
+            .add(EngagementType::Conversation, vec![3, 4])
+            .await;
+        assert_ne!(id1, id2);
+    }
+
+    #[tokio::test]
+    async fn remove_drops_engagement() {
+        let engagements = Engagements::new();
+        let id = engagements.add(EngagementType::Battle, vec![1, 2]).await;
+        engagements.remove(id).await;
+        let map = engagements.inner.read().await;
+        assert!(!map.contains_key(&id));
+    }
+
+    #[tokio::test]
+    async fn submit_action_for_current_entity_succeeds() {
+        let engagements = Engagements::new();
+        engagements.add(EngagementType::Battle, vec![10, 20]).await;
+        let accepted = engagements
+            .submit_action_for_entity(
+                10,
+                TurnAction::SendMessage {
+                    content: "attack".to_string(),
+                },
+            )
+            .await;
+        assert!(accepted);
+    }
+
+    #[tokio::test]
+    async fn submit_action_for_wrong_turn_entity_fails() {
+        let engagements = Engagements::new();
+        engagements.add(EngagementType::Battle, vec![10, 20]).await;
+        // Entity 20 is not the current turn (10 is first, sorted ascending)
+        let accepted = engagements
+            .submit_action_for_entity(
+                20,
+                TurnAction::SendMessage {
+                    content: "attack".to_string(),
+                },
+            )
+            .await;
+        assert!(!accepted);
+    }
+
+    #[tokio::test]
+    async fn process_tick_advances_turn_after_action_submitted() {
+        let engagements = Engagements::new();
+        engagements.add(EngagementType::Battle, vec![10, 20]).await;
+        engagements
+            .submit_action_for_entity(
+                10,
+                TurnAction::Respond {
+                    content: "ok".to_string(),
+                },
+            )
+            .await;
+        engagements.process_tick(30).await;
+        let map = engagements.inner.read().await;
+        let eng = map.values().next().unwrap();
+        assert_eq!(eng.current_entity(), Some(20));
+    }
+
+    #[tokio::test]
+    async fn process_tick_increments_ticks_when_no_action() {
+        let engagements = Engagements::new();
+        engagements.add(EngagementType::Battle, vec![10, 20]).await;
+        engagements.process_tick(30).await;
+        let map = engagements.inner.read().await;
+        let eng = map.values().next().unwrap();
+        assert_eq!(eng.ticks_on_current_turn, 1);
+        assert_eq!(eng.current_entity(), Some(10));
+    }
+
+    #[tokio::test]
+    async fn process_tick_advances_on_timeout() {
+        let engagements = Engagements::new();
+        engagements.add(EngagementType::Battle, vec![10, 20]).await;
+        // Simulate timeout by processing enough ticks
+        for _ in 0..=3 {
+            engagements.process_tick(3).await;
+        }
+        let map = engagements.inner.read().await;
+        let eng = map.values().next().unwrap();
+        assert_eq!(eng.current_entity(), Some(20));
+    }
+}
