@@ -1,18 +1,33 @@
+use std::collections::HashMap;
+
 use sqlx::SqlitePool;
 
+use crate::game::component::Attribute;
 use crate::game::{Entity, EntityType, Location};
 use crate::persistence::error::PersistenceError;
 
+type EntityRow = (
+    i64,
+    String,
+    String,
+    String,
+    String,
+    Option<String>,
+    Option<String>,
+);
+
 pub async fn insert(pool: &SqlitePool, entity: &Entity) -> Result<i64, PersistenceError> {
     let entity_type = entity_type_to_str(&entity.entity_type);
+    let attributes_json = serde_json::to_string(&entity.attributes)?;
     let result = sqlx::query(
-        "INSERT INTO entities (entity_type, world_id, dungeon_id, room_id, config_id) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO entities (entity_type, world_id, dungeon_id, room_id, config_id, attributes) VALUES (?, ?, ?, ?, ?, ?)",
     )
     .bind(entity_type)
     .bind(&entity.location.world_id)
     .bind(&entity.location.dungeon_id)
     .bind(&entity.location.room_id)
     .bind(&entity.config_id)
+    .bind(attributes_json)
     .execute(pool)
     .await?;
     Ok(result.last_insert_rowid())
@@ -70,15 +85,24 @@ pub async fn insert_config_entity_if_missing(
 }
 
 pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<Entity>, PersistenceError> {
-    let row: Option<(i64, String, String, String, String, Option<String>)> = sqlx::query_as(
-        "SELECT id, entity_type, world_id, dungeon_id, room_id, config_id FROM entities WHERE id = ?",
+    let row: Option<EntityRow> = sqlx::query_as(
+        "SELECT id, entity_type, world_id, dungeon_id, room_id, config_id, attributes FROM entities WHERE id = ?",
     )
-    .bind(id)
-    .fetch_optional(pool)
-    .await?;
+        .bind(id)
+        .fetch_optional(pool)
+        .await?;
 
-    Ok(
-        row.map(|(id, et, world_id, dungeon_id, room_id, config_id)| {
+    Ok(row.map(
+        |(id, et, world_id, dungeon_id, room_id, config_id, attrs_json)| {
+            let attributes = attrs_json
+                .and_then(|json| match serde_json::from_str(&json) {
+                    Ok(v) => Some(v),
+                    Err(e) => {
+                        tracing::warn!("Failed to deserialize attributes for entity {id}: {e}");
+                        None
+                    }
+                })
+                .unwrap_or_default();
             let mut entity = Entity::new(
                 id,
                 entity_type_from_str(&et),
@@ -89,40 +113,67 @@ pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<Entity>, Pe
                 },
             );
             entity.config_id = config_id;
+            entity.attributes = attributes;
             entity
-        }),
-    )
+        },
+    ))
 }
 
 pub async fn find_by_location(
     pool: &SqlitePool,
     location: &Location,
 ) -> Result<Vec<Entity>, PersistenceError> {
-    let rows: Vec<(i64, String, String, String, String, Option<String>)> = sqlx::query_as(
-        "SELECT id, entity_type, world_id, dungeon_id, room_id, config_id FROM entities WHERE world_id = ? AND dungeon_id = ? AND room_id = ?",
+    let rows: Vec<EntityRow> = sqlx::query_as(
+        "SELECT id, entity_type, world_id, dungeon_id, room_id, config_id, attributes FROM entities WHERE world_id = ? AND dungeon_id = ? AND room_id = ?",
     )
-    .bind(&location.world_id)
-    .bind(&location.dungeon_id)
-    .bind(&location.room_id)
-    .fetch_all(pool)
-    .await?;
+        .bind(&location.world_id)
+        .bind(&location.dungeon_id)
+        .bind(&location.room_id)
+        .fetch_all(pool)
+        .await?;
 
     Ok(rows
         .into_iter()
-        .map(|(id, et, world_id, dungeon_id, room_id, config_id)| {
-            let mut entity = Entity::new(
-                id,
-                entity_type_from_str(&et),
-                Location {
-                    world_id,
-                    dungeon_id,
-                    room_id,
-                },
-            );
-            entity.config_id = config_id;
-            entity
-        })
+        .map(
+            |(id, et, world_id, dungeon_id, room_id, config_id, attrs_json)| {
+                let attributes = attrs_json
+                    .and_then(|json| match serde_json::from_str(&json) {
+                        Ok(v) => Some(v),
+                        Err(e) => {
+                            tracing::warn!("Failed to deserialize attributes for entity {id}: {e}");
+                            None
+                        }
+                    })
+                    .unwrap_or_default();
+                let mut entity = Entity::new(
+                    id,
+                    entity_type_from_str(&et),
+                    Location {
+                        world_id,
+                        dungeon_id,
+                        room_id,
+                    },
+                );
+                entity.config_id = config_id;
+                entity.attributes = attributes;
+                entity
+            },
+        )
         .collect())
+}
+
+pub async fn update_attributes(
+    pool: &SqlitePool,
+    entity_id: i64,
+    attributes: &HashMap<String, Attribute>,
+) -> Result<(), PersistenceError> {
+    let json = serde_json::to_string(attributes)?;
+    sqlx::query("UPDATE entities SET attributes = ? WHERE id = ?")
+        .bind(json)
+        .bind(entity_id)
+        .execute(pool)
+        .await?;
+    Ok(())
 }
 
 pub async fn update_location(
@@ -343,5 +394,67 @@ mod tests {
 
         let entities = find_by_location(db.pool(), &test_location()).await.unwrap();
         assert_eq!(entities.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn insert_and_find_preserves_attributes() {
+        let db = Database::connect_in_memory().await.unwrap();
+        setup(&db).await;
+
+        let mut entity = Entity::new(0, EntityType::Character, test_location());
+        entity.attributes.insert(
+            "hp".to_string(),
+            Attribute::new("hp".to_string(), 0, 100, 80),
+        );
+        entity.attributes.insert(
+            "mp".to_string(),
+            Attribute::new("mp".to_string(), 0, 50, 50),
+        );
+        let id = insert(db.pool(), &entity).await.unwrap();
+
+        let found = find_by_id(db.pool(), id).await.unwrap().unwrap();
+        assert_eq!(found.attributes.len(), 2);
+        assert_eq!(found.attributes["hp"].current_value, 80);
+        assert_eq!(found.attributes["mp"].max_value, 50);
+    }
+
+    #[tokio::test]
+    async fn find_by_id_with_corrupt_attributes_returns_empty() {
+        let db = Database::connect_in_memory().await.unwrap();
+        setup(&db).await;
+
+        let entity = Entity::new(0, EntityType::Character, test_location());
+        let id = insert(db.pool(), &entity).await.unwrap();
+
+        // Corrupt the attributes column
+        sqlx::query("UPDATE entities SET attributes = ? WHERE id = ?")
+            .bind("not valid json{{{")
+            .bind(id)
+            .execute(db.pool())
+            .await
+            .unwrap();
+
+        let found = find_by_id(db.pool(), id).await.unwrap().unwrap();
+        assert!(found.attributes.is_empty());
+    }
+
+    #[tokio::test]
+    async fn update_attributes_persists_changes() {
+        let db = Database::connect_in_memory().await.unwrap();
+        setup(&db).await;
+
+        let entity = Entity::new(0, EntityType::Character, test_location());
+        let id = insert(db.pool(), &entity).await.unwrap();
+
+        let mut attrs = HashMap::new();
+        attrs.insert(
+            "str".to_string(),
+            Attribute::new("str".to_string(), 1, 20, 15),
+        );
+        update_attributes(db.pool(), id, &attrs).await.unwrap();
+
+        let found = find_by_id(db.pool(), id).await.unwrap().unwrap();
+        assert_eq!(found.attributes.len(), 1);
+        assert_eq!(found.attributes["str"].current_value, 15);
     }
 }
