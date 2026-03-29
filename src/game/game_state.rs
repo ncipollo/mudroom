@@ -5,6 +5,7 @@ use tokio::sync::RwLock;
 use tokio::sync::broadcast;
 
 use crate::game::config::{AttributeConfig, MudConfig};
+use crate::game::engagement::Engagements;
 use crate::game::entity::Entity;
 use crate::game::mailbox::Mailboxes;
 use crate::game::messaging::PlayerMessage;
@@ -14,6 +15,7 @@ pub struct GameState {
     pub attribute_config: AttributeConfig,
     pub mud_config: MudConfig,
     pub active_entities: RwLock<HashMap<i64, Entity>>,
+    pub engagements: Engagements,
     pub mailboxes: Mailboxes,
     pub active_players: RwLock<HashMap<String, Player>>,
     pub message_tx: broadcast::Sender<PlayerMessage>,
@@ -49,6 +51,7 @@ impl GameState {
             attribute_config,
             mud_config,
             active_entities: RwLock::new(HashMap::new()),
+            engagements: Engagements::new(),
             mailboxes: Mailboxes::new(),
             active_players: RwLock::new(HashMap::new()),
             message_tx,
@@ -106,8 +109,8 @@ attribute_type = "hp"
         file.write_all(
             br#"
 [game_loop]
-tick_rate = 500
-max_turn_ms = 15000
+tick_rate_ms = 500
+max_engage_ms = 15000
 world_update_ms = 300000
 
 [spawn]
@@ -119,16 +122,16 @@ room_id = "default"
         .unwrap();
 
         let state = GameState::load(Some(dir.path())).unwrap();
-        assert_eq!(state.mud_config.game_loop.tick_rate, 500);
-        assert_eq!(state.mud_config.game_loop.max_turn_ms, 15000);
+        assert_eq!(state.mud_config.game_loop.tick_rate_ms, 500);
+        assert_eq!(state.mud_config.game_loop.max_engage_ms, 15000);
         assert_eq!(state.mud_config.game_loop.world_update_ms, 300000);
     }
 
     #[test]
     fn load_without_mud_toml_uses_defaults() {
         let state = GameState::load(None).unwrap();
-        assert_eq!(state.mud_config.game_loop.tick_rate, 1000);
-        assert_eq!(state.mud_config.game_loop.max_turn_ms, 30_000);
+        assert_eq!(state.mud_config.game_loop.tick_rate_ms, 1000);
+        assert_eq!(state.mud_config.game_loop.max_engage_ms, 30_000);
         assert_eq!(state.mud_config.game_loop.world_update_ms, 600_000);
     }
 

@@ -1,5 +1,6 @@
 pub mod component;
 pub mod config;
+pub mod engagement;
 pub mod entity;
 pub mod game_loop;
 pub mod game_state;
@@ -36,6 +37,11 @@ pub use config::load_entity_configs;
 pub use config::load_map;
 pub use config::load_map_into_db;
 pub use config::should_auto_load;
+pub use engagement::Engagement;
+pub use engagement::EngagementType;
+pub use engagement::Engagements;
+pub use engagement::TurnAction;
+pub use engagement::TurnOrder;
 pub use entity::Entity;
 pub use entity::EntityType;
 pub use game_state::GameState;

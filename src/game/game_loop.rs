@@ -1,5 +1,6 @@
 pub mod attributes;
 pub mod effects;
+pub mod engagement;
 pub mod interactions;
 pub mod world_update;
 
@@ -11,7 +12,7 @@ use crate::game::GameState;
 use crate::persistence::Database;
 
 pub async fn run(game_state: Arc<GameState>, db: Database) {
-    let tick_rate = game_state.mud_config.game_loop.tick_rate;
+    let tick_rate = game_state.mud_config.game_loop.tick_rate_ms;
     let world_update_ms = game_state.mud_config.game_loop.world_update_ms;
     let world_update_ticks = (world_update_ms / tick_rate).max(1);
 
@@ -22,6 +23,7 @@ pub async fn run(game_state: Arc<GameState>, db: Database) {
         ticker.tick().await;
 
         interactions::process(&game_state, &db, tick).await;
+        engagement::process(&game_state, tick).await;
         effects::process(&game_state, tick).await;
         attributes::process(&game_state, tick).await;
 
