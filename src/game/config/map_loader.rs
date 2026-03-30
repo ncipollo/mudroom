@@ -119,6 +119,7 @@ pub async fn load_entities_into_db(
                         &entity_type,
                         &location,
                         config_id,
+                        config.description.as_deref(),
                     )
                     .await?;
 

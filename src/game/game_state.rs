@@ -5,18 +5,19 @@ use sqlx::SqlitePool;
 use tokio::sync::RwLock;
 use tokio::sync::broadcast;
 
-use crate::game::config::{AttributeConfig, EntityConfig, MudConfig, load_entity_configs};
+use crate::game::config::{AttributeConfig, MudConfig};
 use crate::game::engagement::Engagements;
 use crate::game::entity::Entity;
 use crate::game::mailbox::Mailboxes;
 use crate::game::messaging::PlayerMessage;
 use crate::game::player::Player;
-use crate::persistence::{PersistenceError, entity_repo};
+use crate::persistence::PersistenceError;
+
+mod entity_sync;
 
 pub struct GameState {
     pub attribute_config: AttributeConfig,
     pub mud_config: MudConfig,
-    pub entity_configs: HashMap<String, EntityConfig>,
     pub active_entities: RwLock<HashMap<i64, Entity>>,
     pub active_dungeons: RwLock<HashSet<(String, String)>>,
     pub engagements: Engagements,
@@ -49,18 +50,11 @@ impl GameState {
             MudConfig::default_config()
         };
 
-        let entity_configs = if let Some(dir) = config_dir {
-            load_entity_configs(dir).unwrap_or_default()
-        } else {
-            HashMap::new()
-        };
-
         let (message_tx, _) = broadcast::channel::<PlayerMessage>(512);
 
         Ok(Self {
             attribute_config,
             mud_config,
-            entity_configs,
             active_entities: RwLock::new(HashMap::new()),
             active_dungeons: RwLock::new(HashSet::new()),
             engagements: Engagements::new(),
@@ -70,64 +64,8 @@ impl GameState {
         })
     }
 
-    /// Recomputes active dungeons from current player locations, then syncs active_entities to
-    /// include all config entities in those dungeons.
     pub async fn sync_active_entities(&self, pool: &SqlitePool) -> Result<(), PersistenceError> {
-        // Compute the dungeons where players are currently located.
-        let new_active_dungeons: HashSet<(String, String)> = {
-            let entities = self.active_entities.read().await;
-            let players = self.active_players.read().await;
-            players
-                .values()
-                .filter_map(|p| entities.get(&p.entity_id))
-                .map(|e| (e.location.world_id.clone(), e.location.dungeon_id.clone()))
-                .collect()
-        };
-
-        let old_active_dungeons = self.active_dungeons.read().await.clone();
-
-        if new_active_dungeons == old_active_dungeons {
-            return Ok(());
-        }
-
-        let added: Vec<(String, String)> = new_active_dungeons
-            .difference(&old_active_dungeons)
-            .cloned()
-            .collect();
-        let removed: HashSet<(String, String)> = old_active_dungeons
-            .difference(&new_active_dungeons)
-            .cloned()
-            .collect();
-
-        // Fetch new entities from DB before acquiring write lock.
-        let mut incoming: Vec<Entity> = Vec::new();
-        for (world_id, dungeon_id) in &added {
-            let mut dungeon_entities =
-                entity_repo::find_config_entities_by_dungeon(pool, world_id, dungeon_id).await?;
-            for entity in &mut dungeon_entities {
-                if let Some(config_id) = &entity.config_id
-                    && let Some(cfg) = self.entity_configs.get(config_id)
-                {
-                    entity.description = cfg.description.clone();
-                }
-            }
-            incoming.extend(dungeon_entities);
-        }
-
-        {
-            let mut entities = self.active_entities.write().await;
-            entities.retain(|_, e| {
-                e.config_id.is_none()
-                    || !removed
-                        .contains(&(e.location.world_id.clone(), e.location.dungeon_id.clone()))
-            });
-            for entity in incoming {
-                entities.insert(entity.id, entity);
-            }
-        }
-
-        *self.active_dungeons.write().await = new_active_dungeons;
-        Ok(())
+        entity_sync::sync(self, pool).await
     }
 }
 
