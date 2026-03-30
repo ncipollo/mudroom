@@ -285,6 +285,7 @@ mod tests {
         let config = EntityConfig {
             id: Some("entities/innkeeper".to_string()),
             entity_type: EntityTypeConfig::Character,
+            description: None,
             persona: None,
             attributes: vec![],
             entity_effects: vec![],
@@ -301,6 +302,7 @@ mod tests {
         let config = EntityConfig {
             id: Some("entities/innkeeper".to_string()),
             entity_type: EntityTypeConfig::Character,
+            description: None,
             persona: None,
             attributes: vec![
                 StartingAttribute {
@@ -430,6 +432,7 @@ mod tests {
             EntityConfig {
                 id: Some("entities/innkeeper".to_string()),
                 entity_type: EntityTypeConfig::Character,
+                description: None,
                 persona: None,
                 attributes: vec![
                     StartingAttribute {

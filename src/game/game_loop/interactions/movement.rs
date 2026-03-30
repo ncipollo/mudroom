@@ -46,6 +46,8 @@ pub async fn process(
                     return;
                 }
             };
+            let old_world_id = location.world_id.clone();
+            let old_dungeon_id = location.dungeon_id.clone();
             let new_location = Location {
                 world_id: nav.world_id.unwrap_or(location.world_id),
                 dungeon_id: nav.dungeon_id.unwrap_or(location.dungeon_id),
@@ -61,6 +63,11 @@ pub async fn process(
                 entity_repo::update_location(db.pool(), player.entity_id, &new_location).await
             {
                 tracing::error!(error = %e, "Failed to update entity location in DB");
+            }
+            if (new_location.world_id != old_world_id || new_location.dungeon_id != old_dungeon_id)
+                && let Err(e) = game_state.sync_active_entities(db.pool()).await
+            {
+                tracing::error!(error = %e, "Failed to sync active entities after dungeon change");
             }
             messaging::message(
                 &game_state.message_tx,

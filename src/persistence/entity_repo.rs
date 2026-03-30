@@ -162,6 +162,49 @@ pub async fn find_by_location(
         .collect())
 }
 
+pub async fn find_config_entities_by_dungeon(
+    pool: &SqlitePool,
+    world_id: &str,
+    dungeon_id: &str,
+) -> Result<Vec<Entity>, PersistenceError> {
+    let rows: Vec<EntityRow> = sqlx::query_as(
+        "SELECT id, entity_type, world_id, dungeon_id, room_id, config_id, attributes FROM entities WHERE config_id IS NOT NULL AND world_id = ? AND dungeon_id = ?",
+    )
+    .bind(world_id)
+    .bind(dungeon_id)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(
+            |(id, et, world_id, dungeon_id, room_id, config_id, attrs_json)| {
+                let attributes = attrs_json
+                    .and_then(|json| match serde_json::from_str(&json) {
+                        Ok(v) => Some(v),
+                        Err(e) => {
+                            tracing::warn!("Failed to deserialize attributes for entity {id}: {e}");
+                            None
+                        }
+                    })
+                    .unwrap_or_default();
+                let mut entity = Entity::new(
+                    id,
+                    entity_type_from_str(&et),
+                    Location {
+                        world_id,
+                        dungeon_id,
+                        room_id,
+                    },
+                );
+                entity.config_id = config_id;
+                entity.attributes = attributes;
+                entity
+            },
+        )
+        .collect())
+}
+
 pub async fn update_attributes(
     pool: &SqlitePool,
     entity_id: i64,
@@ -345,6 +388,41 @@ mod tests {
 
         let entities = find_by_location(db.pool(), &test_location()).await.unwrap();
         assert!(entities.is_empty());
+    }
+
+    #[tokio::test]
+    async fn find_config_entities_by_dungeon_returns_matching() {
+        let db = Database::connect_in_memory().await.unwrap();
+        setup(&db).await;
+
+        let (id, _) = insert_config_entity_if_missing(
+            db.pool(),
+            &EntityType::Character,
+            &test_location(),
+            "entities/innkeeper",
+        )
+        .await
+        .unwrap();
+
+        // Player entity (no config_id) should not be returned
+        insert(
+            db.pool(),
+            &Entity::new(0, EntityType::Player, test_location()),
+        )
+        .await
+        .unwrap();
+
+        let found = find_config_entities_by_dungeon(db.pool(), "w1", "d1")
+            .await
+            .unwrap();
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].id, id);
+
+        // Different dungeon returns nothing
+        let other = find_config_entities_by_dungeon(db.pool(), "w1", "d2")
+            .await
+            .unwrap();
+        assert!(other.is_empty());
     }
 
     #[tokio::test]
