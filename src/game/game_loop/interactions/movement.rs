@@ -1,10 +1,14 @@
 use std::sync::Arc;
 
+use tracing;
+
 use crate::game::component::interaction::Direction;
 use crate::game::player::Player;
 use crate::game::{GameState, Location, messaging};
 use crate::persistence::Database;
 use crate::persistence::{entity_repo, room_repo};
+
+use super::look;
 
 pub async fn process(
     game_state: &Arc<GameState>,
@@ -74,12 +78,7 @@ pub async fn process(
                 player.id,
                 format!("You move {direction}."),
             );
-            if let Ok(Some(new_room)) =
-                room_repo::find_by_id(db.pool(), &new_location.dungeon_id, &new_location.room_id)
-                    .await
-            {
-                messaging::message_room_description(&game_state.message_tx, player.id, &new_room);
-            }
+            look::process(game_state, db, player).await;
         }
         None => {
             messaging::message(
