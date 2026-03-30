@@ -1,3 +1,4 @@
+mod help;
 mod look;
 mod movement;
 
@@ -27,6 +28,9 @@ pub async fn process(game_state: &Arc<GameState>, db: &Database, tick: u64) {
             match interaction {
                 Interaction::Look => {
                     look::process(game_state, db, &player).await;
+                }
+                Interaction::Help => {
+                    help::process(game_state, &player).await;
                 }
                 Interaction::Movement(Movement::TryDirection(direction)) => {
                     movement::process(game_state, db, &player, direction).await;

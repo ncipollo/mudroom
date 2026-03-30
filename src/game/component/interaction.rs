@@ -12,6 +12,7 @@ use crate::game::engagement::TurnAction;
 #[serde(rename_all = "snake_case")]
 pub enum Interaction {
     Look,
+    Help,
     Movement(Movement),
     EngagementAction(TurnAction),
 }

@@ -3,6 +3,7 @@ use crate::game::Direction;
 pub enum Command {
     Move(Direction),
     Look,
+    Help,
     #[allow(dead_code)]
     Enter(String),
     Unknown,
@@ -18,6 +19,7 @@ pub fn parse(input: &str) -> Command {
         "e" | "east" => Command::Move(Direction::East),
         "w" | "west" => Command::Move(Direction::West),
         "l" | "look" => Command::Look,
+        "h" | "help" => Command::Help,
         _ => {
             if let Some(target) = lower.strip_prefix("enter ") {
                 Command::Enter(target.to_string())
@@ -64,6 +66,14 @@ mod tests {
         if let Command::Enter(target) = parse("enter tavern") {
             assert_eq!(target, "tavern");
         }
+    }
+
+    #[test]
+    fn parse_help_variants() {
+        assert!(matches!(parse("h"), Command::Help));
+        assert!(matches!(parse("H"), Command::Help));
+        assert!(matches!(parse("help"), Command::Help));
+        assert!(matches!(parse("Help"), Command::Help));
     }
 
     #[test]

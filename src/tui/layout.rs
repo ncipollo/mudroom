@@ -31,13 +31,16 @@ pub fn render(frame: &mut Frame, app: &App) {
     let start = end.saturating_sub(visible_lines);
     let log_lines: Vec<Line> = app.messages[start..end]
         .iter()
-        .map(|msg| {
+        .flat_map(|msg| {
             let style = if msg.debug {
                 Style::default().fg(Color::DarkGray)
             } else {
                 Style::default()
             };
-            Line::from(Span::styled(msg.text.clone(), style))
+            msg.text
+                .split('\n')
+                .map(|line| Line::from(Span::styled(line.to_string(), style)))
+                .collect::<Vec<_>>()
         })
         .collect();
     let log = Paragraph::new(Text::from(log_lines))
