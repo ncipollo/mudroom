@@ -155,6 +155,11 @@ async fn handle_game_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) 
                         let _ = send_interaction(url, client_id, &Interaction::Look).await;
                     }
                 }
+                commands::Command::Help => {
+                    if let (Some(url), Some(client_id)) = (url, client_id) {
+                        let _ = send_interaction(url, client_id, &Interaction::Help).await;
+                    }
+                }
                 _ => {}
             }
             app.messages.push(AppMessage::normal(input));
