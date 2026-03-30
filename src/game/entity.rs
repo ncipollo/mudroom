@@ -21,6 +21,8 @@ pub struct Entity {
     pub attributes: HashMap<String, Attribute>,
     pub interactions: Vec<Interaction>,
     pub config_id: Option<String>,
+    #[serde(default)]
+    pub description: Option<String>,
 }
 
 impl Entity {
@@ -32,6 +34,7 @@ impl Entity {
             attributes: HashMap::new(),
             interactions: Vec::new(),
             config_id: None,
+            description: None,
         }
     }
 }

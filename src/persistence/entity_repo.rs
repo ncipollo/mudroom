@@ -14,13 +14,14 @@ type EntityRow = (
     String,
     Option<String>,
     Option<String>,
+    Option<String>,
 );
 
 pub async fn insert(pool: &SqlitePool, entity: &Entity) -> Result<i64, PersistenceError> {
     let entity_type = entity_type_to_str(&entity.entity_type);
     let attributes_json = serde_json::to_string(&entity.attributes)?;
     let result = sqlx::query(
-        "INSERT INTO entities (entity_type, world_id, dungeon_id, room_id, config_id, attributes) VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO entities (entity_type, world_id, dungeon_id, room_id, config_id, attributes, description) VALUES (?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(entity_type)
     .bind(&entity.location.world_id)
@@ -28,6 +29,7 @@ pub async fn insert(pool: &SqlitePool, entity: &Entity) -> Result<i64, Persisten
     .bind(&entity.location.room_id)
     .bind(&entity.config_id)
     .bind(attributes_json)
+    .bind(&entity.description)
     .execute(pool)
     .await?;
     Ok(result.last_insert_rowid())
@@ -41,6 +43,7 @@ pub async fn insert_config_entity_if_missing(
     entity_type: &EntityType,
     location: &Location,
     config_id: &str,
+    description: Option<&str>,
 ) -> Result<(i64, bool), PersistenceError> {
     let entity_type_str = entity_type_to_str(entity_type);
 
@@ -56,8 +59,9 @@ pub async fn insert_config_entity_if_missing(
     .await?;
 
     if let Some((id,)) = existing {
-        sqlx::query("UPDATE entities SET entity_type = ? WHERE id = ?")
+        sqlx::query("UPDATE entities SET entity_type = ?, description = ? WHERE id = ?")
             .bind(entity_type_str)
+            .bind(description)
             .bind(id)
             .execute(pool)
             .await?;
@@ -67,8 +71,8 @@ pub async fn insert_config_entity_if_missing(
     let result = sqlx::query(
         "INSERT INTO entities
              (entity_type, world_id, dungeon_id, room_id, config_id,
-              original_world_id, original_dungeon_id, original_room_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+              original_world_id, original_dungeon_id, original_room_id, description)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(entity_type_str)
     .bind(&location.world_id)
@@ -78,6 +82,7 @@ pub async fn insert_config_entity_if_missing(
     .bind(&location.world_id)
     .bind(&location.dungeon_id)
     .bind(&location.room_id)
+    .bind(description)
     .execute(pool)
     .await?;
 
@@ -86,14 +91,14 @@ pub async fn insert_config_entity_if_missing(
 
 pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<Entity>, PersistenceError> {
     let row: Option<EntityRow> = sqlx::query_as(
-        "SELECT id, entity_type, world_id, dungeon_id, room_id, config_id, attributes FROM entities WHERE id = ?",
+        "SELECT id, entity_type, world_id, dungeon_id, room_id, config_id, attributes, description FROM entities WHERE id = ?",
     )
         .bind(id)
         .fetch_optional(pool)
         .await?;
 
     Ok(row.map(
-        |(id, et, world_id, dungeon_id, room_id, config_id, attrs_json)| {
+        |(id, et, world_id, dungeon_id, room_id, config_id, attrs_json, description)| {
             let attributes = attrs_json
                 .and_then(|json| match serde_json::from_str(&json) {
                     Ok(v) => Some(v),
@@ -114,6 +119,7 @@ pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<Entity>, Pe
             );
             entity.config_id = config_id;
             entity.attributes = attributes;
+            entity.description = description;
             entity
         },
     ))
@@ -124,7 +130,7 @@ pub async fn find_by_location(
     location: &Location,
 ) -> Result<Vec<Entity>, PersistenceError> {
     let rows: Vec<EntityRow> = sqlx::query_as(
-        "SELECT id, entity_type, world_id, dungeon_id, room_id, config_id, attributes FROM entities WHERE world_id = ? AND dungeon_id = ? AND room_id = ?",
+        "SELECT id, entity_type, world_id, dungeon_id, room_id, config_id, attributes, description FROM entities WHERE world_id = ? AND dungeon_id = ? AND room_id = ?",
     )
         .bind(&location.world_id)
         .bind(&location.dungeon_id)
@@ -135,7 +141,7 @@ pub async fn find_by_location(
     Ok(rows
         .into_iter()
         .map(
-            |(id, et, world_id, dungeon_id, room_id, config_id, attrs_json)| {
+            |(id, et, world_id, dungeon_id, room_id, config_id, attrs_json, description)| {
                 let attributes = attrs_json
                     .and_then(|json| match serde_json::from_str(&json) {
                         Ok(v) => Some(v),
@@ -156,6 +162,51 @@ pub async fn find_by_location(
                 );
                 entity.config_id = config_id;
                 entity.attributes = attributes;
+                entity.description = description;
+                entity
+            },
+        )
+        .collect())
+}
+
+pub async fn find_config_entities_by_dungeon(
+    pool: &SqlitePool,
+    world_id: &str,
+    dungeon_id: &str,
+) -> Result<Vec<Entity>, PersistenceError> {
+    let rows: Vec<EntityRow> = sqlx::query_as(
+        "SELECT id, entity_type, world_id, dungeon_id, room_id, config_id, attributes, description FROM entities WHERE config_id IS NOT NULL AND world_id = ? AND dungeon_id = ?",
+    )
+    .bind(world_id)
+    .bind(dungeon_id)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(
+            |(id, et, world_id, dungeon_id, room_id, config_id, attrs_json, description)| {
+                let attributes = attrs_json
+                    .and_then(|json| match serde_json::from_str(&json) {
+                        Ok(v) => Some(v),
+                        Err(e) => {
+                            tracing::warn!("Failed to deserialize attributes for entity {id}: {e}");
+                            None
+                        }
+                    })
+                    .unwrap_or_default();
+                let mut entity = Entity::new(
+                    id,
+                    entity_type_from_str(&et),
+                    Location {
+                        world_id,
+                        dungeon_id,
+                        room_id,
+                    },
+                );
+                entity.config_id = config_id;
+                entity.attributes = attributes;
+                entity.description = description;
                 entity
             },
         )
@@ -348,6 +399,90 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn find_config_entities_by_dungeon_returns_matching() {
+        let db = Database::connect_in_memory().await.unwrap();
+        setup(&db).await;
+
+        let (id, _) = insert_config_entity_if_missing(
+            db.pool(),
+            &EntityType::Character,
+            &test_location(),
+            "entities/innkeeper",
+            None,
+        )
+        .await
+        .unwrap();
+
+        // Player entity (no config_id) should not be returned
+        insert(
+            db.pool(),
+            &Entity::new(0, EntityType::Player, test_location()),
+        )
+        .await
+        .unwrap();
+
+        let found = find_config_entities_by_dungeon(db.pool(), "w1", "d1")
+            .await
+            .unwrap();
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].id, id);
+
+        // Different dungeon returns nothing
+        let other = find_config_entities_by_dungeon(db.pool(), "w1", "d2")
+            .await
+            .unwrap();
+        assert!(other.is_empty());
+    }
+
+    #[tokio::test]
+    async fn insert_config_entity_if_missing_stores_description() {
+        let db = Database::connect_in_memory().await.unwrap();
+        setup(&db).await;
+
+        let (id, _) = insert_config_entity_if_missing(
+            db.pool(),
+            &EntityType::Character,
+            &test_location(),
+            "entities/innkeeper",
+            Some("A friendly innkeeper."),
+        )
+        .await
+        .unwrap();
+
+        let found = find_by_id(db.pool(), id).await.unwrap().unwrap();
+        assert_eq!(found.description.as_deref(), Some("A friendly innkeeper."));
+    }
+
+    #[tokio::test]
+    async fn insert_config_entity_if_missing_updates_description_on_conflict() {
+        let db = Database::connect_in_memory().await.unwrap();
+        setup(&db).await;
+
+        let (id, _) = insert_config_entity_if_missing(
+            db.pool(),
+            &EntityType::Character,
+            &test_location(),
+            "entities/innkeeper",
+            Some("Old description."),
+        )
+        .await
+        .unwrap();
+
+        insert_config_entity_if_missing(
+            db.pool(),
+            &EntityType::Character,
+            &test_location(),
+            "entities/innkeeper",
+            Some("New description."),
+        )
+        .await
+        .unwrap();
+
+        let found = find_by_id(db.pool(), id).await.unwrap().unwrap();
+        assert_eq!(found.description.as_deref(), Some("New description."));
+    }
+
+    #[tokio::test]
     async fn insert_config_entity_if_missing_inserts_new() {
         let db = Database::connect_in_memory().await.unwrap();
         setup(&db).await;
@@ -357,6 +492,7 @@ mod tests {
             &EntityType::Character,
             &test_location(),
             "entities/innkeeper",
+            None,
         )
         .await
         .unwrap();
@@ -377,6 +513,7 @@ mod tests {
             &EntityType::Character,
             &test_location(),
             "entities/innkeeper",
+            None,
         )
         .await
         .unwrap();
@@ -385,6 +522,7 @@ mod tests {
             &EntityType::Character,
             &test_location(),
             "entities/innkeeper",
+            None,
         )
         .await
         .unwrap();

@@ -1,6 +1,7 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
+use sqlx::SqlitePool;
 use tokio::sync::RwLock;
 use tokio::sync::broadcast;
 
@@ -10,11 +11,15 @@ use crate::game::entity::Entity;
 use crate::game::mailbox::Mailboxes;
 use crate::game::messaging::PlayerMessage;
 use crate::game::player::Player;
+use crate::persistence::PersistenceError;
+
+mod entity_sync;
 
 pub struct GameState {
     pub attribute_config: AttributeConfig,
     pub mud_config: MudConfig,
     pub active_entities: RwLock<HashMap<i64, Entity>>,
+    pub active_dungeons: RwLock<HashSet<(String, String)>>,
     pub engagements: Engagements,
     pub mailboxes: Mailboxes,
     pub active_players: RwLock<HashMap<String, Player>>,
@@ -51,11 +56,16 @@ impl GameState {
             attribute_config,
             mud_config,
             active_entities: RwLock::new(HashMap::new()),
+            active_dungeons: RwLock::new(HashSet::new()),
             engagements: Engagements::new(),
             mailboxes: Mailboxes::new(),
             active_players: RwLock::new(HashMap::new()),
             message_tx,
         })
+    }
+
+    pub async fn sync_active_entities(&self, pool: &SqlitePool) -> Result<(), PersistenceError> {
+        entity_sync::sync(self, pool).await
     }
 }
 
@@ -140,5 +150,12 @@ room_id = "default"
         let state = GameState::load(None).unwrap();
         let entities = state.active_entities.read().await;
         assert!(entities.is_empty());
+    }
+
+    #[tokio::test]
+    async fn load_initializes_empty_dungeons() {
+        let state = GameState::load(None).unwrap();
+        let dungeons = state.active_dungeons.read().await;
+        assert!(dungeons.is_empty());
     }
 }

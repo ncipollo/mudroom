@@ -89,6 +89,10 @@ pub async fn player_select_handler(
         .await
         .insert(body.client_id.clone(), player.clone());
 
+    if let Err(e) = state.game_state.sync_active_entities(state.db.pool()).await {
+        tracing::error!(error = %e, "Failed to sync active entities on player select");
+    }
+
     let conns = state.connections.read().await;
     if let Some(client) = conns.get(&body.client_id) {
         let _ = client

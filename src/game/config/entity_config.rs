@@ -53,6 +53,8 @@ pub struct StartingAttribute {
 pub struct EntityConfig {
     pub id: Option<String>,
     pub entity_type: EntityTypeConfig,
+    #[serde(default)]
+    pub description: Option<String>,
     pub persona: Option<PersonaConfig>,
     #[serde(default)]
     pub attributes: Vec<StartingAttribute>,
