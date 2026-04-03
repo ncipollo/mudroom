@@ -1,4 +1,5 @@
 pub mod attribute_config;
+mod dialog_parser;
 pub mod entity_config;
 pub mod game_loop_config;
 pub mod map_config;

@@ -1,4 +1,5 @@
 use crate::game::component::effect::Effect;
+use crate::game::config::dialog_parser::parse_dialog_markdown;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::error::Error;
@@ -25,12 +26,17 @@ pub enum PersonaConfig {
     },
     Standard {
         dialog_tree: Option<DialogLine>,
+        #[serde(default)]
+        dialog_file: Option<String>,
     },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DialogLine {
     pub text: String,
+    /// Alternate texts randomly selected in place of `text` at runtime.
+    #[serde(default)]
+    pub alts: Vec<String>,
     #[serde(default)]
     pub responses: Vec<PlayerResponse>,
 }
@@ -64,7 +70,16 @@ pub struct EntityConfig {
 
 pub fn load_entity_config(path: &Path) -> Result<EntityConfig, Box<dyn Error>> {
     let content = std::fs::read_to_string(path)?;
-    let config: EntityConfig = toml::from_str(&content)?;
+    let mut config: EntityConfig = toml::from_str(&content)?;
+    if let Some(PersonaConfig::Standard {
+        dialog_file: Some(ref dialog_path),
+        ref mut dialog_tree,
+    }) = config.persona
+    {
+        let md_path = path.parent().unwrap_or(Path::new(".")).join(dialog_path);
+        let md_content = std::fs::read_to_string(&md_path)?;
+        *dialog_tree = Some(parse_dialog_markdown(&md_content)?);
+    }
     Ok(config)
 }
 
@@ -135,6 +150,7 @@ current_value = 100
         assert_eq!(config.attributes[0].definition_id, "hp");
         if let Some(PersonaConfig::Standard {
             dialog_tree: Some(tree),
+            ..
         }) = &config.persona
         {
             assert_eq!(tree.text, "Hello!");
@@ -163,6 +179,7 @@ text = "Goodbye."
         let config: EntityConfig = toml::from_str(toml).unwrap();
         if let Some(PersonaConfig::Standard {
             dialog_tree: Some(tree),
+            ..
         }) = &config.persona
         {
             assert!(tree.responses[0].reply.is_none());
@@ -202,6 +219,7 @@ text = "Never mind."
         let config2: EntityConfig = toml::from_str(&serialized).unwrap();
         if let Some(PersonaConfig::Standard {
             dialog_tree: Some(tree),
+            ..
         }) = &config2.persona
         {
             assert_eq!(tree.text, "Welcome to the tavern!");

@@ -2,33 +2,7 @@ entity_type = "character"
 
 [persona]
 type = "standard"
-
-[persona.dialog_tree]
-text = "Welcome to the tavern!"
-
-[[persona.dialog_tree.responses]]
-text = "Just passing through."
-
-[persona.dialog_tree.responses.reply]
-text = "Safe travels, friend!"
-
-[[persona.dialog_tree.responses]]
-text = "I'd like a room for the night."
-
-[persona.dialog_tree.responses.reply]
-text = "That'll be 5 gold. Will you be staying?"
-
-[[persona.dialog_tree.responses.reply.responses]]
-text = "Yes, here you go."
-
-[persona.dialog_tree.responses.reply.responses.reply]
-text = "Enjoy your stay!"
-
-[[persona.dialog_tree.responses.reply.responses]]
-text = "Never mind."
-
-[persona.dialog_tree.responses.reply.responses.reply]
-text = "Come back anytime!"
+dialog_file = "innkeeper.md"
 
 [[attributes]]
 definition_id = "hp"
