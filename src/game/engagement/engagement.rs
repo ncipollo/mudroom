@@ -26,6 +26,20 @@ impl Engagement {
         }
     }
 
+    /// Create a conversation engagement where only the player takes turns. The NPC entity is
+    /// tracked in entity_ids for lookup but does not participate in the turn order.
+    pub fn new_conversation(id: i64, player_entity_id: i64, npc_entity_id: i64) -> Self {
+        let turn_order = TurnOrder::new(&[player_entity_id]);
+        Self {
+            id,
+            engagement_type: EngagementType::Conversation,
+            entity_ids: vec![player_entity_id, npc_entity_id],
+            turn_order,
+            pending_actions: HashMap::new(),
+            ticks_on_current_turn: 0,
+        }
+    }
+
     pub fn current_entity(&self) -> Option<i64> {
         self.turn_order.current()
     }

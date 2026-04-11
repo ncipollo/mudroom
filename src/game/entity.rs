@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::game::component::Attribute;
 use crate::game::component::Interaction;
 use crate::game::component::Location;
+use crate::game::entity_ai::EntityAI;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum EntityType {
@@ -23,6 +24,8 @@ pub struct Entity {
     pub config_id: Option<String>,
     #[serde(default)]
     pub description: Option<String>,
+    #[serde(skip)]
+    pub ai: Option<EntityAI>,
 }
 
 impl Entity {
@@ -35,6 +38,7 @@ impl Entity {
             interactions: Vec::new(),
             config_id: None,
             description: None,
+            ai: None,
         }
     }
 }

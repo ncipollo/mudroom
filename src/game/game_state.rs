@@ -5,7 +5,7 @@ use sqlx::SqlitePool;
 use tokio::sync::RwLock;
 use tokio::sync::broadcast;
 
-use crate::game::config::{AttributeConfig, MudConfig};
+use crate::game::config::{AttributeConfig, EntityConfig, MudConfig, load_entity_configs};
 use crate::game::engagement::Engagements;
 use crate::game::entity::Entity;
 use crate::game::mailbox::Mailboxes;
@@ -18,6 +18,7 @@ mod entity_sync;
 pub struct GameState {
     pub attribute_config: AttributeConfig,
     pub mud_config: MudConfig,
+    pub entity_configs: HashMap<String, EntityConfig>,
     pub active_entities: RwLock<HashMap<i64, Entity>>,
     pub active_dungeons: RwLock<HashSet<(String, String)>>,
     pub engagements: Engagements,
@@ -50,11 +51,18 @@ impl GameState {
             MudConfig::default_config()
         };
 
+        let entity_configs = if let Some(dir) = config_dir {
+            load_entity_configs(dir).unwrap_or_default()
+        } else {
+            HashMap::new()
+        };
+
         let (message_tx, _) = broadcast::channel::<PlayerMessage>(512);
 
         Ok(Self {
             attribute_config,
             mud_config,
+            entity_configs,
             active_entities: RwLock::new(HashMap::new()),
             active_dungeons: RwLock::new(HashSet::new()),
             engagements: Engagements::new(),

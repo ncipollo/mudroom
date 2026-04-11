@@ -1,3 +1,4 @@
+pub mod conversation;
 mod help;
 mod look;
 mod movement;
@@ -46,6 +47,9 @@ pub async fn process(game_state: &Arc<GameState>, db: &Database, tick: u64) {
                         accepted,
                         "engagement action submitted"
                     );
+                }
+                Interaction::StartConversation => {
+                    conversation::process(game_state, &player).await;
                 }
             }
         }
