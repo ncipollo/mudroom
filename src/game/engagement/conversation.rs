@@ -123,7 +123,7 @@ async fn handle_choice(
             }
 
             let msg = format_dialog_message(&reply_text, &reply_responses);
-            messaging::message(&game_state.message_tx, player.id, msg);
+            messaging::stream_message(game_state.message_tx.clone(), player.id, msg);
         }
     }
 }
@@ -146,7 +146,7 @@ async fn resend_current_dialog(
     if let Some(d) = dialog {
         let text = pick_text(&d).to_string();
         let msg = format_dialog_message(&text, &d.responses);
-        messaging::message(&game_state.message_tx, player.id, msg);
+        messaging::stream_message(game_state.message_tx.clone(), player.id, msg);
     }
 }
 

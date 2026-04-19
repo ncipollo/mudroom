@@ -52,6 +52,7 @@ pub struct App {
     pub connection: ConnectionState,
     pub player_select: PlayerSelectState,
     pub current_player_id: Option<i64>,
+    pub streaming_message_index: Option<usize>,
     pub debug: bool,
 }
 
@@ -69,6 +70,7 @@ impl App {
             connection: ConnectionState::default(),
             player_select: PlayerSelectState::default(),
             current_player_id: None,
+            streaming_message_index: None,
             debug,
         }
     }
@@ -86,6 +88,7 @@ impl App {
             },
             player_select: PlayerSelectState::default(),
             current_player_id: None,
+            streaming_message_index: None,
             debug,
         }
     }
@@ -150,12 +153,38 @@ impl App {
                 ..
             } => {
                 self.current_player_id = Some(player_id);
+                self.streaming_message_index = None;
                 self.messages
                     .push(AppMessage::normal(format!("Playing as: {player_name}")));
             }
             NetworkEvent::Message { player_id, content } => {
                 if Some(player_id) == self.current_player_id {
                     self.messages.push(AppMessage::normal(content));
+                }
+            }
+            NetworkEvent::MessageChunk {
+                player_id,
+                chunk,
+                is_final,
+            } => {
+                if Some(player_id) == self.current_player_id {
+                    match self.streaming_message_index {
+                        None => {
+                            let idx = self.messages.len();
+                            self.messages.push(AppMessage::normal(chunk));
+                            if !is_final {
+                                self.streaming_message_index = Some(idx);
+                            }
+                        }
+                        Some(idx) => {
+                            if let Some(msg) = self.messages.get_mut(idx) {
+                                msg.text.push_str(&chunk);
+                            }
+                            if is_final {
+                                self.streaming_message_index = None;
+                            }
+                        }
+                    }
                 }
             }
         }

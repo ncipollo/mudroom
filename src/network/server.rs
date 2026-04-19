@@ -39,24 +39,36 @@ pub async fn start(
     let game_state_relay = state.game_state.clone();
     tokio::spawn(async move {
         while let Ok(pm) = msg_rx.recv().await {
-            if let game::messaging::Message::Complete(content) = pm.message {
-                let players = game_state_relay.active_players.read().await;
-                let client_id = players
-                    .iter()
-                    .find(|(_, p)| p.id == pm.player_id)
-                    .map(|(cid, _): (&String, _)| cid.clone());
-                drop(players);
-                if let Some(cid) = client_id {
-                    let conns = connections_relay.read().await;
-                    if let Some(client) = conns.get(&cid) {
-                        let _ = client
-                            .personal_tx
-                            .send(NetworkEvent::Message {
-                                player_id: pm.player_id,
-                                content,
-                            })
-                            .await;
-                    }
+            let (player_id, network_event) = match pm.message {
+                game::messaging::Message::Complete(content) => (
+                    pm.player_id,
+                    NetworkEvent::Message {
+                        player_id: pm.player_id,
+                        content,
+                    },
+                ),
+                game::messaging::Message::Streaming { chunk, state } => {
+                    let is_final = matches!(state, game::messaging::StreamingState::Complete);
+                    (
+                        pm.player_id,
+                        NetworkEvent::MessageChunk {
+                            player_id: pm.player_id,
+                            chunk,
+                            is_final,
+                        },
+                    )
+                }
+            };
+            let players = game_state_relay.active_players.read().await;
+            let client_id = players
+                .iter()
+                .find(|(_, p)| p.id == player_id)
+                .map(|(cid, _): (&String, _)| cid.clone());
+            drop(players);
+            if let Some(cid) = client_id {
+                let conns = connections_relay.read().await;
+                if let Some(client) = conns.get(&cid) {
+                    let _ = client.personal_tx.send(network_event).await;
                 }
             }
         }
