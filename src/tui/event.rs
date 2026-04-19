@@ -3,7 +3,7 @@ use futures_util::StreamExt;
 use ratatui::DefaultTerminal;
 use tokio::sync::mpsc;
 
-use crate::game::{Interaction, Movement};
+use crate::game::{Interaction, Movement, TurnAction};
 use crate::network::NetworkEvent;
 use crate::network::client::send_interaction;
 use crate::network::client::{create_player, list_players, select_player};
@@ -158,6 +158,21 @@ async fn handle_game_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) 
                 commands::Command::Help => {
                     if let (Some(url), Some(client_id)) = (url, client_id) {
                         let _ = send_interaction(url, client_id, &Interaction::Help).await;
+                    }
+                }
+                commands::Command::Talk => {
+                    if let (Some(url), Some(client_id)) = (url, client_id) {
+                        let _ =
+                            send_interaction(url, client_id, &Interaction::StartConversation).await;
+                    }
+                }
+                commands::Command::Choose(choice) => {
+                    if let (Some(url), Some(client_id)) = (url, client_id) {
+                        let action =
+                            Interaction::EngagementAction(TurnAction::SelectDialogChoice {
+                                choice,
+                            });
+                        let _ = send_interaction(url, client_id, &action).await;
                     }
                 }
                 _ => {}

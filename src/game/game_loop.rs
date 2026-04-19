@@ -1,6 +1,5 @@
 pub mod attributes;
 pub mod effects;
-pub mod engagement;
 pub mod interactions;
 pub mod world_update;
 
@@ -9,6 +8,7 @@ use std::sync::Arc;
 use tokio::time::{Duration, interval};
 
 use crate::game::GameState;
+use crate::game::engagement;
 use crate::persistence::Database;
 
 pub async fn run(game_state: Arc<GameState>, db: Database) {

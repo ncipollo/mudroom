@@ -6,6 +6,7 @@ use tracing;
 
 use crate::game::engagement::Engagement;
 use crate::game::engagement::EngagementType;
+use crate::game::engagement::ResolvedAction;
 use crate::game::engagement::TurnAction;
 
 pub struct Engagements {
@@ -29,8 +30,24 @@ impl Engagements {
         id
     }
 
+    /// Create a conversation engagement where only the player takes turns.
+    /// Returns the new engagement's id.
+    pub async fn add_conversation(&self, player_entity_id: i64, npc_entity_id: i64) -> i64 {
+        let id = self.next_id.fetch_add(1, Ordering::Relaxed);
+        let engagement = Engagement::new_conversation(id, player_entity_id, npc_entity_id);
+        self.engagements_by_id.write().await.insert(id, engagement);
+        id
+    }
+
     pub async fn remove(&self, engagement_id: i64) {
         self.engagements_by_id.write().await.remove(&engagement_id);
+    }
+
+    /// Returns true if the given entity is currently part of a Conversation engagement.
+    pub async fn is_entity_in_conversation(&self, entity_id: i64) -> bool {
+        self.engagements_by_id.read().await.values().any(|e| {
+            e.engagement_type == EngagementType::Conversation && e.entity_ids.contains(&entity_id)
+        })
     }
 
     /// Find the engagement containing the given entity and submit a turn action.
@@ -47,14 +64,16 @@ impl Engagements {
     }
 
     /// Process one game tick for all engagements. Resolves or times out the current turn
-    /// for each engagement where applicable.
-    pub async fn process_tick(&self, max_engage_ticks: u64) {
+    /// for each engagement where applicable. Returns the list of resolved actions.
+    pub async fn process_tick(&self, max_engage_ticks: u64) -> Vec<ResolvedAction> {
+        let mut resolved = Vec::new();
         let mut map = self.engagements_by_id.write().await;
         for engagement in map.values_mut() {
             if engagement.should_advance(max_engage_ticks) {
                 let current = engagement.current_entity();
                 if let Some(id) = current {
-                    if let Some(action) = engagement.pending_actions.get(&id) {
+                    let action = engagement.pending_actions.get(&id).cloned();
+                    if action.is_some() {
                         tracing::debug!(
                             engagement_id = engagement.id,
                             entity_id = id,
@@ -68,12 +87,20 @@ impl Engagements {
                             "turn timed out, advancing"
                         );
                     }
+                    resolved.push(ResolvedAction {
+                        engagement_id: engagement.id,
+                        engagement_type: engagement.engagement_type.clone(),
+                        entity_ids: engagement.entity_ids.clone(),
+                        entity_id: id,
+                        action,
+                    });
                 }
                 engagement.advance_turn();
             } else {
                 engagement.ticks_on_current_turn += 1;
             }
         }
+        resolved
     }
 }
 

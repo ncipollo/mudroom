@@ -4,6 +4,8 @@ pub enum Command {
     Move(Direction),
     Look,
     Help,
+    Talk,
+    Choose(String),
     #[allow(dead_code)]
     Enter(String),
     Unknown,
@@ -20,8 +22,11 @@ pub fn parse(input: &str) -> Command {
         "w" | "west" => Command::Move(Direction::West),
         "l" | "look" => Command::Look,
         "h" | "help" => Command::Help,
+        "talk" => Command::Talk,
         _ => {
-            if let Some(target) = lower.strip_prefix("enter ") {
+            if lower.chars().all(|c| c.is_ascii_digit()) && !lower.is_empty() {
+                Command::Choose(lower)
+            } else if let Some(target) = lower.strip_prefix("enter ") {
                 Command::Enter(target.to_string())
             } else {
                 Command::Unknown

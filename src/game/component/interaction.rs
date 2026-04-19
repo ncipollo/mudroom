@@ -15,4 +15,5 @@ pub enum Interaction {
     Help,
     Movement(Movement),
     EngagementAction(TurnAction),
+    StartConversation,
 }
