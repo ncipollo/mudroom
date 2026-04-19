@@ -1,0 +1,4 @@
+[advisories]
+# rsa: Marvin Attack — indirect dep via sqlx-mysql (unused, project uses SQLite only), no upstream fix
+# rand 0.8.5/0.9.2: unsound — indirect dep via sqlx-mysql/sqlx-postgres/quinn-proto, no upstream fix
+ignore = ["RUSTSEC-2023-0071", "RUSTSEC-2026-0097"]
