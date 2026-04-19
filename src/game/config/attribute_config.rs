@@ -3,7 +3,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use crate::game::component::AttributeDefinition;
-use crate::game::component::attribute_definition::AttributeType;
+use crate::game::component::attribute_definition::{AttributeCategory, AttributeType};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AttributeConfig {
@@ -27,6 +27,7 @@ impl AttributeConfig {
                     min_value: 0,
                     max_value: 999,
                     attribute_type: AttributeType::HP,
+                    attribute_category: AttributeCategory::Life,
                 },
                 AttributeDefinition {
                     id: "mp".to_string(),
@@ -36,6 +37,7 @@ impl AttributeConfig {
                     min_value: 0,
                     max_value: 999,
                     attribute_type: AttributeType::MP,
+                    attribute_category: AttributeCategory::General,
                 },
                 AttributeDefinition {
                     id: "level".to_string(),
@@ -44,6 +46,7 @@ impl AttributeConfig {
                     min_value: 1,
                     max_value: 100,
                     attribute_type: AttributeType::Level,
+                    attribute_category: AttributeCategory::General,
                 },
                 AttributeDefinition {
                     id: "xp".to_string(),
@@ -52,6 +55,7 @@ impl AttributeConfig {
                     min_value: 0,
                     max_value: i64::MAX,
                     attribute_type: AttributeType::XP,
+                    attribute_category: AttributeCategory::General,
                 },
                 AttributeDefinition {
                     id: "strength".to_string(),
@@ -60,6 +64,7 @@ impl AttributeConfig {
                     min_value: 1,
                     max_value: 20,
                     attribute_type: AttributeType::Stat,
+                    attribute_category: AttributeCategory::General,
                 },
                 AttributeDefinition {
                     id: "dexterity".to_string(),
@@ -68,6 +73,7 @@ impl AttributeConfig {
                     min_value: 1,
                     max_value: 20,
                     attribute_type: AttributeType::Stat,
+                    attribute_category: AttributeCategory::General,
                 },
                 AttributeDefinition {
                     id: "constitution".to_string(),
@@ -76,6 +82,7 @@ impl AttributeConfig {
                     min_value: 1,
                     max_value: 20,
                     attribute_type: AttributeType::Stat,
+                    attribute_category: AttributeCategory::General,
                 },
                 AttributeDefinition {
                     id: "intelligence".to_string(),
@@ -84,6 +91,7 @@ impl AttributeConfig {
                     min_value: 1,
                     max_value: 20,
                     attribute_type: AttributeType::Stat,
+                    attribute_category: AttributeCategory::General,
                 },
                 AttributeDefinition {
                     id: "wisdom".to_string(),
@@ -92,6 +100,7 @@ impl AttributeConfig {
                     min_value: 1,
                     max_value: 20,
                     attribute_type: AttributeType::Stat,
+                    attribute_category: AttributeCategory::General,
                 },
                 AttributeDefinition {
                     id: "charisma".to_string(),
@@ -101,6 +110,7 @@ impl AttributeConfig {
                     min_value: 1,
                     max_value: 20,
                     attribute_type: AttributeType::Stat,
+                    attribute_category: AttributeCategory::General,
                 },
             ],
         }
@@ -140,6 +150,7 @@ description = "Test hit points."
 min_value = 0
 max_value = 100
 attribute_type = "hp"
+attribute_category = "life"
 
 [[attributes]]
 id = "test_stat"
@@ -148,6 +159,7 @@ description = "A test stat."
 min_value = 1
 max_value = 20
 attribute_type = "stat"
+attribute_category = "general"
 "#;
         let mut file = NamedTempFile::new().unwrap();
         file.write_all(toml.as_bytes()).unwrap();

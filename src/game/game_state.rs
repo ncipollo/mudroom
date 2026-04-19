@@ -110,6 +110,7 @@ description = "Custom hit points."
 min_value = 0
 max_value = 50
 attribute_type = "hp"
+attribute_category = "life"
 "#,
         )
         .unwrap();

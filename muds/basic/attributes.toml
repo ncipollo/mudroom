@@ -5,6 +5,7 @@ description = "The amount of damage you can sustain before falling."
 min_value = 0
 max_value = 999
 attribute_type = "hp"
+attribute_category = "life"
 
 [[attributes]]
 id = "mp"
@@ -13,6 +14,7 @@ description = "The magical energy available for spells and abilities."
 min_value = 0
 max_value = 999
 attribute_type = "mp"
+attribute_category = "general"
 
 [[attributes]]
 id = "level"
@@ -21,6 +23,7 @@ description = "Your overall experience level."
 min_value = 1
 max_value = 100
 attribute_type = "level"
+attribute_category = "general"
 
 [[attributes]]
 id = "xp"
@@ -29,6 +32,7 @@ description = "Points accumulated through deeds and adventure."
 min_value = 0
 max_value = 9223372036854775807
 attribute_type = "xp"
+attribute_category = "general"
 
 [[attributes]]
 id = "strength"
@@ -37,6 +41,7 @@ description = "Raw physical power and carrying capacity."
 min_value = 1
 max_value = 20
 attribute_type = "stat"
+attribute_category = "general"
 
 [[attributes]]
 id = "dexterity"
@@ -45,6 +50,7 @@ description = "Agility, reflexes, and hand-eye coordination."
 min_value = 1
 max_value = 20
 attribute_type = "stat"
+attribute_category = "general"
 
 [[attributes]]
 id = "constitution"
@@ -53,6 +59,7 @@ description = "Endurance, stamina, and resistance to harm."
 min_value = 1
 max_value = 20
 attribute_type = "stat"
+attribute_category = "general"
 
 [[attributes]]
 id = "intelligence"
@@ -61,6 +68,7 @@ description = "Reasoning ability, memory, and arcane aptitude."
 min_value = 1
 max_value = 20
 attribute_type = "stat"
+attribute_category = "general"
 
 [[attributes]]
 id = "wisdom"
@@ -69,6 +77,7 @@ description = "Perception, intuition, and willpower."
 min_value = 1
 max_value = 20
 attribute_type = "stat"
+attribute_category = "general"
 
 [[attributes]]
 id = "charisma"
@@ -77,3 +86,4 @@ description = "Force of personality, persuasiveness, and leadership."
 min_value = 1
 max_value = 20
 attribute_type = "stat"
+attribute_category = "general"
