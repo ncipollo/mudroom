@@ -30,6 +30,7 @@ rig-core = "0.35.0"
 toml = "1.0.3"
 walkdir = "2.5.0"
 pulldown-cmark = "0.13.3"
+serde_yml = "0.0.12"
 
 [dev-dependencies]
 tempfile = "3.26.0"
