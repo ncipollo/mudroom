@@ -11,6 +11,7 @@ pub mod messaging;
 pub mod player;
 
 pub use component::Attribute;
+pub use component::AttributeCategory;
 pub use component::AttributeDefinition;
 pub use component::AttributeType;
 pub use component::Check;

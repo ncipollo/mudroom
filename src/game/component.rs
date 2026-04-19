@@ -7,6 +7,7 @@ pub mod interaction;
 pub mod location;
 
 pub use attribute::Attribute;
+pub use attribute_definition::AttributeCategory;
 pub use attribute_definition::AttributeDefinition;
 pub use attribute_definition::AttributeType;
 pub use check::Check;
