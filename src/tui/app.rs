@@ -1,4 +1,5 @@
-use crate::network::NetworkEvent;
+mod network_event_handler;
+
 use crate::network::event::PlayerInfo;
 
 #[derive(Debug, Clone)]
@@ -52,6 +53,7 @@ pub struct App {
     pub connection: ConnectionState,
     pub player_select: PlayerSelectState,
     pub current_player_id: Option<i64>,
+    pub streaming_message_index: Option<usize>,
     pub debug: bool,
 }
 
@@ -69,6 +71,7 @@ impl App {
             connection: ConnectionState::default(),
             player_select: PlayerSelectState::default(),
             current_player_id: None,
+            streaming_message_index: None,
             debug,
         }
     }
@@ -86,6 +89,7 @@ impl App {
             },
             player_select: PlayerSelectState::default(),
             current_player_id: None,
+            streaming_message_index: None,
             debug,
         }
     }
@@ -124,41 +128,6 @@ impl App {
     pub fn cancel_create(&mut self) {
         self.player_select.creating_player = false;
         self.player_select.player_name_input.clear();
-    }
-
-    pub fn handle_network_event(&mut self, event: NetworkEvent) {
-        match event {
-            NetworkEvent::StartSession { session_id } => self
-                .messages
-                .push(AppMessage::normal(format!("Session started: {session_id}"))),
-            NetworkEvent::EndSession { session_id } => self
-                .messages
-                .push(AppMessage::normal(format!("Session ended: {session_id}"))),
-            NetworkEvent::Ping => {
-                if self.debug {
-                    self.messages.push(AppMessage::debug("[ping received]"));
-                }
-            }
-            NetworkEvent::Pong => {
-                if self.debug {
-                    self.messages.push(AppMessage::debug("[pong received]"));
-                }
-            }
-            NetworkEvent::PlayerSelected {
-                player_name,
-                player_id,
-                ..
-            } => {
-                self.current_player_id = Some(player_id);
-                self.messages
-                    .push(AppMessage::normal(format!("Playing as: {player_name}")));
-            }
-            NetworkEvent::Message { player_id, content } => {
-                if Some(player_id) == self.current_player_id {
-                    self.messages.push(AppMessage::normal(content));
-                }
-            }
-        }
     }
 }
 

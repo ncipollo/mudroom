@@ -42,6 +42,11 @@ pub enum NetworkEvent {
         player_id: i64,
         content: String,
     },
+    MessageChunk {
+        player_id: i64,
+        chunk: String,
+        is_final: bool,
+    },
 }
 
 #[cfg(test)]

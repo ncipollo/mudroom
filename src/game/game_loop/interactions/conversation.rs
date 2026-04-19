@@ -105,7 +105,7 @@ pub async fn process(game_state: &Arc<GameState>, player: &Player) {
 
             let greeting = pick_text(&dialog_root);
             let msg = format_dialog_message(greeting, &dialog_root.responses);
-            messaging::message(&game_state.message_tx, player.id, msg);
+            messaging::stream_message(game_state.message_tx.clone(), player.id, msg);
         }
     }
 }

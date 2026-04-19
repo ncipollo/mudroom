@@ -1,11 +1,24 @@
+pub mod stream;
+
 use tokio::sync::broadcast;
 
 use crate::game::map::universe::room::Room;
 
+pub use stream::stream_message;
+
+#[derive(Debug, Clone)]
+pub enum StreamingState {
+    Streaming,
+    Complete,
+}
+
 #[derive(Debug, Clone)]
 pub enum Message {
     Complete(String),
-    Streaming,
+    Streaming {
+        chunk: String,
+        state: StreamingState,
+    },
 }
 
 #[derive(Debug, Clone)]
