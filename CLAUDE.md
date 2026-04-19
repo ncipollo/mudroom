@@ -12,3 +12,6 @@ Always use exact versions for dependencies in `Cargo.toml` (e.g., `"4.5.60"` not
 
 ## Module Conventions
 Never use `mod.rs`. Always use the modern Rust style: create a top-level file (e.g., `foo.rs`) as the module root, and a matching folder (`foo/`) for any submodules.
+
+## Imports
+Always use `use` imports rather than full crate paths at call sites. For example, prefer `use crate::game::engagement;` + `engagement::process(...)` over `crate::game::engagement::process(...)`.

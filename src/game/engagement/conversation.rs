@@ -1,3 +1,17 @@
+/// Handles resolved actions for [`crate::game::EngagementType::Conversation`] engagements.
+///
+/// A conversation engagement has two entities: a player and an NPC. Only the player takes
+/// turns; the NPC's entity id is tracked for dialog-state lookups but never appears in the
+/// turn order.
+///
+/// Each time the player's turn resolves there are two possible outcomes:
+/// - **Timeout** (`resolved.action` is `None`): the player didn't respond in time.
+///   The conversation is ended, the NPC's conversation state is cleaned up, and the
+///   engagement is removed.
+/// - **`SelectDialogChoice { choice }`**: the player picked a numbered dialog option.
+///   The handler validates the choice, advances to the matching reply node in the dialog
+///   tree, updates the NPC's in-memory conversation context, and sends the next dialog
+///   message to the player. If the reply has no further responses the conversation ends.
 use std::sync::Arc;
 
 use crate::game::TurnAction;
