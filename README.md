@@ -2,6 +2,10 @@
 
 A TUI client and server for multiplayer text adventure games (MUDs).
 
+## Documentation
+
+- [Architecture](code-docs/arch.md)
+
 ## Installation
 
 ```sh

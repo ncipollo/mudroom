@@ -15,3 +15,7 @@ Never use `mod.rs`. Always use the modern Rust style: create a top-level file (e
 
 ## Imports
 Always use `use` imports rather than full crate paths at call sites. For example, prefer `use crate::game::engagement;` + `engagement::process(...)` over `crate::game::engagement::process(...)`.
+
+## Feature Documentation
+
+When adding or updating feature documentation, use `code-docs/template.md` as the format: a top-level heading, a Mermaid diagram, and a bullet-point summary.
