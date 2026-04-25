@@ -74,24 +74,25 @@ pub struct EntityConfig {
 pub fn load_entity_config(path: &Path) -> Result<EntityConfig, Box<dyn Error>> {
     let content = std::fs::read_to_string(path)?;
     let mut config: EntityConfig = toml::from_str(&content)?;
-    if let Some(PersonaConfig::Standard {
-        dialog_file: Some(ref dialog_path),
-        ref mut dialog_tree,
-    }) = config.persona
-    {
-        let md_path = path.parent().unwrap_or(Path::new(".")).join(dialog_path);
-        let md_content = std::fs::read_to_string(&md_path)?;
-        *dialog_tree = Some(parse_dialog_markdown(&md_content)?);
-    }
-    if let Some(PersonaConfig::Agent {
-        persona_file: Some(ref pf),
-        ref mut parsed_persona,
-        ..
-    }) = config.persona
-    {
-        let md_path = path.parent().unwrap_or(Path::new(".")).join(pf);
-        let md_content = std::fs::read_to_string(&md_path)?;
-        *parsed_persona = Some(parse_persona_markdown(&md_content)?);
+    match &mut config.persona {
+        Some(PersonaConfig::Standard {
+            dialog_file: Some(dialog_path),
+            dialog_tree,
+        }) => {
+            let md_path = path.parent().unwrap_or(Path::new(".")).join(dialog_path.as_str());
+            let md_content = std::fs::read_to_string(&md_path)?;
+            *dialog_tree = Some(parse_dialog_markdown(&md_content)?);
+        }
+        Some(PersonaConfig::Agent {
+            persona_file: Some(pf),
+            parsed_persona,
+            ..
+        }) => {
+            let md_path = path.parent().unwrap_or(Path::new(".")).join(pf.as_str());
+            let md_content = std::fs::read_to_string(&md_path)?;
+            *parsed_persona = Some(parse_persona_markdown(&md_content)?);
+        }
+        _ => {}
     }
     Ok(config)
 }

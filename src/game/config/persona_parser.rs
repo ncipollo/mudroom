@@ -1,4 +1,94 @@
+//! Parser for persona files — Markdown documents with YAML front matter and
+//! conditional sections that drive AI agent behaviour.
+//!
+//! # Persona File Format
+//!
+//! A persona file is a Markdown document structured in three parts:
+//!
+//! ## 1. YAML Front Matter
+//!
+//! Delimited by `---` lines at the top of the file. Supported fields:
+//!
+//! ```yaml
+//! ---
+//! name: CharacterName   # displayed name of the NPC
+//! role: innkeeper       # role hint passed to the AI
+//! custom_key: value     # any extra key-value pairs are stored in `extra`
+//! ---
+//! ```
+//!
+//! ## 2. Preamble
+//!
+//! Free-form Markdown text appearing before the first `#` heading. Always
+//! included in the rendered instructions regardless of conditions.
+//!
+//! ## 3. Conditional Sections
+//!
+//! Each H1 (`#`) heading begins a new section. Sections may begin with an
+//! optional fenced YAML code block (tagged `yml` or `yaml`) that declares
+//! conditions. The section text is included only when **all** conditions are
+//! satisfied. Sections with no conditions block are always included.
+//!
+//! ### Trust condition
+//!
+//! Compares the player's trust score against a threshold. Use one of the
+//! operator keys: `gt`, `gte`, `lt`, `lte`, `eq`.
+//!
+//! ```yaml
+//! conditions:
+//!   trust: { gt: 7 }
+//! ```
+//!
+//! ### Attribute condition
+//!
+//! Compares a named entity attribute against a threshold. `op` accepts the
+//! same operator strings as above.
+//!
+//! ```yaml
+//! conditions:
+//!   attribute:
+//!     name: threat_level
+//!     op: gte
+//!     value: 3
+//! ```
+//!
+//! ## Full example
+//!
+//! ```markdown
+//! ---
+//! name: Bramble
+//! role: innkeeper
+//! ---
+//!
+//! You are Bramble, a warm and weathered innkeeper at the Rusty Flagon tavern.
+//!
+//! # Secrets
+//!
+//! ```yml
+//! conditions:
+//!   trust: { gt: 7 }
+//! ```
+//!
+//! You guard a hidden cellar beneath the inn.
+//!
+//! # Combat
+//!
+//! ```yml
+//! conditions:
+//!   attribute:
+//!     name: threat_level
+//!     op: gte
+//!     value: 3
+//! ```
+//!
+//! Bramble will reach for the club kept under the bar.
+//!
+//! # Always Present
+//! This section has no conditions and is always included.
+//! ```
+
 use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::error::Error;
 
@@ -89,6 +179,44 @@ impl PersonaFile {
     }
 }
 
+// Typed structs for YAML deserialization via serde-saphyr.
+
+#[derive(Deserialize)]
+struct FrontMatterYaml {
+    name: Option<String>,
+    role: Option<String>,
+    #[serde(flatten)]
+    extra: HashMap<String, String>,
+}
+
+#[derive(Deserialize)]
+struct ConditionsTrustYaml {
+    gt: Option<f64>,
+    gte: Option<f64>,
+    lt: Option<f64>,
+    lte: Option<f64>,
+    eq: Option<f64>,
+}
+
+#[derive(Deserialize)]
+struct ConditionsAttributeYaml {
+    name: String,
+    op: String,
+    value: f64,
+}
+
+#[derive(Deserialize)]
+struct ConditionsBlockYaml {
+    trust: Option<ConditionsTrustYaml>,
+    attribute: Option<ConditionsAttributeYaml>,
+}
+
+#[derive(Deserialize)]
+struct ConditionsYaml {
+    #[serde(default)]
+    conditions: Option<ConditionsBlockYaml>,
+}
+
 pub fn parse_persona_markdown(content: &str) -> Result<PersonaFile, Box<dyn Error>> {
     let (front_matter_str, body) = split_front_matter(content);
     let front_matter = parse_front_matter(front_matter_str)?;
@@ -127,34 +255,12 @@ fn parse_front_matter(yaml: &str) -> Result<PersonaFrontMatter, Box<dyn Error>> 
             extra: HashMap::new(),
         });
     }
-    let value: serde_yml::Value = serde_yml::from_str(yaml)?;
-    let mut name = None;
-    let mut role = None;
-    let mut extra = HashMap::new();
-    if let serde_yml::Value::Mapping(map) = value {
-        for (k, v) in map {
-            let key = yaml_value_to_string(&k);
-            let val = yaml_value_to_string(&v);
-            match key.as_str() {
-                "name" => name = Some(val),
-                "role" => role = Some(val),
-                _ => {
-                    extra.insert(key, val);
-                }
-            }
-        }
-    }
-    Ok(PersonaFrontMatter { name, role, extra })
-}
-
-fn yaml_value_to_string(v: &serde_yml::Value) -> String {
-    match v {
-        serde_yml::Value::String(s) => s.clone(),
-        serde_yml::Value::Number(n) => n.to_string(),
-        serde_yml::Value::Bool(b) => b.to_string(),
-        serde_yml::Value::Null => String::new(),
-        _ => String::new(),
-    }
+    let fm: FrontMatterYaml = serde_saphyr::from_str(yaml)?;
+    Ok(PersonaFrontMatter {
+        name: fm.name,
+        role: fm.role,
+        extra: fm.extra,
+    })
 }
 
 #[derive(Debug, Clone)]
@@ -337,53 +443,40 @@ fn build_section(title: String, blocks: &[&Block]) -> Result<PersonaSection, Box
 }
 
 fn parse_conditions(yaml: &str) -> Result<Vec<PersonaCondition>, Box<dyn Error>> {
-    let value: serde_yml::Value = serde_yml::from_str(yaml)?;
+    let parsed: ConditionsYaml = serde_saphyr::from_str(yaml)?;
     let mut conditions = Vec::new();
 
-    let conditions_map = match &value {
-        serde_yml::Value::Mapping(m) => m
-            .get("conditions")
-            .and_then(|v| v.as_mapping())
-            .cloned()
-            .unwrap_or_default(),
-        _ => return Ok(conditions),
+    let Some(block) = parsed.conditions else {
+        return Ok(conditions);
     };
 
-    for (key, val) in &conditions_map {
-        let key_str = yaml_value_to_string(key);
-        match key_str.as_str() {
-            "trust" => {
-                if let Some((op, value)) = parse_op_value(val) {
-                    conditions.push(PersonaCondition::Trust { op, value });
-                }
-            }
-            "attribute" => {
-                if let serde_yml::Value::Mapping(m) = val {
-                    let name = m.get("name").map(yaml_value_to_string).unwrap_or_default();
-                    let op_str = m.get("op").map(yaml_value_to_string).unwrap_or_default();
-                    let value = m.get("value").and_then(|v| v.as_f64()).unwrap_or(0.0);
-                    if let Some(op) = parse_op_str(&op_str) {
-                        conditions.push(PersonaCondition::Attribute { name, op, value });
-                    }
-                }
-            }
-            _ => {}
+    if let Some(trust) = block.trust {
+        let op_value = [
+            (trust.gt, CompareOp::GreaterThan),
+            (trust.gte, CompareOp::GreaterThanOrEqual),
+            (trust.lt, CompareOp::LessThan),
+            (trust.lte, CompareOp::LessThanOrEqual),
+            (trust.eq, CompareOp::Equal),
+        ]
+        .into_iter()
+        .find_map(|(v, op)| v.map(|n| (op, n)));
+
+        if let Some((op, value)) = op_value {
+            conditions.push(PersonaCondition::Trust { op, value });
         }
+    }
+
+    if let Some(attr) = block.attribute
+        && let Some(op) = parse_op_str(&attr.op)
+    {
+        conditions.push(PersonaCondition::Attribute {
+            name: attr.name,
+            op,
+            value: attr.value,
+        });
     }
 
     Ok(conditions)
-}
-
-fn parse_op_value(val: &serde_yml::Value) -> Option<(CompareOp, f64)> {
-    let map = val.as_mapping()?;
-    for (k, v) in map {
-        let key = yaml_value_to_string(k);
-        let value = v.as_f64()?;
-        if let Some(op) = parse_op_str(&key) {
-            return Some((op, value));
-        }
-    }
-    None
 }
 
 fn parse_op_str(s: &str) -> Option<CompareOp> {
