@@ -5,6 +5,7 @@ pub mod game_loop_config;
 pub mod map_config;
 pub mod map_loader;
 pub mod mud_config;
+mod persona_parser;
 
 pub use attribute_config::AttributeConfig;
 pub use entity_config::{
@@ -14,3 +15,6 @@ pub use game_loop_config::GameLoopConfig;
 pub use map_config::load_map;
 pub use map_loader::{load_entities_into_db, load_map_into_db, should_auto_load};
 pub use mud_config::{MudConfig, SpawnConfig};
+pub use persona_parser::{
+    CompareOp, PersonaCondition, PersonaContext, PersonaFile, PersonaFrontMatter, PersonaSection,
+};
