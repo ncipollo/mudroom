@@ -79,7 +79,10 @@ pub fn load_entity_config(path: &Path) -> Result<EntityConfig, Box<dyn Error>> {
             dialog_file: Some(dialog_path),
             dialog_tree,
         }) => {
-            let md_path = path.parent().unwrap_or(Path::new(".")).join(dialog_path.as_str());
+            let md_path = path
+                .parent()
+                .unwrap_or(Path::new("."))
+                .join(dialog_path.as_str());
             let md_content = std::fs::read_to_string(&md_path)?;
             *dialog_tree = Some(parse_dialog_markdown(&md_content)?);
         }
