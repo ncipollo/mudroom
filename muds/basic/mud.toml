@@ -7,3 +7,8 @@ world_update_ms = 600000
 world_id = "default"
 dungeon_id = "default"
 room_id = "default"
+
+[agent.provider]
+type = "ollama"
+base_url = "$MUDROOM_OLLAMA_BASE_URL"
+model = "$MUDROOM_OLLAMA_MODEL"
