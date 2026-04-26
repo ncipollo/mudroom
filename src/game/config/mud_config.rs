@@ -3,12 +3,16 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use crate::game::config::agent_config::AgentConfig;
+use crate::game::config::env_resolver::deserialize_env_string;
 use crate::game::config::game_loop_config::GameLoopConfig;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SpawnConfig {
+    #[serde(deserialize_with = "deserialize_env_string")]
     pub world_id: String,
+    #[serde(deserialize_with = "deserialize_env_string")]
     pub dungeon_id: String,
+    #[serde(deserialize_with = "deserialize_env_string")]
     pub room_id: String,
 }
 
@@ -50,6 +54,7 @@ impl MudConfig {
 mod tests {
     use super::*;
     use crate::game::config::agent_config::AgentProvider;
+    use std::env;
     use std::io::Write;
     use tempfile::NamedTempFile;
 
@@ -86,6 +91,32 @@ room_id = "square"
         assert_eq!(config.spawn.world_id, "overworld");
         assert_eq!(config.spawn.dungeon_id, "town");
         assert_eq!(config.spawn.room_id, "square");
+    }
+
+    #[test]
+    fn spawn_resolves_env_vars() {
+        unsafe {
+            env::set_var("MUDROOM_TEST_WORLD_ID", "myworld");
+            env::set_var("MUDROOM_TEST_DUNGEON_ID", "mydungeon");
+            env::set_var("MUDROOM_TEST_ROOM_ID", "myroom");
+        }
+        let toml = r#"
+[game_loop]
+tick_rate_ms = 1000
+max_engage_ms = 30000
+world_update_ms = 600000
+
+[spawn]
+world_id = "$MUDROOM_TEST_WORLD_ID"
+dungeon_id = "$MUDROOM_TEST_DUNGEON_ID"
+room_id = "$MUDROOM_TEST_ROOM_ID"
+"#;
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(toml.as_bytes()).unwrap();
+        let config = MudConfig::load(file.path()).unwrap();
+        assert_eq!(config.spawn.world_id, "myworld");
+        assert_eq!(config.spawn.dungeon_id, "mydungeon");
+        assert_eq!(config.spawn.room_id, "myroom");
     }
 
     #[test]
