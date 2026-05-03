@@ -103,6 +103,7 @@ mod tests {
 
     #[test]
     fn ollama_resolves_env_vars() {
+        // SAFETY: env::set_var is unsafe because it is not thread-safe; acceptable in these single-threaded test contexts.
         unsafe {
             env::set_var("MUDROOM_TEST_OLLAMA_URL", "http://myhost:11434");
             env::set_var("MUDROOM_TEST_OLLAMA_MODEL", "mistral");
@@ -120,6 +121,10 @@ model = "$MUDROOM_TEST_OLLAMA_MODEL"
                 assert_eq!(model, "mistral");
             }
             _ => panic!("expected Ollama"),
+        }
+        unsafe {
+            env::remove_var("MUDROOM_TEST_OLLAMA_URL");
+            env::remove_var("MUDROOM_TEST_OLLAMA_MODEL");
         }
     }
 

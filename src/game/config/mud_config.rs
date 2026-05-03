@@ -95,6 +95,7 @@ room_id = "square"
 
     #[test]
     fn spawn_resolves_env_vars() {
+        // SAFETY: env::set_var is unsafe because it is not thread-safe; acceptable in these single-threaded test contexts.
         unsafe {
             env::set_var("MUDROOM_TEST_WORLD_ID", "myworld");
             env::set_var("MUDROOM_TEST_DUNGEON_ID", "mydungeon");
@@ -117,6 +118,11 @@ room_id = "$MUDROOM_TEST_ROOM_ID"
         assert_eq!(config.spawn.world_id, "myworld");
         assert_eq!(config.spawn.dungeon_id, "mydungeon");
         assert_eq!(config.spawn.room_id, "myroom");
+        unsafe {
+            env::remove_var("MUDROOM_TEST_WORLD_ID");
+            env::remove_var("MUDROOM_TEST_DUNGEON_ID");
+            env::remove_var("MUDROOM_TEST_ROOM_ID");
+        }
     }
 
     #[test]
