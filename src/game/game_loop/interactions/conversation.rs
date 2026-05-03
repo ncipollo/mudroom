@@ -37,31 +37,7 @@ pub async fn process(game_state: &Arc<GameState>, player: &Player) {
         }
     };
 
-    // Find a talkable entity in the same room
-    let candidate = {
-        let entities = game_state.active_entities.read().await;
-        entities
-            .values()
-            .filter(|e| e.id != player.entity_id && e.location == player_location)
-            .find_map(|e| {
-                let config_id = e.config_id.as_deref()?;
-                let config = game_state.entity_configs.get(config_id)?;
-                match &config.persona {
-                    Some(PersonaConfig::Agent { .. }) => {
-                        let label = e.description.as_deref().unwrap_or("entity").to_string();
-                        Some(TalkCandidate::AgentStub { label })
-                    }
-                    Some(PersonaConfig::Standard {
-                        dialog_tree: Some(tree),
-                        ..
-                    }) => Some(TalkCandidate::StandardDialog {
-                        npc_entity_id: e.id,
-                        dialog_root: tree.clone(),
-                    }),
-                    _ => None,
-                }
-            })
-    };
+    let candidate = find_talk_candidate(game_state, player, &player_location).await;
 
     match candidate {
         None => {
@@ -82,32 +58,70 @@ pub async fn process(game_state: &Arc<GameState>, player: &Player) {
             npc_entity_id,
             dialog_root,
         }) => {
-            let engagement_id = game_state
-                .engagements
-                .add_conversation(player.entity_id, npc_entity_id)
-                .await;
-
-            {
-                let mut entities = game_state.active_entities.write().await;
-                if let Some(npc) = entities.get_mut(&npc_entity_id) {
-                    let mut state = SimpleConversationState::default();
-                    state.contexts.insert(
-                        engagement_id,
-                        ConversationContext {
-                            current_dialog: Some(dialog_root.clone()),
-                        },
-                    );
-                    npc.ai = Some(EntityAI {
-                        simple_conversation_state: Some(state),
-                    });
-                }
-            }
-
-            let greeting = pick_text(&dialog_root);
-            let msg = format_dialog_message(greeting, &dialog_root.responses);
-            messaging::stream_message(game_state.message_tx.clone(), player.id, msg);
+            start_standard_dialog(game_state, player, npc_entity_id, dialog_root).await;
         }
     }
+}
+
+async fn find_talk_candidate(
+    game_state: &Arc<GameState>,
+    player: &Player,
+    player_location: &crate::game::Location,
+) -> Option<TalkCandidate> {
+    let entities = game_state.active_entities.read().await;
+    entities
+        .values()
+        .filter(|e| e.id != player.entity_id && &e.location == player_location)
+        .find_map(|e| {
+            let config_id = e.config_id.as_deref()?;
+            let config = game_state.entity_configs.get(config_id)?;
+            match &config.persona {
+                Some(PersonaConfig::Agent { .. }) => {
+                    let label = e.description.as_deref().unwrap_or("entity").to_string();
+                    Some(TalkCandidate::AgentStub { label })
+                }
+                Some(PersonaConfig::Standard {
+                    dialog_tree: Some(tree),
+                    ..
+                }) => Some(TalkCandidate::StandardDialog {
+                    npc_entity_id: e.id,
+                    dialog_root: tree.clone(),
+                }),
+                _ => None,
+            }
+        })
+}
+
+async fn start_standard_dialog(
+    game_state: &Arc<GameState>,
+    player: &Player,
+    npc_entity_id: i64,
+    dialog_root: DialogLine,
+) {
+    let engagement_id = game_state
+        .engagements
+        .add_conversation(player.entity_id, npc_entity_id)
+        .await;
+
+    {
+        let mut entities = game_state.active_entities.write().await;
+        if let Some(npc) = entities.get_mut(&npc_entity_id) {
+            let mut state = SimpleConversationState::default();
+            state.contexts.insert(
+                engagement_id,
+                ConversationContext {
+                    current_dialog: Some(dialog_root.clone()),
+                },
+            );
+            npc.ai = Some(EntityAI {
+                simple_conversation_state: Some(state),
+            });
+        }
+    }
+
+    let greeting = pick_text(&dialog_root);
+    let msg = format_dialog_message(greeting, &dialog_root.responses);
+    messaging::stream_message(game_state.message_tx.clone(), player.id, msg);
 }
 
 pub fn pick_text(dialog: &DialogLine) -> &str {

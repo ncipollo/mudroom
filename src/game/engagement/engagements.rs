@@ -69,35 +69,8 @@ impl Engagements {
         let mut resolved = Vec::new();
         let mut map = self.engagements_by_id.write().await;
         for engagement in map.values_mut() {
-            if engagement.should_advance(max_engage_ticks) {
-                let current = engagement.current_entity();
-                if let Some(id) = current {
-                    let action = engagement.pending_actions.get(&id).cloned();
-                    if action.is_some() {
-                        tracing::debug!(
-                            engagement_id = engagement.id,
-                            entity_id = id,
-                            action = ?action,
-                            "resolving turn action"
-                        );
-                    } else {
-                        tracing::debug!(
-                            engagement_id = engagement.id,
-                            entity_id = id,
-                            "turn timed out, advancing"
-                        );
-                    }
-                    resolved.push(ResolvedAction {
-                        engagement_id: engagement.id,
-                        engagement_type: engagement.engagement_type.clone(),
-                        entity_ids: engagement.entity_ids.clone(),
-                        entity_id: id,
-                        action,
-                    });
-                }
-                engagement.advance_turn();
-            } else {
-                engagement.ticks_on_current_turn += 1;
+            if let Some(action) = tick_engagement(engagement, max_engage_ticks) {
+                resolved.push(action);
             }
         }
         resolved
@@ -107,6 +80,40 @@ impl Engagements {
 impl Default for Engagements {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+fn tick_engagement(engagement: &mut Engagement, max_engage_ticks: u64) -> Option<ResolvedAction> {
+    if !engagement.should_advance(max_engage_ticks) {
+        engagement.ticks_on_current_turn += 1;
+        return None;
+    }
+    let id = engagement.current_entity()?;
+    let action = engagement.pending_actions.get(&id).cloned();
+    log_tick_action(engagement.id, id, &action);
+    let resolved = build_resolved_action(engagement, id, action);
+    engagement.advance_turn();
+    Some(resolved)
+}
+
+fn log_tick_action(engagement_id: i64, entity_id: i64, action: &Option<TurnAction>) {
+    let resolved = action.is_some();
+    tracing::debug!(
+        "tick engagement={engagement_id} entity={entity_id} resolved={resolved} action={action:?}"
+    );
+}
+
+fn build_resolved_action(
+    engagement: &Engagement,
+    entity_id: i64,
+    action: Option<TurnAction>,
+) -> ResolvedAction {
+    ResolvedAction {
+        engagement_id: engagement.id,
+        engagement_type: engagement.engagement_type.clone(),
+        entity_ids: engagement.entity_ids.clone(),
+        entity_id,
+        action,
     }
 }
 

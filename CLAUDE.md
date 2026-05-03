@@ -7,6 +7,11 @@ Run the following commands after every code change and fix any issues before con
 2. `cargo test` - Run all tests
 3. `cargo clippy` - Run linter; fix all warnings and errors before completing the change
 
+### Fixing Clippy Complexity Warnings
+When clippy reports `cognitive_complexity`, `too_many_lines`, or `too_many_arguments` warnings, fix them by refactoring — never suppress with `#[allow]`:
+- Extract logical sub-steps into well-named helper functions.
+- When a file accumulates many functions, reorganize into helper files and structs (following the module conventions below).
+
 ## Dependencies
 Always use exact versions for dependencies in `Cargo.toml` (e.g., `"4.5.60"` not `"4"`). Check `Cargo.lock` for the resolved version when pinning.
 

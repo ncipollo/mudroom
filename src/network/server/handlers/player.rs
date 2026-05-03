@@ -5,7 +5,7 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use tracing::info;
 
-use crate::game::{Entity, EntityType, Location};
+use crate::game::{Entity, EntityType, Location, Player};
 use crate::network::event::{NetworkEvent, PlayerInfo, PlayerListResponse};
 use crate::network::server::state::{AppState, PlayerCreateBody, PlayerListBody, PlayerSelectBody};
 use crate::persistence::{entity_repo, player_repo};
@@ -70,43 +70,64 @@ pub async fn player_select_handler(
         return Err(StatusCode::FORBIDDEN);
     }
 
+    activate_player(&state, &body.client_id, &player).await?;
+
+    Ok(Json(PlayerInfo {
+        id: player.id,
+        name: player.name,
+    }))
+}
+
+async fn activate_player(
+    state: &AppState,
+    client_id: &str,
+    player: &Player,
+) -> Result<(), StatusCode> {
+    let pool = state.db.pool();
     let entity = entity_repo::find_by_id(pool, player.entity_id)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .ok_or(StatusCode::NOT_FOUND)?;
 
+    register_player_in_game_state(state, client_id, player, entity).await;
+    notify_player_selected(state, client_id, player).await;
+    Ok(())
+}
+
+async fn register_player_in_game_state(
+    state: &AppState,
+    client_id: &str,
+    player: &Player,
+    entity: crate::game::Entity,
+) {
+    let pool = state.db.pool();
     state
         .game_state
         .active_entities
         .write()
         .await
         .insert(entity.id, entity);
-
     state
         .game_state
         .active_players
         .write()
         .await
-        .insert(body.client_id.clone(), player.clone());
-
-    if let Err(e) = state.game_state.sync_active_entities(state.db.pool()).await {
+        .insert(client_id.to_string(), player.clone());
+    if let Err(e) = state.game_state.sync_active_entities(pool).await {
         tracing::error!(error = %e, "Failed to sync active entities on player select");
     }
+}
 
+async fn notify_player_selected(state: &AppState, client_id: &str, player: &Player) {
     let conns = state.connections.read().await;
-    if let Some(client) = conns.get(&body.client_id) {
+    if let Some(client) = conns.get(client_id) {
         let _ = client
             .personal_tx
             .send(NetworkEvent::PlayerSelected {
-                client_id: body.client_id,
+                client_id: client_id.to_string(),
                 player_id: player.id,
                 player_name: player.name.clone(),
             })
             .await;
     }
-
-    Ok(Json(PlayerInfo {
-        id: player.id,
-        name: player.name,
-    }))
 }

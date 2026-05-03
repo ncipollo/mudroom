@@ -131,29 +131,38 @@ pub async fn maps_reload_handler(
     State(state): State<Arc<AppState>>,
 ) -> Result<&'static str, StatusCode> {
     info!("POST /maps/reload");
-    let config_path = state.config_path.as_deref();
-    let universe = game::load_map(config_path).map_err(|e| {
-        tracing::error!(error = %e, "Failed to load map");
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
-    game::load_map_into_db(state.db.pool(), &universe)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to load map into database");
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-    if let Some(config_dir) = config_path {
-        let entity_configs = game::load_entity_configs(config_dir).map_err(|e| {
-            tracing::error!(error = %e, "Failed to load entity configs");
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
-        game::load_entities_into_db(state.db.pool(), &universe, &entity_configs)
-            .await
-            .map_err(|e| {
-                tracing::error!(error = %e, "Failed to load entities into database");
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?;
-    }
+    do_reload_maps(&state).await?;
     info!("Maps reloaded");
     Ok("ok")
+}
+
+async fn do_reload_maps(state: &AppState) -> Result<(), StatusCode> {
+    let config_path = state.config_path.as_deref();
+    let universe =
+        game::load_map(config_path).map_err(|e| log_internal_error(e, "Failed to load map"))?;
+    game::load_map_into_db(state.db.pool(), &universe)
+        .await
+        .map_err(|e| log_internal_error(e, "Failed to load map into database"))?;
+    if let Some(config_dir) = config_path {
+        reload_entities(state.db.pool(), &universe, config_dir).await?;
+    }
+    Ok(())
+}
+
+async fn reload_entities(
+    pool: &sqlx::SqlitePool,
+    universe: &game::Universe,
+    config_dir: &std::path::Path,
+) -> Result<(), StatusCode> {
+    let entity_configs = game::load_entity_configs(config_dir)
+        .map_err(|e| log_internal_error(e, "Failed to load entity configs"))?;
+    game::load_entities_into_db(pool, universe, &entity_configs)
+        .await
+        .map_err(|e| log_internal_error(e, "Failed to load entities into database"))?;
+    Ok(())
+}
+
+fn log_internal_error(e: impl std::fmt::Display, msg: &str) -> StatusCode {
+    tracing::error!("{msg}: {e}");
+    StatusCode::INTERNAL_SERVER_ERROR
 }

@@ -32,5 +32,10 @@ walkdir = "2.5.0"
 pulldown-cmark = "0.13.3"
 serde-saphyr = "0.0.23"
 
+[lints.clippy]
+cognitive_complexity = "warn"
+too_many_lines = "warn"
+too_many_arguments = "warn"
+
 [dev-dependencies]
 tempfile = "3.26.0"

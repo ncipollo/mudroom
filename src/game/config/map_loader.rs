@@ -4,7 +4,7 @@ use std::error::Error;
 
 use crate::game::component::Attribute;
 use crate::game::config::entity_config::EntityTypeConfig;
-use crate::game::{EntityConfig, EntityType, Location, Universe};
+use crate::game::{EntityConfig, EntityType, Location, Universe, World};
 use crate::persistence::{
     dungeon_repo, entity_effect_repo, entity_repo, room_repo, server_state_repo, world_repo,
 };
@@ -54,20 +54,29 @@ async fn cleanup_stale(pool: &SqlitePool, universe: &Universe) -> Result<(), Box
             continue;
         }
         let universe_world = &universe.worlds[&db_world.id];
-        let db_dungeons = dungeon_repo::find_by_world(pool, &db_world.id).await?;
-        for db_dungeon in db_dungeons {
-            if !universe_world.dungeons.contains_key(&db_dungeon.id) {
-                delete_dungeon_cascade(pool, &db_dungeon.id).await?;
-                dungeon_repo::delete(pool, &db_dungeon.id).await?;
-                continue;
-            }
-            let universe_dungeon = &universe_world.dungeons[&db_dungeon.id];
-            let db_rooms = room_repo::find_by_dungeon(pool, &db_dungeon.id).await?;
-            for db_room in db_rooms {
-                if !universe_dungeon.rooms.contains_key(&db_room.id) {
-                    entity_repo::delete_by_room(pool, &db_room.id).await?;
-                    room_repo::delete(pool, &db_room.id).await?;
-                }
+        cleanup_stale_dungeons(pool, &db_world.id, universe_world).await?;
+    }
+    Ok(())
+}
+
+async fn cleanup_stale_dungeons(
+    pool: &SqlitePool,
+    world_id: &str,
+    universe_world: &World,
+) -> Result<(), Box<dyn Error>> {
+    let db_dungeons = dungeon_repo::find_by_world(pool, world_id).await?;
+    for db_dungeon in db_dungeons {
+        if !universe_world.dungeons.contains_key(&db_dungeon.id) {
+            delete_dungeon_cascade(pool, &db_dungeon.id).await?;
+            dungeon_repo::delete(pool, &db_dungeon.id).await?;
+            continue;
+        }
+        let universe_dungeon = &universe_world.dungeons[&db_dungeon.id];
+        let db_rooms = room_repo::find_by_dungeon(pool, &db_dungeon.id).await?;
+        for db_room in db_rooms {
+            if !universe_dungeon.rooms.contains_key(&db_room.id) {
+                entity_repo::delete_by_room(pool, &db_room.id).await?;
+                room_repo::delete(pool, &db_room.id).await?;
             }
         }
     }

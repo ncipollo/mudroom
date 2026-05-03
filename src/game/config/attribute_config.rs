@@ -18,103 +18,110 @@ impl AttributeConfig {
     }
 
     pub fn default_config() -> Self {
-        Self {
-            attributes: vec![
-                AttributeDefinition {
-                    id: "hp".to_string(),
-                    title: "Hit Points".to_string(),
-                    description: "The amount of damage you can sustain before falling.".to_string(),
-                    min_value: 0,
-                    max_value: 999,
-                    attribute_type: AttributeType::HP,
-                    attribute_category: AttributeCategory::Life,
-                },
-                AttributeDefinition {
-                    id: "mp".to_string(),
-                    title: "Mana Points".to_string(),
-                    description: "The magical energy available for spells and abilities."
-                        .to_string(),
-                    min_value: 0,
-                    max_value: 999,
-                    attribute_type: AttributeType::MP,
-                    attribute_category: AttributeCategory::General,
-                },
-                AttributeDefinition {
-                    id: "level".to_string(),
-                    title: "Level".to_string(),
-                    description: "Your overall experience level.".to_string(),
-                    min_value: 1,
-                    max_value: 100,
-                    attribute_type: AttributeType::Level,
-                    attribute_category: AttributeCategory::General,
-                },
-                AttributeDefinition {
-                    id: "xp".to_string(),
-                    title: "Experience Points".to_string(),
-                    description: "Points accumulated through deeds and adventure.".to_string(),
-                    min_value: 0,
-                    max_value: i64::MAX,
-                    attribute_type: AttributeType::XP,
-                    attribute_category: AttributeCategory::General,
-                },
-                AttributeDefinition {
-                    id: "strength".to_string(),
-                    title: "Strength".to_string(),
-                    description: "Raw physical power and carrying capacity.".to_string(),
-                    min_value: 1,
-                    max_value: 20,
-                    attribute_type: AttributeType::Stat,
-                    attribute_category: AttributeCategory::General,
-                },
-                AttributeDefinition {
-                    id: "dexterity".to_string(),
-                    title: "Dexterity".to_string(),
-                    description: "Agility, reflexes, and hand-eye coordination.".to_string(),
-                    min_value: 1,
-                    max_value: 20,
-                    attribute_type: AttributeType::Stat,
-                    attribute_category: AttributeCategory::General,
-                },
-                AttributeDefinition {
-                    id: "constitution".to_string(),
-                    title: "Constitution".to_string(),
-                    description: "Endurance, stamina, and resistance to harm.".to_string(),
-                    min_value: 1,
-                    max_value: 20,
-                    attribute_type: AttributeType::Stat,
-                    attribute_category: AttributeCategory::General,
-                },
-                AttributeDefinition {
-                    id: "intelligence".to_string(),
-                    title: "Intelligence".to_string(),
-                    description: "Reasoning ability, memory, and arcane aptitude.".to_string(),
-                    min_value: 1,
-                    max_value: 20,
-                    attribute_type: AttributeType::Stat,
-                    attribute_category: AttributeCategory::General,
-                },
-                AttributeDefinition {
-                    id: "wisdom".to_string(),
-                    title: "Wisdom".to_string(),
-                    description: "Perception, intuition, and willpower.".to_string(),
-                    min_value: 1,
-                    max_value: 20,
-                    attribute_type: AttributeType::Stat,
-                    attribute_category: AttributeCategory::General,
-                },
-                AttributeDefinition {
-                    id: "charisma".to_string(),
-                    title: "Charisma".to_string(),
-                    description: "Force of personality, persuasiveness, and leadership."
-                        .to_string(),
-                    min_value: 1,
-                    max_value: 20,
-                    attribute_type: AttributeType::Stat,
-                    attribute_category: AttributeCategory::General,
-                },
-            ],
-        }
+        let mut attributes = default_life_attributes();
+        attributes.extend(default_stat_attributes());
+        Self { attributes }
     }
+}
+
+fn default_life_attributes() -> Vec<AttributeDefinition> {
+    vec![
+        AttributeDefinition {
+            id: "hp".to_string(),
+            title: "Hit Points".to_string(),
+            description: "The amount of damage you can sustain before falling.".to_string(),
+            min_value: 0,
+            max_value: 999,
+            attribute_type: AttributeType::HP,
+            attribute_category: AttributeCategory::Life,
+        },
+        AttributeDefinition {
+            id: "mp".to_string(),
+            title: "Mana Points".to_string(),
+            description: "The magical energy available for spells and abilities.".to_string(),
+            min_value: 0,
+            max_value: 999,
+            attribute_type: AttributeType::MP,
+            attribute_category: AttributeCategory::General,
+        },
+        AttributeDefinition {
+            id: "level".to_string(),
+            title: "Level".to_string(),
+            description: "Your overall experience level.".to_string(),
+            min_value: 1,
+            max_value: 100,
+            attribute_type: AttributeType::Level,
+            attribute_category: AttributeCategory::General,
+        },
+        AttributeDefinition {
+            id: "xp".to_string(),
+            title: "Experience Points".to_string(),
+            description: "Points accumulated through deeds and adventure.".to_string(),
+            min_value: 0,
+            max_value: i64::MAX,
+            attribute_type: AttributeType::XP,
+            attribute_category: AttributeCategory::General,
+        },
+    ]
+}
+
+fn default_stat_attributes() -> Vec<AttributeDefinition> {
+    vec![
+        AttributeDefinition {
+            id: "strength".to_string(),
+            title: "Strength".to_string(),
+            description: "Raw physical power and carrying capacity.".to_string(),
+            min_value: 1,
+            max_value: 20,
+            attribute_type: AttributeType::Stat,
+            attribute_category: AttributeCategory::General,
+        },
+        AttributeDefinition {
+            id: "dexterity".to_string(),
+            title: "Dexterity".to_string(),
+            description: "Agility, reflexes, and hand-eye coordination.".to_string(),
+            min_value: 1,
+            max_value: 20,
+            attribute_type: AttributeType::Stat,
+            attribute_category: AttributeCategory::General,
+        },
+        AttributeDefinition {
+            id: "constitution".to_string(),
+            title: "Constitution".to_string(),
+            description: "Endurance, stamina, and resistance to harm.".to_string(),
+            min_value: 1,
+            max_value: 20,
+            attribute_type: AttributeType::Stat,
+            attribute_category: AttributeCategory::General,
+        },
+        AttributeDefinition {
+            id: "intelligence".to_string(),
+            title: "Intelligence".to_string(),
+            description: "Reasoning ability, memory, and arcane aptitude.".to_string(),
+            min_value: 1,
+            max_value: 20,
+            attribute_type: AttributeType::Stat,
+            attribute_category: AttributeCategory::General,
+        },
+        AttributeDefinition {
+            id: "wisdom".to_string(),
+            title: "Wisdom".to_string(),
+            description: "Perception, intuition, and willpower.".to_string(),
+            min_value: 1,
+            max_value: 20,
+            attribute_type: AttributeType::Stat,
+            attribute_category: AttributeCategory::General,
+        },
+        AttributeDefinition {
+            id: "charisma".to_string(),
+            title: "Charisma".to_string(),
+            description: "Force of personality, persuasiveness, and leadership.".to_string(),
+            min_value: 1,
+            max_value: 20,
+            attribute_type: AttributeType::Stat,
+            attribute_category: AttributeCategory::General,
+        },
+    ]
 }
 
 #[cfg(test)]
