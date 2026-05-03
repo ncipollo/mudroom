@@ -53,7 +53,7 @@ impl MudConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::config::agent_config::AgentProvider;
+    use crate::game::config::agent_config::AgentProviderConfig;
     use std::env;
     use std::io::Write;
     use tempfile::NamedTempFile;
@@ -147,7 +147,7 @@ model = "llama3.2"
         file.write_all(toml.as_bytes()).unwrap();
         let config = MudConfig::load(file.path()).unwrap();
         match config.agent.provider {
-            AgentProvider::Ollama { base_url, model } => {
+            AgentProviderConfig::Ollama { base_url, model } => {
                 assert_eq!(base_url, "http://localhost:11434");
                 assert_eq!(model, "llama3.2");
             }
@@ -172,7 +172,7 @@ room_id = "default"
         file.write_all(toml.as_bytes()).unwrap();
         let config = MudConfig::load(file.path()).unwrap();
         match config.agent.provider {
-            AgentProvider::Ollama { base_url, model } => {
+            AgentProviderConfig::Ollama { base_url, model } => {
                 assert_eq!(base_url, "http://localhost:11434");
                 assert_eq!(model, "llama3.2");
             }

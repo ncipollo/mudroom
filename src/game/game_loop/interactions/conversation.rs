@@ -1,13 +1,21 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::game::config::{DialogLine, PersonaConfig, PlayerResponse};
-use crate::game::entity_ai::{ConversationContext, EntityAI, SimpleConversationState};
+use crate::agent;
+use crate::agent::tools::InspectEntity;
+use crate::game::config::{DialogLine, PersonaConfig, PersonaContext, PlayerResponse};
+use crate::game::entity_ai::{
+    AgentConversationContext, AgentConversationState, ConversationContext, EntityAI,
+    SimpleConversationState,
+};
+use crate::game::messaging::{Message, PlayerMessage};
 use crate::game::player::Player;
 use crate::game::{GameState, messaging};
 
 enum TalkCandidate {
-    AgentStub {
-        label: String,
+    Agent {
+        npc_entity_id: i64,
+        instructions: String,
     },
     StandardDialog {
         npc_entity_id: i64,
@@ -47,12 +55,11 @@ pub async fn process(game_state: &Arc<GameState>, player: &Player) {
                 "There's nobody to talk to here.",
             );
         }
-        Some(TalkCandidate::AgentStub { label }) => {
-            messaging::message(
-                &game_state.message_tx,
-                player.id,
-                format!("The {label} doesn't seem ready to talk."),
-            );
+        Some(TalkCandidate::Agent {
+            npc_entity_id,
+            instructions,
+        }) => {
+            start_agent_conversation(game_state, player, npc_entity_id, instructions).await;
         }
         Some(TalkCandidate::StandardDialog {
             npc_entity_id,
@@ -76,9 +83,21 @@ async fn find_talk_candidate(
             let config_id = e.config_id.as_deref()?;
             let config = game_state.entity_configs.get(config_id)?;
             match &config.persona {
-                Some(PersonaConfig::Agent { .. }) => {
-                    let label = e.description.as_deref().unwrap_or("entity").to_string();
-                    Some(TalkCandidate::AgentStub { label })
+                Some(PersonaConfig::Agent { parsed_persona, .. }) => {
+                    let instructions = match parsed_persona {
+                        Some(persona) => {
+                            let ctx = PersonaContext {
+                                trust: 0.0,
+                                attributes: HashMap::new(),
+                            };
+                            persona.to_instructions(&ctx)
+                        }
+                        None => "You are an NPC in a text adventure game.".to_string(),
+                    };
+                    Some(TalkCandidate::Agent {
+                        npc_entity_id: e.id,
+                        instructions,
+                    })
                 }
                 Some(PersonaConfig::Standard {
                     dialog_tree: Some(tree),
@@ -90,6 +109,63 @@ async fn find_talk_candidate(
                 _ => None,
             }
         })
+}
+
+async fn start_agent_conversation(
+    game_state: &Arc<GameState>,
+    player: &Player,
+    npc_entity_id: i64,
+    instructions: String,
+) {
+    let engagement_id = game_state
+        .engagements
+        .add_conversation(player.entity_id, npc_entity_id)
+        .await;
+
+    {
+        let mut entities = game_state.active_entities.write().await;
+        if let Some(npc) = entities.get_mut(&npc_entity_id) {
+            let mut state = AgentConversationState::default();
+            state.contexts.insert(
+                engagement_id,
+                AgentConversationContext {
+                    instructions: instructions.clone(),
+                    history: Vec::new(),
+                },
+            );
+            let ai = npc.ai.get_or_insert_with(EntityAI::default);
+            ai.agent_conversation_state = Some(state);
+        }
+    }
+
+    let provider = agent::build_provider(&game_state.mud_config.agent);
+    let tx = game_state.message_tx.clone();
+    let player_id = player.id;
+    let game_state_clone = game_state.clone();
+
+    tokio::spawn(async move {
+        let tools: Vec<Box<dyn rig::tool::ToolDyn>> = vec![Box::new(InspectEntity {
+            game_state: game_state_clone,
+            npc_entity_id,
+        })];
+        match provider
+            .chat(
+                &instructions,
+                "Greet the player with a brief greeting.",
+                &[],
+                tools,
+            )
+            .await
+        {
+            Ok(text) => messaging::stream_message(tx, player_id, text),
+            Err(e) => {
+                let _ = tx.send(PlayerMessage {
+                    player_id,
+                    message: Message::Complete(format!("The NPC seems distracted. ({e})")),
+                });
+            }
+        }
+    });
 }
 
 async fn start_standard_dialog(
@@ -115,6 +191,7 @@ async fn start_standard_dialog(
             );
             npc.ai = Some(EntityAI {
                 simple_conversation_state: Some(state),
+                agent_conversation_state: None,
             });
         }
     }

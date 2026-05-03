@@ -9,7 +9,7 @@ pub mod map_loader;
 pub mod mud_config;
 mod persona_parser;
 
-pub use agent_config::{AgentConfig, AgentProvider};
+pub use agent_config::{AgentConfig, AgentProviderConfig};
 pub use attribute_config::AttributeConfig;
 pub use entity_config::{
     DialogLine, EntityConfig, EntityTypeConfig, PersonaConfig, PlayerResponse, load_entity_configs,

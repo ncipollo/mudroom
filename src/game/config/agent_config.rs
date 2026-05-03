@@ -2,14 +2,20 @@ use serde::{Deserialize, Serialize};
 
 use crate::game::config::env_resolver::{deserialize_env_option_string, deserialize_env_string};
 
+fn default_agent_string() -> String {
+    "default".to_string()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentConfig {
-    pub provider: AgentProvider,
+    pub provider: AgentProviderConfig,
+    #[serde(default = "default_agent_string")]
+    pub default_agent: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
-pub enum AgentProvider {
+pub enum AgentProviderConfig {
     Ollama {
         #[serde(deserialize_with = "deserialize_env_string")]
         base_url: String,
@@ -53,10 +59,11 @@ pub enum AgentProvider {
 impl AgentConfig {
     pub fn default_config() -> Self {
         Self {
-            provider: AgentProvider::Ollama {
+            provider: AgentProviderConfig::Ollama {
                 base_url: "http://localhost:11434".to_string(),
                 model: "llama3.2".to_string(),
             },
+            default_agent: "default".to_string(),
         }
     }
 }
@@ -69,8 +76,9 @@ mod tests {
     #[test]
     fn default_config_has_expected_values() {
         let config = AgentConfig::default_config();
+        assert_eq!(config.default_agent, "default");
         match config.provider {
-            AgentProvider::Ollama { base_url, model } => {
+            AgentProviderConfig::Ollama { base_url, model } => {
                 assert_eq!(base_url, "http://localhost:11434");
                 assert_eq!(model, "llama3.2");
             }
@@ -86,19 +94,46 @@ mod tests {
     #[test]
     fn ollama_round_trip() {
         let config = AgentConfig {
-            provider: AgentProvider::Ollama {
+            provider: AgentProviderConfig::Ollama {
                 base_url: "http://localhost:11434".to_string(),
                 model: "llama3.2".to_string(),
             },
+            default_agent: "default".to_string(),
         };
         let rt = round_trip(&config);
+        assert_eq!(rt.default_agent, "default");
         match rt.provider {
-            AgentProvider::Ollama { base_url, model } => {
+            AgentProviderConfig::Ollama { base_url, model } => {
                 assert_eq!(base_url, "http://localhost:11434");
                 assert_eq!(model, "llama3.2");
             }
             _ => panic!("expected Ollama"),
         }
+    }
+
+    #[test]
+    fn default_agent_preserved_on_round_trip() {
+        let config = AgentConfig {
+            provider: AgentProviderConfig::Ollama {
+                base_url: "http://localhost:11434".to_string(),
+                model: "llama3.2".to_string(),
+            },
+            default_agent: "my_agent".to_string(),
+        };
+        let rt = round_trip(&config);
+        assert_eq!(rt.default_agent, "my_agent");
+    }
+
+    #[test]
+    fn default_agent_defaults_when_missing_from_toml() {
+        let toml = r#"
+[provider]
+type = "ollama"
+base_url = "http://localhost:11434"
+model = "llama3.2"
+"#;
+        let config: AgentConfig = toml::from_str(toml).unwrap();
+        assert_eq!(config.default_agent, "default");
     }
 
     #[test]
@@ -116,7 +151,7 @@ model = "$MUDROOM_TEST_OLLAMA_MODEL"
 "#;
         let config: AgentConfig = toml::from_str(toml).unwrap();
         match config.provider {
-            AgentProvider::Ollama { base_url, model } => {
+            AgentProviderConfig::Ollama { base_url, model } => {
                 assert_eq!(base_url, "http://myhost:11434");
                 assert_eq!(model, "mistral");
             }
@@ -131,14 +166,15 @@ model = "$MUDROOM_TEST_OLLAMA_MODEL"
     #[test]
     fn anthropic_round_trip() {
         let config = AgentConfig {
-            provider: AgentProvider::Anthropic {
+            provider: AgentProviderConfig::Anthropic {
                 api_key: Some("sk-ant-123".to_string()),
                 model: "claude-sonnet-4-6".to_string(),
             },
+            default_agent: "default".to_string(),
         };
         let rt = round_trip(&config);
         match rt.provider {
-            AgentProvider::Anthropic { api_key, model } => {
+            AgentProviderConfig::Anthropic { api_key, model } => {
                 assert_eq!(api_key, Some("sk-ant-123".to_string()));
                 assert_eq!(model, "claude-sonnet-4-6");
             }
@@ -149,15 +185,16 @@ model = "$MUDROOM_TEST_OLLAMA_MODEL"
     #[test]
     fn open_ai_round_trip() {
         let config = AgentConfig {
-            provider: AgentProvider::OpenAi {
+            provider: AgentProviderConfig::OpenAi {
                 api_key: None,
                 base_url: Some("https://api.openai.com".to_string()),
                 model: "gpt-4o".to_string(),
             },
+            default_agent: "default".to_string(),
         };
         let rt = round_trip(&config);
         match rt.provider {
-            AgentProvider::OpenAi {
+            AgentProviderConfig::OpenAi {
                 api_key,
                 base_url,
                 model,
@@ -173,14 +210,15 @@ model = "$MUDROOM_TEST_OLLAMA_MODEL"
     #[test]
     fn cohere_round_trip() {
         let config = AgentConfig {
-            provider: AgentProvider::Cohere {
+            provider: AgentProviderConfig::Cohere {
                 api_key: None,
                 model: "command-r".to_string(),
             },
+            default_agent: "default".to_string(),
         };
         let rt = round_trip(&config);
         match rt.provider {
-            AgentProvider::Cohere { api_key, model } => {
+            AgentProviderConfig::Cohere { api_key, model } => {
                 assert_eq!(api_key, None);
                 assert_eq!(model, "command-r");
             }
@@ -191,14 +229,15 @@ model = "$MUDROOM_TEST_OLLAMA_MODEL"
     #[test]
     fn gemini_round_trip() {
         let config = AgentConfig {
-            provider: AgentProvider::Gemini {
+            provider: AgentProviderConfig::Gemini {
                 api_key: Some("key".to_string()),
                 model: "gemini-pro".to_string(),
             },
+            default_agent: "default".to_string(),
         };
         let rt = round_trip(&config);
         match rt.provider {
-            AgentProvider::Gemini { api_key, model } => {
+            AgentProviderConfig::Gemini { api_key, model } => {
                 assert_eq!(api_key, Some("key".to_string()));
                 assert_eq!(model, "gemini-pro");
             }
@@ -209,14 +248,15 @@ model = "$MUDROOM_TEST_OLLAMA_MODEL"
     #[test]
     fn x_ai_round_trip() {
         let config = AgentConfig {
-            provider: AgentProvider::XAi {
+            provider: AgentProviderConfig::XAi {
                 api_key: None,
                 model: "grok-2".to_string(),
             },
+            default_agent: "default".to_string(),
         };
         let rt = round_trip(&config);
         match rt.provider {
-            AgentProvider::XAi { api_key, model } => {
+            AgentProviderConfig::XAi { api_key, model } => {
                 assert_eq!(api_key, None);
                 assert_eq!(model, "grok-2");
             }

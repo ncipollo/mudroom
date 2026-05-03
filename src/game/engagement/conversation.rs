@@ -12,10 +12,15 @@
 ///   The handler validates the choice, advances to the matching reply node in the dialog
 ///   tree, updates the NPC's in-memory conversation context, and sends the next dialog
 ///   message to the player. If the reply has no further responses the conversation ends.
+/// - **`Respond { content }`**: the player sent a free-text message to an agent NPC.
+///   The handler calls the LLM provider and streams the response.
 use std::sync::Arc;
 
+use crate::agent;
+use crate::agent::tools::InspectEntity;
 use crate::game::TurnAction;
 use crate::game::engagement::ResolvedAction;
+use crate::game::entity_ai::{AgentMessage, AgentRole};
 use crate::game::game_loop::interactions::conversation::{format_dialog_message, pick_text};
 use crate::game::player::Player;
 use crate::game::{GameState, messaging};
@@ -52,8 +57,99 @@ pub async fn handle(game_state: &Arc<GameState>, resolved: &ResolvedAction) {
             )
             .await;
         }
+        Some(TurnAction::Respond { content }) => {
+            if npc_has_agent_state(game_state, npc_entity_id, resolved.engagement_id).await {
+                handle_agent_turn(
+                    game_state,
+                    &player,
+                    npc_entity_id,
+                    resolved.engagement_id,
+                    content,
+                )
+                .await;
+            }
+        }
         Some(_) => {
             // Other action types are not handled in conversation engagements
+        }
+    }
+}
+
+async fn npc_has_agent_state(
+    game_state: &Arc<GameState>,
+    npc_entity_id: i64,
+    engagement_id: i64,
+) -> bool {
+    let entities = game_state.active_entities.read().await;
+    entities
+        .get(&npc_entity_id)
+        .and_then(|e| e.ai.as_ref())
+        .and_then(|ai| ai.agent_conversation_state.as_ref())
+        .map(|s| s.contexts.contains_key(&engagement_id))
+        .unwrap_or(false)
+}
+
+async fn handle_agent_turn(
+    game_state: &Arc<GameState>,
+    player: &Player,
+    npc_entity_id: i64,
+    engagement_id: i64,
+    player_message: &str,
+) {
+    let ctx_data = {
+        let entities = game_state.active_entities.read().await;
+        entities
+            .get(&npc_entity_id)
+            .and_then(|e| e.ai.as_ref())
+            .and_then(|ai| ai.agent_conversation_state.as_ref())
+            .and_then(|s| s.contexts.get(&engagement_id))
+            .map(|ctx| (ctx.instructions.clone(), ctx.history.clone()))
+    };
+
+    let (instructions, history) = match ctx_data {
+        Some(data) => data,
+        None => {
+            game_state.engagements.remove(engagement_id).await;
+            return;
+        }
+    };
+
+    let provider = agent::build_provider(&game_state.mud_config.agent);
+    let tools: Vec<Box<dyn rig::tool::ToolDyn>> = vec![Box::new(InspectEntity {
+        game_state: game_state.clone(),
+        npc_entity_id,
+    })];
+
+    match provider
+        .chat(&instructions, player_message, &history, tools)
+        .await
+    {
+        Ok(response) => {
+            {
+                let mut entities = game_state.active_entities.write().await;
+                if let Some(npc) = entities.get_mut(&npc_entity_id)
+                    && let Some(ai) = npc.ai.as_mut()
+                    && let Some(state) = ai.agent_conversation_state.as_mut()
+                    && let Some(ctx) = state.contexts.get_mut(&engagement_id)
+                {
+                    ctx.history.push(AgentMessage {
+                        role: AgentRole::Player,
+                        content: player_message.to_string(),
+                    });
+                    ctx.history.push(AgentMessage {
+                        role: AgentRole::Agent,
+                        content: response.clone(),
+                    });
+                }
+            }
+            messaging::stream_message(game_state.message_tx.clone(), player.id, response);
+        }
+        Err(e) => {
+            messaging::message(
+                &game_state.message_tx,
+                player.id,
+                format!("The NPC pauses, seeming confused. ({e})"),
+            );
         }
     }
 }
@@ -158,9 +254,13 @@ async fn remove_npc_conversation_state(
     let mut entities = game_state.active_entities.write().await;
     if let Some(npc) = entities.get_mut(&npc_entity_id)
         && let Some(ai) = npc.ai.as_mut()
-        && let Some(state) = ai.simple_conversation_state.as_mut()
     {
-        state.contexts.remove(&engagement_id);
+        if let Some(state) = ai.simple_conversation_state.as_mut() {
+            state.contexts.remove(&engagement_id);
+        }
+        if let Some(state) = ai.agent_conversation_state.as_mut() {
+            state.contexts.remove(&engagement_id);
+        }
     }
 }
 
