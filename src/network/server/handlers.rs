@@ -130,23 +130,35 @@ pub async fn session_end_handler(
 pub async fn maps_reload_handler(
     State(state): State<Arc<AppState>>,
 ) -> Result<&'static str, StatusCode> {
-    info!("POST /maps/reload");
     do_reload_maps(&state).await?;
     info!("Maps reloaded");
     Ok("ok")
 }
 
 async fn do_reload_maps(state: &AppState) -> Result<(), StatusCode> {
+    info!("POST /maps/reload");
     let config_path = state.config_path.as_deref();
-    let universe =
-        game::load_map(config_path).map_err(|e| log_internal_error(e, "Failed to load map"))?;
-    game::load_map_into_db(state.db.pool(), &universe)
-        .await
-        .map_err(|e| log_internal_error(e, "Failed to load map into database"))?;
+    let universe = load_map_from_config(config_path)?;
+    persist_map_to_db(state.db.pool(), &universe).await?;
     if let Some(config_dir) = config_path {
         reload_entities(state.db.pool(), &universe, config_dir).await?;
     }
     Ok(())
+}
+
+fn load_map_from_config(
+    config_path: Option<&std::path::Path>,
+) -> Result<game::Universe, StatusCode> {
+    game::load_map(config_path).map_err(|e| log_internal_error(e, "Failed to load map"))
+}
+
+async fn persist_map_to_db(
+    pool: &sqlx::SqlitePool,
+    universe: &game::Universe,
+) -> Result<(), StatusCode> {
+    game::load_map_into_db(pool, universe)
+        .await
+        .map_err(|e| log_internal_error(e, "Failed to load map into database"))
 }
 
 async fn reload_entities(

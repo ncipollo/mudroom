@@ -43,34 +43,56 @@ async fn init_server_session(
     name: Option<String>,
     config: Option<String>,
 ) -> Result<(session::ServerSession, Option<std::path::PathBuf>), Box<dyn std::error::Error>> {
+    let server_session = create_and_load_session(name).await?;
+    let config_path_buf = find_config_path(config);
+    Ok((server_session, config_path_buf))
+}
+
+async fn create_and_load_session(
+    name: Option<String>,
+) -> Result<session::ServerSession, Box<dyn std::error::Error>> {
     state::config::create_session_base_dirs().await?;
-    let server_session = session::ServerSession::load_or_create(name).await?;
-    tracing::info!(
-        "Server session loaded: {} {:?}",
-        server_session.id,
-        server_session.name
-    );
-    let config_path_buf = config
+    let session = session::ServerSession::load_or_create(name).await?;
+    tracing::info!("Server session loaded: {} {:?}", session.id, session.name);
+    Ok(session)
+}
+
+fn find_config_path(config: Option<String>) -> Option<std::path::PathBuf> {
+    let path = config
         .as_deref()
         .map(std::path::PathBuf::from)
         .or_else(state::config::find_config_dir);
-    tracing::info!("Config directory resolved: {:?}", config_path_buf);
-    Ok((server_session, config_path_buf))
+    tracing::info!("Config directory resolved: {:?}", path);
+    path
 }
 
 async fn init_game_resources(
     server_session: &session::ServerSession,
     config_path: Option<&std::path::Path>,
 ) -> Result<(game::GameState, persistence::Database), Box<dyn std::error::Error>> {
-    let game_state = game::GameState::load(config_path)?;
+    let game_state = load_game_state(config_path)?;
+    let db = open_database(server_session).await?;
+    Ok((game_state, db))
+}
+
+fn load_game_state(
+    config_path: Option<&std::path::Path>,
+) -> Result<game::GameState, Box<dyn std::error::Error>> {
+    let state = game::GameState::load(config_path)?;
     tracing::info!(
         "Game state loaded: {} attributes",
-        game_state.attribute_config.attributes.len()
+        state.attribute_config.attributes.len()
     );
+    Ok(state)
+}
+
+async fn open_database(
+    server_session: &session::ServerSession,
+) -> Result<persistence::Database, Box<dyn std::error::Error>> {
     let server_key = server_session.name.as_deref().unwrap_or("unnamed");
     let db = persistence::Database::connect(server_key).await?;
     tracing::info!("Database connected");
-    Ok((game_state, db))
+    Ok(db)
 }
 
 async fn serve_and_wait(
@@ -94,13 +116,21 @@ async fn load_maps_into_db(
     forced: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("Loading maps from config (forced={forced})");
-    let universe = game::load_map(config_path)?;
-    game::load_map_into_db(db.pool(), &universe).await?;
-    tracing::info!("Maps loaded into database");
+    let universe = persist_universe(db, config_path).await?;
     if let Some(config_dir) = config_path {
         load_entity_data(db, &universe, config_dir).await?;
     }
     Ok(())
+}
+
+async fn persist_universe(
+    db: &persistence::Database,
+    config_path: Option<&std::path::Path>,
+) -> Result<game::Universe, Box<dyn std::error::Error>> {
+    let universe = game::load_map(config_path)?;
+    game::load_map_into_db(db.pool(), &universe).await?;
+    tracing::info!("Maps loaded into database");
+    Ok(universe)
 }
 
 async fn load_entity_data(
