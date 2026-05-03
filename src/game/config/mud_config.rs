@@ -2,12 +2,17 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
+use crate::game::config::agent_config::AgentConfig;
+use crate::game::config::env_resolver::deserialize_env_string;
 use crate::game::config::game_loop_config::GameLoopConfig;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SpawnConfig {
+    #[serde(deserialize_with = "deserialize_env_string")]
     pub world_id: String,
+    #[serde(deserialize_with = "deserialize_env_string")]
     pub dungeon_id: String,
+    #[serde(deserialize_with = "deserialize_env_string")]
     pub room_id: String,
 }
 
@@ -25,6 +30,8 @@ impl SpawnConfig {
 pub struct MudConfig {
     pub game_loop: GameLoopConfig,
     pub spawn: SpawnConfig,
+    #[serde(default = "AgentConfig::default_config")]
+    pub agent: AgentConfig,
 }
 
 impl MudConfig {
@@ -38,6 +45,7 @@ impl MudConfig {
         Self {
             game_loop: GameLoopConfig::default_config(),
             spawn: SpawnConfig::default_config(),
+            agent: AgentConfig::default_config(),
         }
     }
 }
@@ -45,6 +53,8 @@ impl MudConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::game::config::agent_config::AgentProvider;
+    use std::env;
     use std::io::Write;
     use tempfile::NamedTempFile;
 
@@ -81,5 +91,92 @@ room_id = "square"
         assert_eq!(config.spawn.world_id, "overworld");
         assert_eq!(config.spawn.dungeon_id, "town");
         assert_eq!(config.spawn.room_id, "square");
+    }
+
+    #[test]
+    fn spawn_resolves_env_vars() {
+        // SAFETY: env::set_var is unsafe because it is not thread-safe; acceptable in these single-threaded test contexts.
+        unsafe {
+            env::set_var("MUDROOM_TEST_WORLD_ID", "myworld");
+            env::set_var("MUDROOM_TEST_DUNGEON_ID", "mydungeon");
+            env::set_var("MUDROOM_TEST_ROOM_ID", "myroom");
+        }
+        let toml = r#"
+[game_loop]
+tick_rate_ms = 1000
+max_engage_ms = 30000
+world_update_ms = 600000
+
+[spawn]
+world_id = "$MUDROOM_TEST_WORLD_ID"
+dungeon_id = "$MUDROOM_TEST_DUNGEON_ID"
+room_id = "$MUDROOM_TEST_ROOM_ID"
+"#;
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(toml.as_bytes()).unwrap();
+        let config = MudConfig::load(file.path()).unwrap();
+        assert_eq!(config.spawn.world_id, "myworld");
+        assert_eq!(config.spawn.dungeon_id, "mydungeon");
+        assert_eq!(config.spawn.room_id, "myroom");
+        unsafe {
+            env::remove_var("MUDROOM_TEST_WORLD_ID");
+            env::remove_var("MUDROOM_TEST_DUNGEON_ID");
+            env::remove_var("MUDROOM_TEST_ROOM_ID");
+        }
+    }
+
+    #[test]
+    fn load_parses_agent_section() {
+        let toml = r#"
+[game_loop]
+tick_rate_ms = 500
+max_engage_ms = 15000
+world_update_ms = 300000
+
+[spawn]
+world_id = "default"
+dungeon_id = "default"
+room_id = "default"
+
+[agent.provider]
+type = "ollama"
+base_url = "http://localhost:11434"
+model = "llama3.2"
+"#;
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(toml.as_bytes()).unwrap();
+        let config = MudConfig::load(file.path()).unwrap();
+        match config.agent.provider {
+            AgentProvider::Ollama { base_url, model } => {
+                assert_eq!(base_url, "http://localhost:11434");
+                assert_eq!(model, "llama3.2");
+            }
+            _ => panic!("expected Ollama provider"),
+        }
+    }
+
+    #[test]
+    fn load_uses_agent_default_when_missing() {
+        let toml = r#"
+[game_loop]
+tick_rate_ms = 500
+max_engage_ms = 15000
+world_update_ms = 300000
+
+[spawn]
+world_id = "default"
+dungeon_id = "default"
+room_id = "default"
+"#;
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(toml.as_bytes()).unwrap();
+        let config = MudConfig::load(file.path()).unwrap();
+        match config.agent.provider {
+            AgentProvider::Ollama { base_url, model } => {
+                assert_eq!(base_url, "http://localhost:11434");
+                assert_eq!(model, "llama3.2");
+            }
+            _ => panic!("expected default Ollama provider"),
+        }
     }
 }
