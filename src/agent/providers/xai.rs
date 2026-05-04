@@ -1,12 +1,11 @@
-use rig::client::{CompletionClient, ProviderClient};
-use rig::completion::Chat;
+use rig::client::ProviderClient;
 use rig::providers::xai;
 
 use crate::agent::error::AgentError;
 use crate::agent::provider::{AgentProvider, BoxFuture};
 use crate::game::entity_ai::AgentMessage;
 
-use super::history_to_rig;
+use super::rig_chat::run_agent_chat;
 
 pub struct XaiProvider {
     pub api_key: Option<String>,
@@ -26,18 +25,7 @@ impl AgentProvider for XaiProvider {
                 Some(key) => xai::Client::from_val(key.clone()),
                 None => xai::Client::from_env(),
             };
-
-            let agent = client
-                .agent(&self.model)
-                .preamble(instructions)
-                .tools(tools)
-                .build();
-            let rig_history = history_to_rig(history);
-
-            agent
-                .chat(prompt, rig_history)
-                .await
-                .map_err(|e| AgentError::Provider(e.to_string()))
+            run_agent_chat(client, &self.model, instructions, prompt, history, tools).await
         })
     }
 }

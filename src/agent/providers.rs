@@ -3,6 +3,7 @@ pub mod cohere;
 pub mod gemini;
 pub mod ollama;
 pub mod openai;
+pub mod rig_chat;
 pub mod xai;
 
 use std::sync::Arc;
@@ -72,7 +73,6 @@ mod tests {
                 base_url: "http://localhost:11434".to_string(),
                 model: "llama3.2".to_string(),
             },
-            default_agent: "default".to_string(),
         };
         let _provider = build_provider(&config);
     }
@@ -84,7 +84,6 @@ mod tests {
                 api_key: Some("test-key".to_string()),
                 model: "claude-sonnet-4-6".to_string(),
             },
-            default_agent: "default".to_string(),
         };
         let _provider = build_provider(&config);
     }
@@ -97,7 +96,6 @@ mod tests {
                 base_url: None,
                 model: "gpt-4o".to_string(),
             },
-            default_agent: "default".to_string(),
         };
         let _provider = build_provider(&config);
     }
@@ -109,7 +107,6 @@ mod tests {
                 api_key: Some("test-key".to_string()),
                 model: "command-r".to_string(),
             },
-            default_agent: "default".to_string(),
         };
         let _provider = build_provider(&config);
     }
@@ -121,7 +118,6 @@ mod tests {
                 api_key: Some("test-key".to_string()),
                 model: "gemini-pro".to_string(),
             },
-            default_agent: "default".to_string(),
         };
         let _provider = build_provider(&config);
     }
@@ -133,7 +129,6 @@ mod tests {
                 api_key: Some("test-key".to_string()),
                 model: "grok-2".to_string(),
             },
-            default_agent: "default".to_string(),
         };
         let _provider = build_provider(&config);
     }

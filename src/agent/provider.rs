@@ -1,4 +1,4 @@
-use std::{future::Future, pin::Pin, sync::Arc};
+use std::{future::Future, pin::Pin};
 
 use crate::game::entity_ai::AgentMessage;
 
@@ -15,5 +15,3 @@ pub trait AgentProvider: Send + Sync {
         tools: Vec<Box<dyn rig::tool::ToolDyn>>,
     ) -> BoxFuture<'a, Result<String, AgentError>>;
 }
-
-pub type DynAgentProvider = Arc<dyn AgentProvider>;

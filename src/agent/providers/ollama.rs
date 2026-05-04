@@ -1,13 +1,11 @@
-use rig::client::{CompletionClient, Nothing};
-use rig::completion::Chat;
+use rig::client::Nothing;
 use rig::providers::ollama;
 
 use crate::agent::error::AgentError;
-use crate::agent::provider::AgentProvider;
-use crate::agent::provider::BoxFuture;
+use crate::agent::provider::{AgentProvider, BoxFuture};
 use crate::game::entity_ai::AgentMessage;
 
-use super::history_to_rig;
+use super::rig_chat::run_agent_chat;
 
 pub struct OllamaProvider {
     pub base_url: String,
@@ -28,18 +26,7 @@ impl AgentProvider for OllamaProvider {
                 .base_url(&self.base_url)
                 .build()
                 .map_err(|e| AgentError::Provider(e.to_string()))?;
-
-            let agent = client
-                .agent(&self.model)
-                .preamble(instructions)
-                .tools(tools)
-                .build();
-            let rig_history = history_to_rig(history);
-
-            agent
-                .chat(prompt, rig_history)
-                .await
-                .map_err(|e| AgentError::Provider(e.to_string()))
+            run_agent_chat(client, &self.model, instructions, prompt, history, tools).await
         })
     }
 }

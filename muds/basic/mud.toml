@@ -8,9 +8,6 @@ world_id = "default"
 dungeon_id = "default"
 room_id = "default"
 
-[agent]
-default_agent = "default"
-
 [agent.provider]
 type = "ollama"
 base_url = "$MUDROOM_OLLAMA_BASE_URL"

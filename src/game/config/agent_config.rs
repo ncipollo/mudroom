@@ -2,15 +2,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::game::config::env_resolver::{deserialize_env_option_string, deserialize_env_string};
 
-fn default_agent_string() -> String {
-    "default".to_string()
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentConfig {
     pub provider: AgentProviderConfig,
-    #[serde(default = "default_agent_string")]
-    pub default_agent: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -63,7 +57,6 @@ impl AgentConfig {
                 base_url: "http://localhost:11434".to_string(),
                 model: "llama3.2".to_string(),
             },
-            default_agent: "default".to_string(),
         }
     }
 }
@@ -73,10 +66,14 @@ mod tests {
     use super::*;
     use std::env;
 
+    fn round_trip(config: &AgentConfig) -> AgentConfig {
+        let toml = toml::to_string(config).unwrap();
+        toml::from_str(&toml).unwrap()
+    }
+
     #[test]
     fn default_config_has_expected_values() {
         let config = AgentConfig::default_config();
-        assert_eq!(config.default_agent, "default");
         match config.provider {
             AgentProviderConfig::Ollama { base_url, model } => {
                 assert_eq!(base_url, "http://localhost:11434");
@@ -86,11 +83,6 @@ mod tests {
         }
     }
 
-    fn round_trip(config: &AgentConfig) -> AgentConfig {
-        let toml = toml::to_string(config).unwrap();
-        toml::from_str(&toml).unwrap()
-    }
-
     #[test]
     fn ollama_round_trip() {
         let config = AgentConfig {
@@ -98,10 +90,8 @@ mod tests {
                 base_url: "http://localhost:11434".to_string(),
                 model: "llama3.2".to_string(),
             },
-            default_agent: "default".to_string(),
         };
         let rt = round_trip(&config);
-        assert_eq!(rt.default_agent, "default");
         match rt.provider {
             AgentProviderConfig::Ollama { base_url, model } => {
                 assert_eq!(base_url, "http://localhost:11434");
@@ -109,31 +99,6 @@ mod tests {
             }
             _ => panic!("expected Ollama"),
         }
-    }
-
-    #[test]
-    fn default_agent_preserved_on_round_trip() {
-        let config = AgentConfig {
-            provider: AgentProviderConfig::Ollama {
-                base_url: "http://localhost:11434".to_string(),
-                model: "llama3.2".to_string(),
-            },
-            default_agent: "my_agent".to_string(),
-        };
-        let rt = round_trip(&config);
-        assert_eq!(rt.default_agent, "my_agent");
-    }
-
-    #[test]
-    fn default_agent_defaults_when_missing_from_toml() {
-        let toml = r#"
-[provider]
-type = "ollama"
-base_url = "http://localhost:11434"
-model = "llama3.2"
-"#;
-        let config: AgentConfig = toml::from_str(toml).unwrap();
-        assert_eq!(config.default_agent, "default");
     }
 
     #[test]
@@ -170,7 +135,6 @@ model = "$MUDROOM_TEST_OLLAMA_MODEL"
                 api_key: Some("sk-ant-123".to_string()),
                 model: "claude-sonnet-4-6".to_string(),
             },
-            default_agent: "default".to_string(),
         };
         let rt = round_trip(&config);
         match rt.provider {
@@ -190,7 +154,6 @@ model = "$MUDROOM_TEST_OLLAMA_MODEL"
                 base_url: Some("https://api.openai.com".to_string()),
                 model: "gpt-4o".to_string(),
             },
-            default_agent: "default".to_string(),
         };
         let rt = round_trip(&config);
         match rt.provider {
@@ -214,7 +177,6 @@ model = "$MUDROOM_TEST_OLLAMA_MODEL"
                 api_key: None,
                 model: "command-r".to_string(),
             },
-            default_agent: "default".to_string(),
         };
         let rt = round_trip(&config);
         match rt.provider {
@@ -233,7 +195,6 @@ model = "$MUDROOM_TEST_OLLAMA_MODEL"
                 api_key: Some("key".to_string()),
                 model: "gemini-pro".to_string(),
             },
-            default_agent: "default".to_string(),
         };
         let rt = round_trip(&config);
         match rt.provider {
@@ -252,7 +213,6 @@ model = "$MUDROOM_TEST_OLLAMA_MODEL"
                 api_key: None,
                 model: "grok-2".to_string(),
             },
-            default_agent: "default".to_string(),
         };
         let rt = round_trip(&config);
         match rt.provider {
