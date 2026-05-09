@@ -12,6 +12,10 @@
 ///   The handler validates the choice, advances to the matching reply node in the dialog
 ///   tree, updates the NPC's in-memory conversation context, and sends the next dialog
 ///   message to the player. If the reply has no further responses the conversation ends.
+/// - **`Respond { content }`**: the player sent a free-text message to an agent NPC.
+///   The handler calls the LLM provider and streams the response.
+mod agent_turn;
+
 use std::sync::Arc;
 
 use crate::game::TurnAction;
@@ -20,42 +24,66 @@ use crate::game::game_loop::interactions::conversation::{format_dialog_message, 
 use crate::game::player::Player;
 use crate::game::{GameState, messaging};
 
+use agent_turn::AgentTurnHandler;
+
 pub async fn handle(game_state: &Arc<GameState>, resolved: &ResolvedAction) {
-    let (player_entity_id, npc_entity_id) = match find_player_and_npc(game_state, resolved).await {
-        Some(pair) => pair,
-        None => return,
+    let Some((player_entity_id, npc_entity_id)) = find_player_and_npc(game_state, resolved).await
+    else {
+        return;
     };
-
-    let player = match find_player_by_entity(game_state, player_entity_id).await {
-        Some(p) => p,
-        None => return,
+    let Some(player) = find_player_by_entity(game_state, player_entity_id).await else {
+        return;
     };
+    dispatch_action(game_state, &player, npc_entity_id, resolved).await;
+}
 
+async fn dispatch_action(
+    game_state: &Arc<GameState>,
+    player: &Player,
+    npc_entity_id: i64,
+    resolved: &ResolvedAction,
+) {
     match &resolved.action {
-        None => {
-            // Player's turn timed out — end the conversation
-            messaging::message(
-                &game_state.message_tx,
-                player.id,
-                "The conversation has ended.",
-            );
-            remove_npc_conversation_state(game_state, npc_entity_id, resolved.engagement_id).await;
-            game_state.engagements.remove(resolved.engagement_id).await;
-        }
+        None => handle_timeout(game_state, player, npc_entity_id, resolved.engagement_id).await,
         Some(TurnAction::SelectDialogChoice { choice }) => {
             handle_choice(
                 game_state,
-                &player,
+                player,
                 npc_entity_id,
                 resolved.engagement_id,
                 choice,
             )
             .await;
         }
-        Some(_) => {
-            // Other action types are not handled in conversation engagements
+        Some(TurnAction::Respond { content }) => {
+            let handler =
+                AgentTurnHandler::new(game_state, player, npc_entity_id, resolved.engagement_id);
+            if handler.has_agent_state().await {
+                handler.handle(content).await;
+            } else {
+                tracing::warn!(
+                    "NPC {npc_entity_id} has no agent state for engagement {}",
+                    resolved.engagement_id
+                );
+            }
         }
+        Some(_) => {}
     }
+}
+
+async fn handle_timeout(
+    game_state: &Arc<GameState>,
+    player: &Player,
+    npc_entity_id: i64,
+    engagement_id: i64,
+) {
+    messaging::message(
+        &game_state.message_tx,
+        player.id,
+        "The conversation has ended.",
+    );
+    remove_npc_conversation_state(game_state, npc_entity_id, engagement_id).await;
+    game_state.engagements.remove(engagement_id).await;
 }
 
 async fn handle_choice(
@@ -158,9 +186,13 @@ async fn remove_npc_conversation_state(
     let mut entities = game_state.active_entities.write().await;
     if let Some(npc) = entities.get_mut(&npc_entity_id)
         && let Some(ai) = npc.ai.as_mut()
-        && let Some(state) = ai.simple_conversation_state.as_mut()
     {
-        state.contexts.remove(&engagement_id);
+        if let Some(state) = ai.simple_conversation_state.as_mut() {
+            state.contexts.remove(&engagement_id);
+        }
+        if let Some(state) = ai.agent_conversation_state.as_mut() {
+            state.contexts.remove(&engagement_id);
+        }
     }
 }
 

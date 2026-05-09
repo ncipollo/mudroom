@@ -1,13 +1,19 @@
+mod agent_conversation;
+
+use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::game::config::{DialogLine, PersonaConfig, PlayerResponse};
+use crate::game::config::{DialogLine, PersonaConfig, PersonaContext, PlayerResponse};
 use crate::game::entity_ai::{ConversationContext, EntityAI, SimpleConversationState};
 use crate::game::player::Player;
 use crate::game::{GameState, messaging};
 
+use agent_conversation::AgentConversationStarter;
+
 enum TalkCandidate {
-    AgentStub {
-        label: String,
+    Agent {
+        npc_entity_id: i64,
+        instructions: String,
     },
     StandardDialog {
         npc_entity_id: i64,
@@ -47,12 +53,13 @@ pub async fn process(game_state: &Arc<GameState>, player: &Player) {
                 "There's nobody to talk to here.",
             );
         }
-        Some(TalkCandidate::AgentStub { label }) => {
-            messaging::message(
-                &game_state.message_tx,
-                player.id,
-                format!("The {label} doesn't seem ready to talk."),
-            );
+        Some(TalkCandidate::Agent {
+            npc_entity_id,
+            instructions,
+        }) => {
+            AgentConversationStarter::new(game_state, player, npc_entity_id, instructions)
+                .start()
+                .await;
         }
         Some(TalkCandidate::StandardDialog {
             npc_entity_id,
@@ -76,9 +83,21 @@ async fn find_talk_candidate(
             let config_id = e.config_id.as_deref()?;
             let config = game_state.entity_configs.get(config_id)?;
             match &config.persona {
-                Some(PersonaConfig::Agent { .. }) => {
-                    let label = e.description.as_deref().unwrap_or("entity").to_string();
-                    Some(TalkCandidate::AgentStub { label })
+                Some(PersonaConfig::Agent { parsed_persona, .. }) => {
+                    let instructions = match parsed_persona {
+                        Some(persona) => {
+                            let ctx = PersonaContext {
+                                trust: 0.0,
+                                attributes: HashMap::new(),
+                            };
+                            persona.to_instructions(&ctx)
+                        }
+                        None => "You are an NPC in a text adventure game.".to_string(),
+                    };
+                    Some(TalkCandidate::Agent {
+                        npc_entity_id: e.id,
+                        instructions,
+                    })
                 }
                 Some(PersonaConfig::Standard {
                     dialog_tree: Some(tree),
@@ -115,6 +134,7 @@ async fn start_standard_dialog(
             );
             npc.ai = Some(EntityAI {
                 simple_conversation_state: Some(state),
+                agent_conversation_state: None,
             });
         }
     }
