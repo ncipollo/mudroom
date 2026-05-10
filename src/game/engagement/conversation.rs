@@ -20,7 +20,7 @@ use std::sync::Arc;
 
 use crate::game::TurnAction;
 use crate::game::engagement::ResolvedAction;
-use crate::game::game_loop::interactions::conversation::{format_dialog_message, pick_text};
+use crate::game::interaction::conversation::{format_dialog_message, pick_text};
 use crate::game::player::Player;
 use crate::game::{GameState, messaging};
 

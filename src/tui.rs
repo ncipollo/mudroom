@@ -1,15 +1,13 @@
 mod app;
 mod commands;
-mod discovery;
 mod event;
-mod layout;
-mod player_select;
+mod screens;
 
 pub use app::App;
 
 use tokio::sync::mpsc;
 
-use crate::{network, session, state};
+use crate::{network, paths};
 
 pub async fn run_client(
     url: Option<String>,
@@ -18,17 +16,17 @@ pub async fn run_client(
     let (net_tx, net_rx) = mpsc::channel(64);
 
     // Track session info for cleanup on exit.
-    let mut client_session_info: Option<(session::ClientSession, String)> = None;
+    let mut client_session_info: Option<(network::session::ClientSession, String)> = None;
 
     if let Some(ref server_url) = url {
-        state::config::create_session_base_dirs().await?;
+        paths::create_session_base_dirs().await?;
 
         // Fetch server identity without creating a session.
         let server_info = network::client::get_server_info(server_url).await?;
         let server_id = server_info.server_id;
 
         // Check for a previously saved session for this server.
-        let saved = session::ClientSession::load(&server_id)
+        let saved = network::session::ClientSession::load(&server_id)
             .await
             .ok()
             .flatten();
@@ -37,7 +35,7 @@ pub async fn run_client(
         // Single start_session call — reuse saved id or get a fresh one.
         let final_resp = network::client::start_session(server_url, saved_client_id).await?;
 
-        let client_session = session::ClientSession {
+        let client_session = network::session::ClientSession {
             id: final_resp.client_id.clone(),
             name: None,
         };
@@ -90,7 +88,7 @@ pub async fn run_client(
 pub async fn run_discovery(debug: bool) -> Result<(), Box<dyn std::error::Error>> {
     let mut terminal = ratatui::init();
     crossterm::execute!(std::io::stdout(), crossterm::event::EnableMouseCapture)?;
-    let selected = discovery::run(&mut terminal).await;
+    let selected = screens::discovery::run(&mut terminal).await;
     crossterm::execute!(std::io::stdout(), crossterm::event::DisableMouseCapture)?;
     ratatui::restore();
     match selected? {

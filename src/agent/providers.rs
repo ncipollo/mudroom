@@ -10,8 +10,8 @@ use std::sync::Arc;
 
 use rig::message::Message;
 
+use crate::agent::entity_ai::{AgentMessage, AgentRole};
 use crate::game::config::agent_config::{AgentConfig, AgentProviderConfig};
-use crate::game::entity_ai::{AgentMessage, AgentRole};
 
 use super::provider::AgentProvider;
 

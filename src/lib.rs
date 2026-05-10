@@ -3,9 +3,8 @@ pub mod cli;
 pub mod game;
 pub mod logging;
 pub mod network;
+pub mod paths;
 pub mod persistence;
-pub mod session;
-pub mod state;
 pub mod tui;
 
 use cli::{Cli, Commands};
@@ -43,7 +42,8 @@ pub async fn run_server(
 async fn init_server_session(
     name: Option<String>,
     config: Option<String>,
-) -> Result<(session::ServerSession, Option<std::path::PathBuf>), Box<dyn std::error::Error>> {
+) -> Result<(network::session::ServerSession, Option<std::path::PathBuf>), Box<dyn std::error::Error>>
+{
     let server_session = create_and_load_session(name).await?;
     let config_path_buf = find_config_path(config);
     Ok((server_session, config_path_buf))
@@ -51,9 +51,9 @@ async fn init_server_session(
 
 async fn create_and_load_session(
     name: Option<String>,
-) -> Result<session::ServerSession, Box<dyn std::error::Error>> {
-    state::config::create_session_base_dirs().await?;
-    let session = session::ServerSession::load_or_create(name).await?;
+) -> Result<network::session::ServerSession, Box<dyn std::error::Error>> {
+    paths::create_session_base_dirs().await?;
+    let session = network::session::ServerSession::load_or_create(name).await?;
     tracing::info!("Server session loaded: {} {:?}", session.id, session.name);
     Ok(session)
 }
@@ -62,13 +62,13 @@ fn find_config_path(config: Option<String>) -> Option<std::path::PathBuf> {
     let path = config
         .as_deref()
         .map(std::path::PathBuf::from)
-        .or_else(state::config::find_config_dir);
+        .or_else(paths::find_config_dir);
     tracing::info!("Config directory resolved: {:?}", path);
     path
 }
 
 async fn init_game_resources(
-    server_session: &session::ServerSession,
+    server_session: &network::session::ServerSession,
     config_path: Option<&std::path::Path>,
 ) -> Result<(game::GameState, persistence::Database), Box<dyn std::error::Error>> {
     let game_state = load_game_state(config_path)?;
@@ -88,7 +88,7 @@ fn load_game_state(
 }
 
 async fn open_database(
-    server_session: &session::ServerSession,
+    server_session: &network::session::ServerSession,
 ) -> Result<persistence::Database, Box<dyn std::error::Error>> {
     let server_key = server_session.name.as_deref().unwrap_or("unnamed");
     let db = persistence::Database::connect(server_key).await?;
@@ -97,7 +97,7 @@ async fn open_database(
 }
 
 async fn serve_and_wait(
-    server_session: session::ServerSession,
+    server_session: network::session::ServerSession,
     game_state: game::GameState,
     db: persistence::Database,
     config_path_buf: Option<std::path::PathBuf>,

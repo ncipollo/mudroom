@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use crate::agent;
+use crate::agent::entity_ai::{AgentConversationContext, AgentConversationState, EntityAI};
 use crate::agent::tools::InspectEntity;
-use crate::game::entity_ai::{AgentConversationContext, AgentConversationState, EntityAI};
 use crate::game::messaging::{Message, PlayerMessage};
 use crate::game::player::Player;
 use crate::game::{GameState, messaging};

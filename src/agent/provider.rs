@@ -1,6 +1,6 @@
 use std::{future::Future, pin::Pin};
 
-use crate::game::entity_ai::AgentMessage;
+use crate::agent::entity_ai::AgentMessage;
 
 use super::error::AgentError;
 

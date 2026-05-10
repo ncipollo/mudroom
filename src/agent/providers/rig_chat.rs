@@ -1,8 +1,8 @@
 use rig::client::CompletionClient;
 use rig::completion::Chat;
 
+use crate::agent::entity_ai::AgentMessage;
 use crate::agent::error::AgentError;
-use crate::game::entity_ai::AgentMessage;
 
 use super::history_to_rig;
 

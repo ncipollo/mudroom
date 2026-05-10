@@ -2,8 +2,8 @@ use sqlx::SqlitePool;
 use sqlx::sqlite::SqliteConnectOptions;
 use std::str::FromStr;
 
+use crate::paths::{database_url, server_session_dir};
 use crate::persistence::error::PersistenceError;
-use crate::state::config::{database_url, server_session_dir};
 
 #[derive(Clone)]
 pub struct Database {
