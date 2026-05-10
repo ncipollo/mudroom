@@ -1,7 +1,10 @@
 entities = ["entities/innkeeper"]
 
 [description]
-standard = "A warm tavern with a crackling fireplace. The town square is to the south."
+standard = "A warm tavern with a crackling fireplace. The town square is to the south. A dim corner lies to the east."
 
 [south]
 room_id = "default"
+
+[east]
+room_id = "back_corner"

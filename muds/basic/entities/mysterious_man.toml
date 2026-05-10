@@ -1,8 +1,8 @@
 entity_type = "character"
 
 [persona]
-type = "standard"
-dialog_file = "innkeeper_dialog.md"
+type = "agent"
+persona_file = "mysterious_man.md"
 
 [[attributes]]
 definition_id = "hp"
