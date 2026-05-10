@@ -25,7 +25,7 @@ impl AppMessage {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum AppMode {
+pub enum GameMode {
     PlayerSelect,
     Game,
 }
@@ -49,7 +49,7 @@ pub struct App {
     pub messages: Vec<AppMessage>,
     pub input: String,
     pub scroll_offset: usize,
-    pub mode: AppMode,
+    pub mode: GameMode,
     pub connection: ConnectionState,
     pub player_select: PlayerSelectState,
     pub current_player_id: Option<i64>,
@@ -67,7 +67,7 @@ impl App {
             ],
             input: String::new(),
             scroll_offset: 0,
-            mode: AppMode::Game,
+            mode: GameMode::Game,
             connection: ConnectionState::default(),
             player_select: PlayerSelectState::default(),
             current_player_id: None,
@@ -82,7 +82,7 @@ impl App {
             messages: Vec::<AppMessage>::new(),
             input: String::new(),
             scroll_offset: 0,
-            mode: AppMode::PlayerSelect,
+            mode: GameMode::PlayerSelect,
             connection: ConnectionState {
                 server_url: Some(server_url),
                 client_id: Some(client_id),
