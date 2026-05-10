@@ -8,7 +8,7 @@ use crate::network::NetworkEvent;
 use crate::network::client::send_interaction;
 use crate::network::client::{create_player, list_players, select_player};
 
-use super::app::{App, AppMessage, AppMode};
+use super::app::{App, AppMessage, GameMode};
 use super::commands;
 use super::layout;
 
@@ -20,7 +20,7 @@ pub async fn run(
     let mut event_stream = EventStream::new();
 
     // Load player list immediately if in PlayerSelect mode
-    if app.mode == AppMode::PlayerSelect
+    if app.mode == GameMode::PlayerSelect
         && let (Some(url), Some(client_id)) = (
             app.connection.server_url.clone(),
             app.connection.client_id.clone(),
@@ -38,10 +38,10 @@ pub async fn run(
                 match maybe_event {
                     Some(Ok(Event::Key(key))) => {
                         match app.mode {
-                            AppMode::PlayerSelect => {
+                            GameMode::PlayerSelect => {
                                 handle_player_select_key(app, key.modifiers, key.code).await;
                             }
-                            AppMode::Game => {
+                            GameMode::Game => {
                                 handle_game_key(app, key.modifiers, key.code).await;
                             }
                         }
@@ -91,7 +91,7 @@ async fn handle_player_select_key(app: &mut App, modifiers: KeyModifiers, code: 
                     app.player_select.players.push(info);
                     app.cancel_create();
                     if select_player(&url, &client_id, player_id).await.is_ok() {
-                        app.mode = AppMode::Game;
+                        app.mode = GameMode::Game;
                     }
                 }
             }
@@ -119,7 +119,7 @@ async fn handle_player_select_key(app: &mut App, modifiers: KeyModifiers, code: 
                     app.connection.client_id.clone(),
                 ) && select_player(&url, &client_id, player_id).await.is_ok()
                 {
-                    app.mode = AppMode::Game;
+                    app.mode = GameMode::Game;
                 }
             }
         }
