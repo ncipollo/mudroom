@@ -23,7 +23,20 @@ Always use `use` imports rather than full crate paths at call sites. For example
 
 ## Architecture
 
-See [`arch.md`](arch.md) for the three-layer architecture overview (Game Engine, Network/Infrastructure, TUI Presentation) and the canonical locations of each module.
+See [`arch.md`](arch.md) for the full architecture overview. Quick module map:
+
+| Module | Layer | Notes |
+|---|---|---|
+| `game/` | Domain | Tick loop, ECS, interaction dispatch, engagement, map |
+| `game/interaction/` | Domain | Player input → entity mailbox handlers |
+| `game/engagement/` | Domain | Turn-based encounter system |
+| `network/` | Infrastructure | axum SSE server, HTTP client, UDP discovery |
+| `network/session/` | Infrastructure | ClientSession, ServerSession |
+| `tui/` | Presentation | ratatui TUI; screens in `tui/screens/` |
+| `persistence/` | Infrastructure | SQLite repos (sqlx) |
+| `agent/` | Infrastructure | LLM providers + entity AI state |
+| `paths.rs` | Infrastructure | Filesystem path helpers |
+| `cli.rs`, `logging.rs` | Entry / Cross-cutting | — |
 
 ## Feature Documentation
 

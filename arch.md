@@ -44,6 +44,23 @@ graph TD
 - **Agent** (`agent/`) — LLM provider integrations (Anthropic, OpenAI, Gemini, Cohere, Ollama, xAI) and `entity_ai` types that track per-entity conversation state.
 - **Paths** (`paths.rs`) — filesystem helpers for session directories, database URLs, and config discovery.
 
+# Module Map
+
+| Module | Layer | Responsibility |
+|---|---|---|
+| `game/` | Domain | ECS tick loop, entities, components, map |
+| `game/interaction/` | Domain | Routes player input from mailboxes into world effects |
+| `game/engagement/` | Domain | Turn-based encounter and conversation system |
+| `network/` | Infrastructure | axum SSE server, HTTP client, UDP discovery |
+| `network/session/` | Infrastructure | ClientSession and ServerSession lifecycle |
+| `tui/` | Presentation | ratatui terminal UI |
+| `tui/screens/` | Presentation | Major UI modes: discovery, player_select, game |
+| `persistence/` | Infrastructure | SQLite repositories via sqlx |
+| `agent/` | Infrastructure | LLM provider integrations + entity AI state types |
+| `paths.rs` | Infrastructure | Filesystem path helpers (session dirs, DB URL) |
+| `cli.rs` | Entry | clap CLI argument parsing |
+| `logging.rs` | Cross-cutting | tracing subscriber setup |
+
 # Relevant Files
 
 | Path | Role |
