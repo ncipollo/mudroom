@@ -3,8 +3,8 @@ mod agent_conversation;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::agent::entity_ai::{ConversationContext, EntityAI, SimpleConversationState};
 use crate::game::config::{DialogLine, PersonaConfig, PersonaContext, PlayerResponse};
-use crate::game::entity_ai::{ConversationContext, EntityAI, SimpleConversationState};
 use crate::game::player::Player;
 use crate::game::{GameState, messaging};
 

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::error::SessionError;
-use crate::state::config;
+use crate::paths;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerSession {
@@ -12,7 +12,7 @@ pub struct ServerSession {
 impl ServerSession {
     pub async fn load_or_create(name: Option<String>) -> Result<Self, SessionError> {
         let key = name.as_deref().unwrap_or("unnamed");
-        let path = config::server_session_file(key).map_err(|_| SessionError::NoHomeDir)?;
+        let path = paths::server_session_file(key).map_err(|_| SessionError::NoHomeDir)?;
 
         if path.exists() {
             let data = tokio::fs::read_to_string(&path).await?;
@@ -30,7 +30,7 @@ impl ServerSession {
 
     pub async fn save(&self) -> Result<(), SessionError> {
         let key = self.name.as_deref().unwrap_or("unnamed");
-        let path = config::server_session_file(key).map_err(|_| SessionError::NoHomeDir)?;
+        let path = paths::server_session_file(key).map_err(|_| SessionError::NoHomeDir)?;
         let data = serde_json::to_string_pretty(self)?;
         tokio::fs::write(&path, data).await?;
         Ok(())

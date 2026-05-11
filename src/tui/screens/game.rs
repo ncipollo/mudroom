@@ -6,8 +6,8 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph},
 };
 
-use super::app::{App, GameMode};
 use super::player_select;
+use crate::tui::app::{App, GameMode};
 
 pub fn render(frame: &mut Frame, app: &App) {
     if app.mode == GameMode::PlayerSelect {

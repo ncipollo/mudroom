@@ -10,7 +10,7 @@ use crate::network::client::{create_player, list_players, select_player};
 
 use super::app::{App, AppMessage, GameMode};
 use super::commands;
-use super::layout;
+use super::screens::game as layout;
 
 pub async fn run(
     terminal: &mut DefaultTerminal,

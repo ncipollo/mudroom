@@ -6,7 +6,7 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, Paragraph},
 };
 
-use super::app::App;
+use crate::tui::app::App;
 
 pub fn render(frame: &mut Frame, app: &App) {
     let areas = Layout::vertical([Constraint::Fill(1), Constraint::Length(3)]).split(frame.area());

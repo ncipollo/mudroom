@@ -2,10 +2,10 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::agent::entity_ai::EntityAI;
 use crate::game::component::Attribute;
 use crate::game::component::Interaction;
 use crate::game::component::Location;
-use crate::game::entity_ai::EntityAI;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum EntityType {

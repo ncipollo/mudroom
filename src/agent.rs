@@ -1,3 +1,4 @@
+pub mod entity_ai;
 pub mod error;
 pub mod provider;
 pub mod providers;

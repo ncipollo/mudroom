@@ -1,9 +1,9 @@
 use rig::client::ProviderClient;
 use rig::providers::anthropic;
 
+use crate::agent::entity_ai::AgentMessage;
 use crate::agent::error::AgentError;
 use crate::agent::provider::{AgentProvider, BoxFuture};
-use crate::game::entity_ai::AgentMessage;
 
 use super::rig_chat::run_agent_chat;
 
