@@ -23,7 +23,7 @@ Always use `use` imports rather than full crate paths at call sites. For example
 
 ## Architecture
 
-See [`arch.md`](arch.md) for the full architecture overview. Quick module map:
+See [`arch.md`](arch.md) for the full architecture overview. New code must be placed within one of the existing domain modules below — do not create new top-level modules unless explicitly instructed. Quick module map:
 
 | Module | Layer | Notes |
 |---|---|---|
