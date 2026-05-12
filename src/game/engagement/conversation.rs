@@ -19,6 +19,7 @@ mod agent_turn;
 use std::sync::Arc;
 
 use crate::game::TurnAction;
+use crate::game::config::DialogLine;
 use crate::game::engagement::ResolvedAction;
 use crate::game::interaction::conversation::{format_dialog_message, pick_text};
 use crate::game::player::Player;
@@ -84,6 +85,7 @@ async fn handle_timeout(
     );
     remove_npc_conversation_state(game_state, npc_entity_id, engagement_id).await;
     game_state.engagements.remove(engagement_id).await;
+    messaging::conversation_ended(&game_state.message_tx, player.id);
 }
 
 async fn handle_choice(
@@ -102,17 +104,7 @@ async fn handle_choice(
         }
     };
 
-    let current_dialog = {
-        let entities = game_state.active_entities.read().await;
-        entities
-            .get(&npc_entity_id)
-            .and_then(|e| e.ai.as_ref())
-            .and_then(|ai| ai.simple_conversation_state.as_ref())
-            .and_then(|s| s.contexts.get(&engagement_id))
-            .and_then(|ctx| ctx.current_dialog.clone())
-    };
-
-    let dialog = match current_dialog {
+    let dialog = match get_current_dialog(game_state, npc_entity_id, engagement_id).await {
         Some(d) => d,
         None => {
             game_state.engagements.remove(engagement_id).await;
@@ -130,29 +122,66 @@ async fn handle_choice(
     };
 
     match &response.reply {
-        None => {
-            // End of dialog tree
-            remove_npc_conversation_state(game_state, npc_entity_id, engagement_id).await;
-            game_state.engagements.remove(engagement_id).await;
-        }
+        None => end_conversation(game_state, player, npc_entity_id, engagement_id).await,
         Some(reply) => {
-            let reply_text = pick_text(reply).to_string();
-            let reply_responses = reply.responses.clone();
-
-            {
-                let mut entities = game_state.active_entities.write().await;
-                if let Some(npc) = entities.get_mut(&npc_entity_id)
-                    && let Some(ai) = npc.ai.as_mut()
-                    && let Some(state) = ai.simple_conversation_state.as_mut()
-                    && let Some(ctx) = state.contexts.get_mut(&engagement_id)
-                {
-                    ctx.current_dialog = Some(*reply.clone());
-                }
-            }
-
-            let msg = format_dialog_message(&reply_text, &reply_responses);
-            messaging::stream_message(game_state.message_tx.clone(), player.id, msg);
+            advance_dialog(game_state, player, npc_entity_id, engagement_id, reply).await
         }
+    }
+}
+
+async fn get_current_dialog(
+    game_state: &Arc<GameState>,
+    npc_entity_id: i64,
+    engagement_id: i64,
+) -> Option<DialogLine> {
+    let entities = game_state.active_entities.read().await;
+    entities
+        .get(&npc_entity_id)
+        .and_then(|e| e.ai.as_ref())
+        .and_then(|ai| ai.simple_conversation_state.as_ref())
+        .and_then(|s| s.contexts.get(&engagement_id))
+        .and_then(|ctx| ctx.current_dialog.clone())
+}
+
+async fn end_conversation(
+    game_state: &Arc<GameState>,
+    player: &Player,
+    npc_entity_id: i64,
+    engagement_id: i64,
+) {
+    remove_npc_conversation_state(game_state, npc_entity_id, engagement_id).await;
+    game_state.engagements.remove(engagement_id).await;
+    messaging::conversation_ended(&game_state.message_tx, player.id);
+}
+
+async fn advance_dialog(
+    game_state: &Arc<GameState>,
+    player: &Player,
+    npc_entity_id: i64,
+    engagement_id: i64,
+    reply: &DialogLine,
+) {
+    let reply_text = pick_text(reply).to_string();
+    let reply_responses = reply.responses.clone();
+
+    {
+        let mut entities = game_state.active_entities.write().await;
+        if let Some(npc) = entities.get_mut(&npc_entity_id)
+            && let Some(ai) = npc.ai.as_mut()
+            && let Some(state) = ai.simple_conversation_state.as_mut()
+            && let Some(ctx) = state.contexts.get_mut(&engagement_id)
+        {
+            ctx.current_dialog = Some(reply.clone());
+        }
+    }
+
+    let msg = format_dialog_message(&reply_text, &reply_responses);
+    messaging::stream_message(game_state.message_tx.clone(), player.id, msg);
+    if reply_responses.is_empty() {
+        end_conversation(game_state, player, npc_entity_id, engagement_id).await;
+    } else {
+        let options: Vec<String> = reply_responses.iter().map(|r| r.text.clone()).collect();
+        messaging::conversation_started(&game_state.message_tx, player.id, options);
     }
 }
 
@@ -172,9 +201,13 @@ async fn resend_current_dialog(
             .and_then(|ctx| ctx.current_dialog.clone())
     };
     if let Some(d) = dialog {
+        let options: Vec<String> = d.responses.iter().map(|r| r.text.clone()).collect();
         let text = pick_text(&d).to_string();
         let msg = format_dialog_message(&text, &d.responses);
         messaging::stream_message(game_state.message_tx.clone(), player.id, msg);
+        if !options.is_empty() {
+            messaging::conversation_started(&game_state.message_tx, player.id, options);
+        }
     }
 }
 
