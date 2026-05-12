@@ -47,6 +47,10 @@ pub enum NetworkEvent {
         chunk: String,
         is_final: bool,
     },
+    ConversationStarted {
+        options: Vec<String>,
+    },
+    ConversationEnded,
 }
 
 #[cfg(test)]

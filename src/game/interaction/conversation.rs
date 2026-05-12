@@ -139,9 +139,15 @@ async fn start_standard_dialog(
         }
     }
 
+    let options: Vec<String> = dialog_root
+        .responses
+        .iter()
+        .map(|r| r.text.clone())
+        .collect();
     let greeting = pick_text(&dialog_root);
     let msg = format_dialog_message(greeting, &dialog_root.responses);
     messaging::stream_message(game_state.message_tx.clone(), player.id, msg);
+    messaging::conversation_started(&game_state.message_tx, player.id, options);
 }
 
 pub fn pick_text(dialog: &DialogLine) -> &str {

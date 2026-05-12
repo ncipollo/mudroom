@@ -1,4 +1,7 @@
+mod conversation_state;
 mod network_event_handler;
+
+pub use conversation_state::ConversationState;
 
 use crate::network::event::PlayerInfo;
 
@@ -28,6 +31,7 @@ impl AppMessage {
 pub enum GameMode {
     PlayerSelect,
     Game,
+    StandardConversation,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -52,6 +56,7 @@ pub struct App {
     pub mode: GameMode,
     pub connection: ConnectionState,
     pub player_select: PlayerSelectState,
+    pub conversation: ConversationState,
     pub current_player_id: Option<i64>,
     pub streaming_message_index: Option<usize>,
     pub debug: bool,
@@ -70,6 +75,7 @@ impl App {
             mode: GameMode::Game,
             connection: ConnectionState::default(),
             player_select: PlayerSelectState::default(),
+            conversation: ConversationState::default(),
             current_player_id: None,
             streaming_message_index: None,
             debug,
@@ -88,6 +94,7 @@ impl App {
                 client_id: Some(client_id),
             },
             player_select: PlayerSelectState::default(),
+            conversation: ConversationState::default(),
             current_player_id: None,
             streaming_message_index: None,
             debug,

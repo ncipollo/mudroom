@@ -19,6 +19,10 @@ pub enum Message {
         chunk: String,
         state: StreamingState,
     },
+    ConversationStarted {
+        options: Vec<String>,
+    },
+    ConversationEnded,
 }
 
 #[derive(Debug, Clone)]
@@ -31,6 +35,24 @@ pub fn message(tx: &broadcast::Sender<PlayerMessage>, player_id: i64, content: i
     let _ = tx.send(PlayerMessage {
         player_id,
         message: Message::Complete(content.into()),
+    });
+}
+
+pub fn conversation_started(
+    tx: &broadcast::Sender<PlayerMessage>,
+    player_id: i64,
+    options: Vec<String>,
+) {
+    let _ = tx.send(PlayerMessage {
+        player_id,
+        message: Message::ConversationStarted { options },
+    });
+}
+
+pub fn conversation_ended(tx: &broadcast::Sender<PlayerMessage>, player_id: i64) {
+    let _ = tx.send(PlayerMessage {
+        player_id,
+        message: Message::ConversationEnded,
     });
 }
 

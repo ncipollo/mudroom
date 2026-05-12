@@ -1,6 +1,6 @@
 use crate::network::NetworkEvent;
 
-use super::{App, AppMessage};
+use super::{App, AppMessage, GameMode};
 
 impl App {
     pub fn handle_network_event(&mut self, event: NetworkEvent) {
@@ -60,6 +60,15 @@ impl App {
                         }
                     }
                 }
+            }
+            NetworkEvent::ConversationStarted { options } => {
+                self.mode = GameMode::StandardConversation;
+                self.conversation.options = options;
+                self.conversation.selected_index = 0;
+            }
+            NetworkEvent::ConversationEnded => {
+                self.mode = GameMode::Game;
+                self.conversation.reset();
             }
         }
     }

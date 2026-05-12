@@ -44,6 +44,9 @@ pub async fn run(
                             GameMode::Game => {
                                 handle_game_key(app, key.modifiers, key.code).await;
                             }
+                            GameMode::StandardConversation => {
+                                handle_conversation_key(app, key.modifiers, key.code).await;
+                            }
                         }
                     }
                     Some(Ok(Event::Mouse(mouse))) => match mouse.kind {
@@ -123,6 +126,31 @@ async fn handle_player_select_key(app: &mut App, modifiers: KeyModifiers, code: 
                 }
             }
         }
+        _ => {}
+    }
+}
+
+async fn handle_conversation_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
+    match (modifiers, code) {
+        (KeyModifiers::CONTROL, KeyCode::Char('c')) => {
+            app.should_quit = true;
+        }
+        (_, KeyCode::Up) => app.conversation.select_prev(),
+        (_, KeyCode::Down) => app.conversation.select_next(),
+        (_, KeyCode::Enter) => {
+            if let Some(choice) = app.conversation.selected_choice()
+                && let (Some(url), Some(client_id)) = (
+                    app.connection.server_url.as_deref(),
+                    app.connection.client_id.as_deref(),
+                )
+            {
+                let action =
+                    Interaction::EngagementAction(TurnAction::SelectDialogChoice { choice });
+                let _ = send_interaction(url, client_id, &action).await;
+            }
+        }
+        (_, KeyCode::PageUp) => app.scroll_up(),
+        (_, KeyCode::PageDown) => app.scroll_down(),
         _ => {}
     }
 }

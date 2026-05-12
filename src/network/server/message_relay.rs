@@ -44,6 +44,10 @@ pub fn spawn(
                         },
                     )
                 }
+                Message::ConversationStarted { options } => {
+                    (pm.player_id, NetworkEvent::ConversationStarted { options })
+                }
+                Message::ConversationEnded => (pm.player_id, NetworkEvent::ConversationEnded),
             };
             // Look up the client_id for this player to find their SSE channel.
             let players = game_state.active_players.read().await;

@@ -1,33 +1,22 @@
 use ratatui::{
     Frame,
     layout::{Constraint, Layout},
-    style::{Color, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span, Text},
-    widgets::{Block, Borders, Paragraph},
+    widgets::{Block, Borders, List, ListItem, Paragraph},
 };
 
-use super::{conversation, player_select};
-use crate::tui::app::{App, GameMode};
+use crate::tui::app::App;
 
 pub fn render(frame: &mut Frame, app: &App) {
-    if app.mode == GameMode::PlayerSelect {
-        player_select::render(frame, app);
-        return;
-    }
-
-    if app.mode == GameMode::StandardConversation {
-        conversation::render(frame, app);
-        return;
-    }
-
+    let option_count = app.conversation.options.len() as u16;
     let areas = Layout::vertical([
         Constraint::Fill(1),
-        Constraint::Length(3),
+        Constraint::Length(option_count + 2),
         Constraint::Length(3),
     ])
     .split(frame.area());
 
-    // Message log
     let visible_lines = areas[0].height.saturating_sub(2) as usize;
     let total = app.messages.len();
     let max_offset = total.saturating_sub(visible_lines);
@@ -52,16 +41,29 @@ pub fn render(frame: &mut Frame, app: &App) {
         .block(Block::default().title("Messages").borders(Borders::ALL));
     frame.render_widget(log, areas[0]);
 
-    // Status bar
-    let status = Paragraph::new("HP: 100 | MP: 50 | Location: Town Square")
-        .style(Style::default().fg(Color::Green))
-        .block(Block::default().title("Status").borders(Borders::ALL));
-    frame.render_widget(status, areas[1]);
+    let items: Vec<ListItem> = app
+        .conversation
+        .options
+        .iter()
+        .enumerate()
+        .map(|(i, text)| {
+            let label = format!("[{}] {}", i + 1, text);
+            if i == app.conversation.selected_index {
+                ListItem::new(label).style(
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                )
+            } else {
+                ListItem::new(label)
+            }
+        })
+        .collect();
+    let list = List::new(items).block(Block::default().title("Options").borders(Borders::ALL));
+    frame.render_widget(list, areas[1]);
 
-    // Input line
-    let input_text = format!("> {}", app.input);
-    let input = Paragraph::new(Text::from(input_text))
-        .style(Style::default().fg(Color::Yellow))
-        .block(Block::default().title("Input").borders(Borders::ALL));
-    frame.render_widget(input, areas[2]);
+    let hint = Paragraph::new("↑↓ Navigate  •  Enter Confirm")
+        .style(Style::default().fg(Color::Green))
+        .block(Block::default().title("Controls").borders(Borders::ALL));
+    frame.render_widget(hint, areas[2]);
 }
