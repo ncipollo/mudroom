@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use crate::agent::entity_ai::{ConversationContext, EntityAI, SimpleConversationState};
 use crate::game::config::{DialogLine, PersonaConfig, PersonaContext, PlayerResponse};
+use crate::game::messaging::ConversationKind;
 use crate::game::player::Player;
 use crate::game::{GameState, messaging};
 
@@ -19,6 +20,43 @@ enum TalkCandidate {
         npc_entity_id: i64,
         dialog_root: DialogLine,
     },
+}
+
+pub async fn end_player_conversation(game_state: &Arc<GameState>, player: &Player) {
+    let Some((engagement_id, entity_ids)) = game_state
+        .engagements
+        .find_conversation_for_entity(player.entity_id)
+        .await
+    else {
+        return;
+    };
+    if let Some(npc_entity_id) = entity_ids
+        .iter()
+        .copied()
+        .find(|&id| id != player.entity_id)
+    {
+        remove_npc_conversation_state(game_state, npc_entity_id, engagement_id).await;
+    }
+    game_state.engagements.remove(engagement_id).await;
+    messaging::conversation_ended(&game_state.message_tx, player.id);
+}
+
+async fn remove_npc_conversation_state(
+    game_state: &Arc<GameState>,
+    npc_entity_id: i64,
+    engagement_id: i64,
+) {
+    let mut entities = game_state.active_entities.write().await;
+    if let Some(npc) = entities.get_mut(&npc_entity_id)
+        && let Some(ai) = npc.ai.as_mut()
+    {
+        if let Some(state) = ai.simple_conversation_state.as_mut() {
+            state.contexts.remove(&engagement_id);
+        }
+        if let Some(state) = ai.agent_conversation_state.as_mut() {
+            state.contexts.remove(&engagement_id);
+        }
+    }
 }
 
 pub async fn process(game_state: &Arc<GameState>, player: &Player) {
@@ -147,7 +185,12 @@ async fn start_standard_dialog(
     let greeting = pick_text(&dialog_root);
     let msg = format_dialog_message(greeting, &dialog_root.responses);
     messaging::stream_message(game_state.message_tx.clone(), player.id, msg);
-    messaging::conversation_started(&game_state.message_tx, player.id, options);
+    messaging::conversation_started(
+        &game_state.message_tx,
+        player.id,
+        ConversationKind::Dialog,
+        options,
+    );
 }
 
 pub fn pick_text(dialog: &DialogLine) -> &str {
