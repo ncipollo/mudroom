@@ -2,10 +2,11 @@ use ratatui::{
     Frame,
     layout::{Constraint, Layout},
     style::{Color, Style},
-    text::{Line, Span, Text},
+    text::Text,
     widgets::{Block, Borders, Paragraph},
 };
 
+use super::super::components::message_log;
 use super::{agent_conversation, conversation, player_select};
 use crate::tui::app::{App, GameMode};
 
@@ -33,29 +34,13 @@ pub fn render(frame: &mut Frame, app: &App) {
     .split(frame.area());
 
     // Message log
-    let visible_lines = areas[0].height.saturating_sub(2) as usize;
-    let total = app.messages.len();
-    let max_offset = total.saturating_sub(visible_lines);
-    let effective_offset = app.scroll_offset.min(max_offset);
-    let end = total.saturating_sub(effective_offset);
-    let start = end.saturating_sub(visible_lines);
-    let log_lines: Vec<Line> = app.messages[start..end]
-        .iter()
-        .flat_map(|msg| {
-            let style = if msg.debug {
-                Style::default().fg(Color::DarkGray)
-            } else {
-                Style::default()
-            };
-            msg.text
-                .split('\n')
-                .map(|line| Line::from(Span::styled(line.to_string(), style)))
-                .collect::<Vec<_>>()
-        })
-        .collect();
-    let log = Paragraph::new(Text::from(log_lines))
-        .block(Block::default().title("Messages").borders(Borders::ALL));
-    frame.render_widget(log, areas[0]);
+    message_log::render(
+        frame,
+        &app.messages,
+        app.scroll_offset,
+        Block::default().title("Messages").borders(Borders::ALL),
+        areas[0],
+    );
 
     // Status bar
     let status = Paragraph::new("HP: 100 | MP: 50 | Location: Town Square")
