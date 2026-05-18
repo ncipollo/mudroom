@@ -150,7 +150,7 @@ room_id = "default"
     fn load_without_mud_toml_uses_defaults() {
         let state = GameState::load(None).unwrap();
         assert_eq!(state.mud_config.game_loop.tick_rate_ms, 1000);
-        assert_eq!(state.mud_config.game_loop.max_engage_ms, 30_000);
+        assert_eq!(state.mud_config.game_loop.max_engage_ms, 300_000);
         assert_eq!(state.mud_config.game_loop.world_update_ms, 600_000);
     }
 
