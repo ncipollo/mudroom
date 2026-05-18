@@ -22,7 +22,7 @@ pub fn parse(input: &str) -> Command {
         "w" | "west" => Command::Move(Direction::West),
         "l" | "look" => Command::Look,
         "h" | "help" => Command::Help,
-        "talk" => Command::Talk,
+        "t" | "talk" => Command::Talk,
         _ => {
             if lower.chars().all(|c| c.is_ascii_digit()) && !lower.is_empty() {
                 Command::Choose(lower)
@@ -79,6 +79,14 @@ mod tests {
         assert!(matches!(parse("H"), Command::Help));
         assert!(matches!(parse("help"), Command::Help));
         assert!(matches!(parse("Help"), Command::Help));
+    }
+
+    #[test]
+    fn parse_talk_variants() {
+        assert!(matches!(parse("t"), Command::Talk));
+        assert!(matches!(parse("T"), Command::Talk));
+        assert!(matches!(parse("talk"), Command::Talk));
+        assert!(matches!(parse("Talk"), Command::Talk));
     }
 
     #[test]
