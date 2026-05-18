@@ -16,7 +16,7 @@ impl GameLoopConfig {
     pub fn default_config() -> Self {
         Self {
             tick_rate_ms: 1000,
-            max_engage_ms: 30_000,
+            max_engage_ms: 300_000,
             world_update_ms: 600_000,
         }
     }
@@ -31,7 +31,7 @@ mod tests {
     fn default_config_has_expected_values() {
         let config = GameLoopConfig::default_config();
         assert_eq!(config.tick_rate_ms, 1000);
-        assert_eq!(config.max_engage_ms, 30_000);
+        assert_eq!(config.max_engage_ms, 300_000);
         assert_eq!(config.world_update_ms, 600_000);
     }
 
