@@ -32,6 +32,7 @@ pub enum GameMode {
     PlayerSelect,
     Game,
     StandardConversation,
+    AgentConversation,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -59,6 +60,7 @@ pub struct App {
     pub conversation: ConversationState,
     pub current_player_id: Option<i64>,
     pub streaming_message_index: Option<usize>,
+    pub agent_responding: bool,
     pub debug: bool,
 }
 
@@ -78,6 +80,7 @@ impl App {
             conversation: ConversationState::default(),
             current_player_id: None,
             streaming_message_index: None,
+            agent_responding: false,
             debug,
         }
     }
@@ -97,6 +100,7 @@ impl App {
             conversation: ConversationState::default(),
             current_player_id: None,
             streaming_message_index: None,
+            agent_responding: false,
             debug,
         }
     }

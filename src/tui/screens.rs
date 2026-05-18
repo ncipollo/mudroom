@@ -1,3 +1,4 @@
+pub mod agent_conversation;
 pub mod conversation;
 pub mod discovery;
 pub mod game;

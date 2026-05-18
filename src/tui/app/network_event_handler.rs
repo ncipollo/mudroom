@@ -1,3 +1,4 @@
+use crate::game::messaging::ConversationKind;
 use crate::network::NetworkEvent;
 
 use super::{App, AppMessage, GameMode};
@@ -59,13 +60,23 @@ impl App {
                             }
                         }
                     }
+                    if is_final {
+                        self.agent_responding = false;
+                    }
                 }
             }
-            NetworkEvent::ConversationStarted { options } => {
-                self.mode = GameMode::StandardConversation;
-                self.conversation.options = options;
-                self.conversation.selected_index = 0;
-            }
+            NetworkEvent::ConversationStarted { kind, options } => match kind {
+                ConversationKind::Dialog => {
+                    self.mode = GameMode::StandardConversation;
+                    self.conversation.options = options;
+                    self.conversation.selected_index = 0;
+                }
+                ConversationKind::Agent => {
+                    self.mode = GameMode::AgentConversation;
+                    self.messages.clear();
+                    self.scroll_offset = 0;
+                }
+            },
             NetworkEvent::ConversationEnded => {
                 self.mode = GameMode::Game;
                 self.conversation.reset();

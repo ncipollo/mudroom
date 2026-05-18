@@ -1,10 +1,18 @@
 pub mod stream;
 
+use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 
 use crate::game::map::universe::room::Room;
 
 pub use stream::stream_message;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum ConversationKind {
+    Agent,
+    Dialog,
+}
 
 #[derive(Debug, Clone)]
 pub enum StreamingState {
@@ -20,6 +28,7 @@ pub enum Message {
         state: StreamingState,
     },
     ConversationStarted {
+        kind: ConversationKind,
         options: Vec<String>,
     },
     ConversationEnded,
@@ -41,11 +50,12 @@ pub fn message(tx: &broadcast::Sender<PlayerMessage>, player_id: i64, content: i
 pub fn conversation_started(
     tx: &broadcast::Sender<PlayerMessage>,
     player_id: i64,
+    kind: ConversationKind,
     options: Vec<String>,
 ) {
     let _ = tx.send(PlayerMessage {
         player_id,
-        message: Message::ConversationStarted { options },
+        message: Message::ConversationStarted { kind, options },
     });
 }
 

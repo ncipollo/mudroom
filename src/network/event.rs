@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::game::messaging::ConversationKind;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerInfoResponse {
     pub server_id: String,
@@ -48,6 +50,7 @@ pub enum NetworkEvent {
         is_final: bool,
     },
     ConversationStarted {
+        kind: ConversationKind,
         options: Vec<String>,
     },
     ConversationEnded,

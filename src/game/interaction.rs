@@ -66,5 +66,8 @@ async fn dispatch_interaction(
         Interaction::StartConversation => {
             conversation::process(game_state, player).await;
         }
+        Interaction::EndConversation => {
+            conversation::end_player_conversation(game_state, player).await;
+        }
     }
 }

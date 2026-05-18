@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::agent;
 use crate::agent::entity_ai::{AgentConversationContext, AgentConversationState, EntityAI};
 use crate::agent::tools::InspectEntity;
-use crate::game::messaging::{Message, PlayerMessage};
+use crate::game::messaging::{ConversationKind, Message, PlayerMessage};
 use crate::game::player::Player;
 use crate::game::{GameState, messaging};
 
@@ -51,6 +51,13 @@ impl<'a> AgentConversationStarter<'a> {
                 ai.agent_conversation_state = Some(state);
             }
         }
+
+        messaging::conversation_started(
+            &self.game_state.message_tx,
+            self.player.id,
+            ConversationKind::Agent,
+            vec![],
+        );
 
         let provider = agent::build_provider(&self.game_state.mud_config.agent);
         let tx = self.game_state.message_tx.clone();

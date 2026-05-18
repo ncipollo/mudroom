@@ -43,6 +43,20 @@ impl Engagements {
         self.engagements_by_id.write().await.remove(&engagement_id);
     }
 
+    /// Returns the engagement id and all participant entity ids for the conversation
+    /// containing the given entity, or `None` if none exists.
+    pub async fn find_conversation_for_entity(&self, entity_id: i64) -> Option<(i64, Vec<i64>)> {
+        self.engagements_by_id
+            .read()
+            .await
+            .values()
+            .find(|e| {
+                e.engagement_type == EngagementType::Conversation
+                    && e.entity_ids.contains(&entity_id)
+            })
+            .map(|e| (e.id, e.entity_ids.clone()))
+    }
+
     /// Returns true if the given entity is currently part of a Conversation engagement.
     pub async fn is_entity_in_conversation(&self, entity_id: i64) -> bool {
         self.engagements_by_id.read().await.values().any(|e| {

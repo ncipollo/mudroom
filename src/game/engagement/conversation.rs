@@ -22,6 +22,7 @@ use crate::game::TurnAction;
 use crate::game::config::DialogLine;
 use crate::game::engagement::ResolvedAction;
 use crate::game::interaction::conversation::{format_dialog_message, pick_text};
+use crate::game::messaging::ConversationKind;
 use crate::game::player::Player;
 use crate::game::{GameState, messaging};
 
@@ -181,7 +182,12 @@ async fn advance_dialog(
         end_conversation(game_state, player, npc_entity_id, engagement_id).await;
     } else {
         let options: Vec<String> = reply_responses.iter().map(|r| r.text.clone()).collect();
-        messaging::conversation_started(&game_state.message_tx, player.id, options);
+        messaging::conversation_started(
+            &game_state.message_tx,
+            player.id,
+            ConversationKind::Dialog,
+            options,
+        );
     }
 }
 
@@ -206,7 +212,12 @@ async fn resend_current_dialog(
         let msg = format_dialog_message(&text, &d.responses);
         messaging::stream_message(game_state.message_tx.clone(), player.id, msg);
         if !options.is_empty() {
-            messaging::conversation_started(&game_state.message_tx, player.id, options);
+            messaging::conversation_started(
+                &game_state.message_tx,
+                player.id,
+                ConversationKind::Dialog,
+                options,
+            );
         }
     }
 }

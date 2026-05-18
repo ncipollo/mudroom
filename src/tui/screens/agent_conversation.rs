@@ -1,3 +1,5 @@
+use std::time::SystemTime;
+
 use ratatui::{
     Frame,
     layout::{Constraint, Layout},
@@ -6,33 +8,27 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph},
 };
 
-use super::{agent_conversation, conversation, player_select};
-use crate::tui::app::{App, GameMode};
+use crate::tui::app::App;
+
+const SPINNER_FRAMES: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+
+fn spinner_frame() -> char {
+    let idx = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_millis() / 100)
+        .unwrap_or(0) as usize;
+    SPINNER_FRAMES[idx % SPINNER_FRAMES.len()]
+}
 
 pub fn render(frame: &mut Frame, app: &App) {
-    if app.mode == GameMode::PlayerSelect {
-        player_select::render(frame, app);
-        return;
-    }
-
-    if app.mode == GameMode::StandardConversation {
-        conversation::render(frame, app);
-        return;
-    }
-
-    if app.mode == GameMode::AgentConversation {
-        agent_conversation::render(frame, app);
-        return;
-    }
-
     let areas = Layout::vertical([
         Constraint::Fill(1),
+        Constraint::Length(3),
         Constraint::Length(3),
         Constraint::Length(3),
     ])
     .split(frame.area());
 
-    // Message log
     let visible_lines = areas[0].height.saturating_sub(2) as usize;
     let total = app.messages.len();
     let max_offset = total.saturating_sub(visible_lines);
@@ -54,19 +50,32 @@ pub fn render(frame: &mut Frame, app: &App) {
         })
         .collect();
     let log = Paragraph::new(Text::from(log_lines))
-        .block(Block::default().title("Messages").borders(Borders::ALL));
+        .block(Block::default().title("Conversation").borders(Borders::ALL));
     frame.render_widget(log, areas[0]);
 
-    // Status bar
-    let status = Paragraph::new("HP: 100 | MP: 50 | Location: Town Square")
-        .style(Style::default().fg(Color::Green))
+    let status_text = if app.agent_responding {
+        format!("{} Responding...", spinner_frame())
+    } else {
+        "Your turn".to_string()
+    };
+    let status_style = if app.agent_responding {
+        Style::default().fg(Color::Yellow)
+    } else {
+        Style::default().fg(Color::Green)
+    };
+    let status = Paragraph::new(status_text)
+        .style(status_style)
         .block(Block::default().title("Status").borders(Borders::ALL));
     frame.render_widget(status, areas[1]);
 
-    // Input line
     let input_text = format!("> {}", app.input);
     let input = Paragraph::new(Text::from(input_text))
         .style(Style::default().fg(Color::Yellow))
-        .block(Block::default().title("Input").borders(Borders::ALL));
+        .block(Block::default().title("Message").borders(Borders::ALL));
     frame.render_widget(input, areas[2]);
+
+    let hint = Paragraph::new("/exit  Leave conversation  •  PgUp/PgDn  Scroll")
+        .style(Style::default().fg(Color::DarkGray))
+        .block(Block::default().borders(Borders::ALL));
+    frame.render_widget(hint, areas[3]);
 }
