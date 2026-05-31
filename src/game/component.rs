@@ -1,3 +1,4 @@
+pub mod ability;
 pub mod attribute;
 pub mod attribute_definition;
 pub mod check;
@@ -6,6 +7,8 @@ pub mod effect;
 pub mod interaction;
 pub mod location;
 
+pub use ability::Ability;
+pub use ability::Cost;
 pub use attribute::Attribute;
 pub use attribute_definition::AttributeCategory;
 pub use attribute_definition::AttributeDefinition;
