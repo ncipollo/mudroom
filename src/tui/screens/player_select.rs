@@ -1,3 +1,4 @@
+use crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::{
     Frame,
     layout::{Constraint, Layout},
@@ -6,7 +7,69 @@ use ratatui::{
     widgets::{Block, Borders, List, ListItem, Paragraph},
 };
 
-use crate::tui::app::App;
+use crate::network::client::{create_player, select_player};
+use crate::tui::app::{App, GameMode};
+
+pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
+    if modifiers == KeyModifiers::CONTROL && code == KeyCode::Char('c') {
+        app.should_quit = true;
+        return;
+    }
+
+    if app.player_select.creating_player {
+        match code {
+            KeyCode::Esc => app.cancel_create(),
+            KeyCode::Backspace => {
+                app.player_select.player_name_input.pop();
+            }
+            KeyCode::Enter => {
+                let name = app.player_select.player_name_input.trim().to_string();
+                if !name.is_empty()
+                    && let (Some(url), Some(client_id)) = (
+                        app.connection.server_url.clone(),
+                        app.connection.client_id.clone(),
+                    )
+                    && let Ok(info) = create_player(&url, &client_id, &name).await
+                {
+                    let player_id = info.id;
+                    app.player_select.players.push(info);
+                    app.cancel_create();
+                    if select_player(&url, &client_id, player_id).await.is_ok() {
+                        app.mode = GameMode::Game;
+                    }
+                }
+            }
+            KeyCode::Char(c) => app.player_select.player_name_input.push(c),
+            _ => {}
+        }
+        return;
+    }
+
+    match code {
+        KeyCode::Up => app.select_prev(),
+        KeyCode::Down => app.select_next(),
+        KeyCode::Enter => {
+            let create_idx = app.player_select.players.len();
+            if app.player_select.selected_index == create_idx {
+                app.start_create();
+            } else if let Some(player) = app
+                .player_select
+                .players
+                .get(app.player_select.selected_index)
+            {
+                let player_id = player.id;
+                if let (Some(url), Some(client_id)) = (
+                    app.connection.server_url.clone(),
+                    app.connection.client_id.clone(),
+                ) && select_player(&url, &client_id, player_id).await.is_ok()
+                {
+                    app.mode = GameMode::Game;
+                }
+            }
+        }
+        _ => {}
+    }
+}
 
 pub fn render(frame: &mut Frame, app: &App) {
     let areas = Layout::vertical([Constraint::Fill(1), Constraint::Length(3)]).split(frame.area());

@@ -1,3 +1,4 @@
+use crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::{
     Frame,
     layout::{Constraint, Layout},
@@ -6,7 +7,34 @@ use ratatui::{
 };
 
 use super::super::components::message_log;
+use crate::game::{Interaction, TurnAction};
+use crate::network::client::send_interaction;
 use crate::tui::app::App;
+
+pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
+    match (modifiers, code) {
+        (KeyModifiers::CONTROL, KeyCode::Char('c')) => {
+            app.should_quit = true;
+        }
+        (_, KeyCode::Up) => app.conversation.select_prev(),
+        (_, KeyCode::Down) => app.conversation.select_next(),
+        (_, KeyCode::Enter) => {
+            if let Some(choice) = app.conversation.selected_choice()
+                && let (Some(url), Some(client_id)) = (
+                    app.connection.server_url.as_deref(),
+                    app.connection.client_id.as_deref(),
+                )
+            {
+                let action =
+                    Interaction::EngagementAction(TurnAction::SelectDialogChoice { choice });
+                let _ = send_interaction(url, client_id, &action).await;
+            }
+        }
+        (_, KeyCode::PageUp) => app.scroll_up(),
+        (_, KeyCode::PageDown) => app.scroll_down(),
+        _ => {}
+    }
+}
 
 pub fn render(frame: &mut Frame, app: &App) {
     let option_count = app.conversation.options.len() as u16;
