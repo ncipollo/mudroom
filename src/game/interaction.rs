@@ -63,8 +63,8 @@ async fn dispatch_interaction(
                 "engagement action submitted"
             );
         }
-        Interaction::StartConversation => {
-            conversation::process(game_state, player).await;
+        Interaction::StartConversation { initial_message } => {
+            conversation::process(game_state, player, initial_message).await;
         }
         Interaction::EndConversation => {
             conversation::end_player_conversation(game_state, player).await;

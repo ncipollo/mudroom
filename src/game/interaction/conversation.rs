@@ -59,7 +59,11 @@ async fn remove_npc_conversation_state(
     }
 }
 
-pub async fn process(game_state: &Arc<GameState>, player: &Player) {
+pub async fn process(
+    game_state: &Arc<GameState>,
+    player: &Player,
+    initial_message: Option<String>,
+) {
     if game_state
         .engagements
         .is_entity_in_conversation(player.entity_id)
@@ -95,9 +99,15 @@ pub async fn process(game_state: &Arc<GameState>, player: &Player) {
             npc_entity_id,
             instructions,
         }) => {
-            AgentConversationStarter::new(game_state, player, npc_entity_id, instructions)
-                .start()
-                .await;
+            AgentConversationStarter::new(
+                game_state,
+                player,
+                npc_entity_id,
+                instructions,
+                initial_message,
+            )
+            .start()
+            .await;
         }
         Some(TalkCandidate::StandardDialog {
             npc_entity_id,

@@ -15,6 +15,33 @@ pub enum Interaction {
     Help,
     Movement(Movement),
     EngagementAction(TurnAction),
-    StartConversation,
+    StartConversation { initial_message: Option<String> },
     EndConversation,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn start_conversation_serde_no_message() {
+        let v = Interaction::StartConversation {
+            initial_message: None,
+        };
+        let json = serde_json::to_string(&v).unwrap();
+        println!("none json: {json}");
+        let rt: Interaction = serde_json::from_str(&json).unwrap();
+        assert_eq!(v, rt);
+    }
+
+    #[test]
+    fn start_conversation_serde_with_message() {
+        let v = Interaction::StartConversation {
+            initial_message: Some("hello".into()),
+        };
+        let json = serde_json::to_string(&v).unwrap();
+        println!("some json: {json}");
+        let rt: Interaction = serde_json::from_str(&json).unwrap();
+        assert_eq!(v, rt);
+    }
 }
