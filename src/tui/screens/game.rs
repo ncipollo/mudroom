@@ -1,3 +1,4 @@
+use crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::{
     Frame,
     layout::{Constraint, Layout},
@@ -8,7 +9,79 @@ use ratatui::{
 
 use super::super::components::message_log;
 use super::{agent_conversation, conversation, player_select};
-use crate::tui::app::{App, GameMode};
+use crate::game::{Interaction, Movement, TurnAction};
+use crate::network::client::send_interaction;
+use crate::tui::app::{App, AppMessage, GameMode};
+use crate::tui::commands;
+
+pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
+    match (modifiers, code) {
+        (KeyModifiers::CONTROL, KeyCode::Char('c')) => {
+            app.should_quit = true;
+        }
+        (_, KeyCode::Char(c)) => {
+            app.input.push(c);
+        }
+        (_, KeyCode::Backspace) => {
+            app.input.pop();
+        }
+        (_, KeyCode::Enter) => {
+            let input: String = app.input.drain(..).collect();
+            let cmd = commands::parse(&input);
+            let url = app.connection.server_url.as_deref();
+            let client_id = app.connection.client_id.as_deref();
+            match cmd {
+                commands::Command::Move(direction) => {
+                    if let (Some(url), Some(client_id)) = (url, client_id) {
+                        let interaction = Interaction::Movement(Movement::TryDirection(direction));
+                        let _ = send_interaction(url, client_id, &interaction).await;
+                    }
+                }
+                commands::Command::Look => {
+                    if let (Some(url), Some(client_id)) = (url, client_id) {
+                        let _ = send_interaction(url, client_id, &Interaction::Look).await;
+                    }
+                }
+                commands::Command::Help => {
+                    if let (Some(url), Some(client_id)) = (url, client_id) {
+                        let _ = send_interaction(url, client_id, &Interaction::Help).await;
+                    }
+                }
+                commands::Command::Talk(msg) => {
+                    let has_initial = msg.is_some();
+                    if let (Some(url), Some(client_id)) = (url, client_id) {
+                        let _ = send_interaction(
+                            url,
+                            client_id,
+                            &Interaction::StartConversation {
+                                initial_message: msg,
+                            },
+                        )
+                        .await;
+                        if has_initial {
+                            app.agent_responding = true;
+                        }
+                    }
+                }
+                commands::Command::Choose(choice) => {
+                    if let (Some(url), Some(client_id)) = (url, client_id) {
+                        let action =
+                            Interaction::EngagementAction(TurnAction::SelectDialogChoice {
+                                choice,
+                            });
+                        let _ = send_interaction(url, client_id, &action).await;
+                    }
+                }
+                _ => {}
+            }
+            app.messages.push(AppMessage::normal(input));
+            app.scroll_offset = 0;
+        }
+        (_, KeyCode::PageUp) => app.scroll_up(),
+        (_, KeyCode::PageDown) => app.scroll_down(),
+        _ => {}
+    }
+}
 
 pub fn render(frame: &mut Frame, app: &App) {
     if app.mode == GameMode::PlayerSelect {

@@ -1,5 +1,6 @@
 use std::time::SystemTime;
 
+use crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::{
     Frame,
     layout::{Constraint, Layout},
@@ -9,7 +10,9 @@ use ratatui::{
 };
 
 use super::super::components::message_log;
-use crate::tui::app::App;
+use crate::game::{Interaction, TurnAction};
+use crate::network::client::send_interaction;
+use crate::tui::app::{App, AppMessage};
 
 const SPINNER_FRAMES: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
@@ -19,6 +22,47 @@ fn spinner_frame() -> char {
         .map(|d| d.as_millis() / 100)
         .unwrap_or(0) as usize;
     SPINNER_FRAMES[idx % SPINNER_FRAMES.len()]
+}
+
+pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
+    match (modifiers, code) {
+        (KeyModifiers::CONTROL, KeyCode::Char('c')) => {
+            app.should_quit = true;
+        }
+        (_, KeyCode::Char(c)) => {
+            app.input.push(c);
+        }
+        (_, KeyCode::Backspace) => {
+            app.input.pop();
+        }
+        (_, KeyCode::Enter) => {
+            let input: String = app.input.drain(..).collect();
+            if input.trim() == "/exit" {
+                if let (Some(url), Some(client_id)) = (
+                    app.connection.server_url.as_deref(),
+                    app.connection.client_id.as_deref(),
+                ) {
+                    let _ = send_interaction(url, client_id, &Interaction::EndConversation).await;
+                }
+            } else if !input.is_empty() {
+                if let (Some(url), Some(client_id)) = (
+                    app.connection.server_url.as_deref(),
+                    app.connection.client_id.as_deref(),
+                ) {
+                    let action = Interaction::EngagementAction(TurnAction::Respond {
+                        content: input.clone(),
+                    });
+                    let _ = send_interaction(url, client_id, &action).await;
+                }
+                app.messages.push(AppMessage::normal(input));
+                app.scroll_offset = 0;
+                app.agent_responding = true;
+            }
+        }
+        (_, KeyCode::PageUp) => app.scroll_up(),
+        (_, KeyCode::PageDown) => app.scroll_down(),
+        _ => {}
+    }
 }
 
 pub fn render(frame: &mut Frame, app: &App) {
