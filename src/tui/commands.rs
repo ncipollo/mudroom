@@ -4,7 +4,7 @@ pub enum Command {
     Move(Direction),
     Look,
     Help,
-    Talk,
+    Talk(Option<String>),
     Choose(String),
     #[allow(dead_code)]
     Enter(String),
@@ -22,9 +22,13 @@ pub fn parse(input: &str) -> Command {
         "w" | "west" => Command::Move(Direction::West),
         "l" | "look" => Command::Look,
         "h" | "help" => Command::Help,
-        "t" | "talk" => Command::Talk,
+        "t" | "talk" => Command::Talk(None),
         _ => {
-            if lower.chars().all(|c| c.is_ascii_digit()) && !lower.is_empty() {
+            if lower.starts_with("talk ") {
+                Command::Talk(Some(trimmed["talk ".len()..].trim().to_string()))
+            } else if lower.starts_with("t ") {
+                Command::Talk(Some(trimmed["t ".len()..].trim().to_string()))
+            } else if lower.chars().all(|c| c.is_ascii_digit()) && !lower.is_empty() {
                 Command::Choose(lower)
             } else if let Some(target) = lower.strip_prefix("enter ") {
                 Command::Enter(target.to_string())
@@ -83,10 +87,24 @@ mod tests {
 
     #[test]
     fn parse_talk_variants() {
-        assert!(matches!(parse("t"), Command::Talk));
-        assert!(matches!(parse("T"), Command::Talk));
-        assert!(matches!(parse("talk"), Command::Talk));
-        assert!(matches!(parse("Talk"), Command::Talk));
+        assert!(matches!(parse("t"), Command::Talk(None)));
+        assert!(matches!(parse("T"), Command::Talk(None)));
+        assert!(matches!(parse("talk"), Command::Talk(None)));
+        assert!(matches!(parse("Talk"), Command::Talk(None)));
+    }
+
+    #[test]
+    fn parse_talk_with_message() {
+        if let Command::Talk(Some(msg)) = parse("talk Hello there!") {
+            assert_eq!(msg, "Hello there!");
+        } else {
+            panic!("expected Talk(Some(...))");
+        }
+        if let Command::Talk(Some(msg)) = parse("t Hi") {
+            assert_eq!(msg, "Hi");
+        } else {
+            panic!("expected Talk(Some(...))");
+        }
     }
 
     #[test]

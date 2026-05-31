@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use crate::agent;
-use crate::agent::entity_ai::{AgentConversationContext, AgentConversationState, EntityAI};
+use crate::agent::entity_ai::{
+    AgentConversationContext, AgentConversationState, AgentMessage, AgentRole, EntityAI,
+};
 use crate::agent::tools::InspectEntity;
 use crate::game::messaging::{ConversationKind, Message, PlayerMessage};
 use crate::game::player::Player;
@@ -12,6 +14,7 @@ pub struct AgentConversationStarter<'a> {
     player: &'a Player,
     npc_entity_id: i64,
     instructions: String,
+    initial_message: Option<String>,
 }
 
 impl<'a> AgentConversationStarter<'a> {
@@ -20,12 +23,14 @@ impl<'a> AgentConversationStarter<'a> {
         player: &'a Player,
         npc_entity_id: i64,
         instructions: String,
+        initial_message: Option<String>,
     ) -> Self {
         Self {
             game_state,
             player,
             npc_entity_id,
             instructions,
+            initial_message,
         }
     }
 
@@ -65,22 +70,32 @@ impl<'a> AgentConversationStarter<'a> {
         let game_state_clone = self.game_state.clone();
         let instructions = self.instructions.clone();
         let npc_entity_id = self.npc_entity_id;
+        let initial_message = self.initial_message.clone();
 
         tokio::spawn(async move {
             let tools: Vec<Box<dyn rig::tool::ToolDyn>> = vec![Box::new(InspectEntity {
-                game_state: game_state_clone,
+                game_state: game_state_clone.clone(),
                 npc_entity_id,
             })];
-            match provider
-                .chat(
-                    &instructions,
-                    "Greet the player with a brief greeting.",
-                    &[],
-                    tools,
-                )
-                .await
-            {
-                Ok(text) => messaging::stream_message(tx, player_id, text),
+
+            let prompt = initial_message
+                .as_deref()
+                .unwrap_or("Greet the player with a brief greeting.");
+
+            match provider.chat(&instructions, prompt, &[], tools).await {
+                Ok(response) => {
+                    if let Some(msg) = &initial_message {
+                        append_exchange(
+                            &game_state_clone,
+                            npc_entity_id,
+                            engagement_id,
+                            msg,
+                            &response,
+                        )
+                        .await;
+                    }
+                    messaging::stream_message(tx, player_id, response);
+                }
                 Err(e) => {
                     let _ = tx.send(PlayerMessage {
                         player_id,
@@ -88,6 +103,30 @@ impl<'a> AgentConversationStarter<'a> {
                     });
                 }
             }
+        });
+    }
+}
+
+async fn append_exchange(
+    game_state: &Arc<GameState>,
+    npc_entity_id: i64,
+    engagement_id: i64,
+    player_message: &str,
+    agent_response: &str,
+) {
+    let mut entities = game_state.active_entities.write().await;
+    if let Some(npc) = entities.get_mut(&npc_entity_id)
+        && let Some(ai) = npc.ai.as_mut()
+        && let Some(state) = ai.agent_conversation_state.as_mut()
+        && let Some(ctx) = state.contexts.get_mut(&engagement_id)
+    {
+        ctx.history.push(AgentMessage {
+            role: AgentRole::Player,
+            content: player_message.to_string(),
+        });
+        ctx.history.push(AgentMessage {
+            role: AgentRole::Agent,
+            content: agent_response.to_string(),
         });
     }
 }
