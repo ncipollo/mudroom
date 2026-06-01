@@ -12,7 +12,6 @@ pub enum Cost {
 pub struct Ability {
     pub id: String,
     pub name: String,
-    #[serde(default)]
     pub description: Option<String>,
     pub effects: Vec<Effect>,
     pub engagement_types: Vec<EngagementType>,
