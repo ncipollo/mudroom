@@ -10,12 +10,14 @@ pub mod map;
 pub mod messaging;
 pub mod player;
 
+pub use component::Ability;
 pub use component::Attribute;
 pub use component::AttributeCategory;
 pub use component::AttributeDefinition;
 pub use component::AttributeType;
 pub use component::Check;
 pub use component::CheckedDescription;
+pub use component::Cost;
 pub use component::Description;
 pub use component::Direction;
 pub use component::Effect;

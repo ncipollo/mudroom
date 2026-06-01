@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::agent::entity_ai::EntityAI;
+use crate::game::component::Ability;
 use crate::game::component::Attribute;
 use crate::game::component::Interaction;
 use crate::game::component::Location;
@@ -21,6 +22,8 @@ pub struct Entity {
     pub location: Location,
     pub attributes: HashMap<String, Attribute>,
     pub interactions: Vec<Interaction>,
+    #[serde(default)]
+    pub innate_abilities: Vec<Ability>,
     pub config_id: Option<String>,
     #[serde(default)]
     pub description: Option<String>,
@@ -36,6 +39,7 @@ impl Entity {
             location,
             attributes: HashMap::new(),
             interactions: Vec::new(),
+            innate_abilities: Vec::new(),
             config_id: None,
             description: None,
             ai: None,
