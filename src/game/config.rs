@@ -21,7 +21,7 @@ pub use game_loop_config::GameLoopConfig;
 pub use map_config::load_map;
 pub use map_loader::{
     load_entities_into_db, load_factions_into_db, load_map_into_db, load_resources_into_db,
-    should_auto_load,
+    should_auto_load, sync_universe_config,
 };
 pub use mud_config::{MudConfig, SpawnConfig};
 pub use persona_parser::{
