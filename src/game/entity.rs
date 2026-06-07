@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
@@ -29,10 +29,16 @@ pub struct Entity {
     pub description: Option<String>,
     #[serde(skip)]
     pub ai: Option<EntityAI>,
+    #[serde(default)]
+    pub factions: HashSet<String>,
 }
 
 impl Entity {
     pub fn new(id: i64, entity_type: EntityType, location: Location) -> Self {
+        let mut factions = HashSet::new();
+        if matches!(entity_type, EntityType::Player) {
+            factions.insert("player".to_string());
+        }
         Self {
             id,
             entity_type,
@@ -43,6 +49,7 @@ impl Entity {
             config_id: None,
             description: None,
             ai: None,
+            factions,
         }
     }
 }
@@ -66,5 +73,18 @@ mod tests {
         assert_eq!(entity.location.world_id, "w1");
         assert_eq!(entity.location.dungeon_id, "d1");
         assert_eq!(entity.location.room_id, "r1");
+    }
+
+    #[test]
+    fn player_entity_has_player_faction() {
+        let entity = Entity::new(1, EntityType::Player, test_location());
+        assert!(entity.factions.contains("player"));
+        assert_eq!(entity.factions.len(), 1);
+    }
+
+    #[test]
+    fn non_player_entity_has_empty_factions() {
+        let entity = Entity::new(2, EntityType::Character, test_location());
+        assert!(entity.factions.is_empty());
     }
 }

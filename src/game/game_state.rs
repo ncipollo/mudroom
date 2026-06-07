@@ -5,7 +5,9 @@ use sqlx::SqlitePool;
 use tokio::sync::RwLock;
 use tokio::sync::broadcast;
 
-use crate::game::config::{AttributeConfig, EntityConfig, MudConfig, load_entity_configs};
+use crate::game::config::{
+    AttributeConfig, EntityConfig, FactionConfig, MudConfig, load_entity_configs,
+};
 use crate::game::engagement::Engagements;
 use crate::game::entity::Entity;
 use crate::game::mailbox::Mailboxes;
@@ -17,6 +19,7 @@ mod entity_sync;
 
 pub struct GameState {
     pub attribute_config: AttributeConfig,
+    pub faction_config: FactionConfig,
     pub mud_config: MudConfig,
     pub entity_configs: HashMap<String, EntityConfig>,
     pub active_entities: RwLock<HashMap<i64, Entity>>,
@@ -40,6 +43,17 @@ impl GameState {
             AttributeConfig::default_config()
         };
 
+        let faction_config = if let Some(dir) = config_dir {
+            let path = dir.join("factions.toml");
+            if path.exists() {
+                FactionConfig::load(&path)?
+            } else {
+                FactionConfig::default_config()
+            }
+        } else {
+            FactionConfig::default_config()
+        };
+
         let mud_config = if let Some(dir) = config_dir {
             let path = dir.join("mud.toml");
             if path.exists() {
@@ -61,6 +75,7 @@ impl GameState {
 
         Ok(Self {
             attribute_config,
+            faction_config,
             mud_config,
             entity_configs,
             active_entities: RwLock::new(HashMap::new()),
@@ -152,6 +167,40 @@ room_id = "default"
         assert_eq!(state.mud_config.game_loop.tick_rate_ms, 1000);
         assert_eq!(state.mud_config.game_loop.max_engage_ms, 300_000);
         assert_eq!(state.mud_config.game_loop.world_update_ms, 600_000);
+    }
+
+    #[test]
+    fn load_without_config_dir_uses_default_factions() {
+        let state = GameState::load(None).unwrap();
+        assert_eq!(state.faction_config.factions.len(), 2);
+        let ids: Vec<&str> = state
+            .faction_config
+            .factions
+            .iter()
+            .map(|f| f.id.as_str())
+            .collect();
+        assert!(ids.contains(&"player"));
+        assert!(ids.contains(&"monster"));
+    }
+
+    #[test]
+    fn load_with_factions_toml_reads_file() {
+        let dir = TempDir::new().unwrap();
+        let toml_path = dir.path().join("factions.toml");
+        let mut file = std::fs::File::create(&toml_path).unwrap();
+        file.write_all(
+            br#"
+[[factions]]
+id = "guard"
+name = "Guard"
+description = "City guards."
+"#,
+        )
+        .unwrap();
+
+        let state = GameState::load(Some(dir.path())).unwrap();
+        assert_eq!(state.faction_config.factions.len(), 1);
+        assert_eq!(state.faction_config.factions[0].id, "guard");
     }
 
     #[tokio::test]
