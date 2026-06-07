@@ -9,6 +9,21 @@ pub enum Cost {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum Operator {
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Modifier {
+    pub attribute_id: String,
+    pub operator: Operator,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Ability {
     pub id: String,
     pub name: String,
@@ -16,6 +31,8 @@ pub struct Ability {
     pub effects: Vec<Effect>,
     pub engagement_types: Vec<EngagementType>,
     pub costs: Vec<Cost>,
+    #[serde(default)]
+    pub modifiers: Vec<Modifier>,
 }
 
 #[cfg(test)]
@@ -47,6 +64,34 @@ mod tests {
     }
 
     #[test]
+    fn operator_serializes_snake_case() {
+        assert_eq!(serde_json::to_string(&Operator::Add).unwrap(), r#""add""#);
+        assert_eq!(
+            serde_json::to_string(&Operator::Subtract).unwrap(),
+            r#""subtract""#
+        );
+        assert_eq!(
+            serde_json::to_string(&Operator::Multiply).unwrap(),
+            r#""multiply""#
+        );
+        assert_eq!(
+            serde_json::to_string(&Operator::Divide).unwrap(),
+            r#""divide""#
+        );
+    }
+
+    #[test]
+    fn modifier_serde_round_trip() {
+        let modifier = Modifier {
+            attribute_id: "strength".to_string(),
+            operator: Operator::Multiply,
+        };
+        let json = serde_json::to_string(&modifier).unwrap();
+        let restored: Modifier = serde_json::from_str(&json).unwrap();
+        assert_eq!(modifier, restored);
+    }
+
+    #[test]
     fn ability_serde_round_trip() {
         let ability = Ability {
             id: "attack".to_string(),
@@ -58,6 +103,35 @@ mod tests {
                 resource_id: "stamina".to_string(),
                 amount: 5,
             }],
+            modifiers: vec![],
+        };
+        let json = serde_json::to_string(&ability).unwrap();
+        let restored: Ability = serde_json::from_str(&json).unwrap();
+        assert_eq!(ability, restored);
+    }
+
+    #[test]
+    fn ability_with_modifiers_serde_round_trip() {
+        let ability = Ability {
+            id: "attack".to_string(),
+            name: "Attack".to_string(),
+            description: Some("A strength-scaled attack.".to_string()),
+            effects: vec![attack_effect()],
+            engagement_types: vec![EngagementType::Battle],
+            costs: vec![Cost::Resource {
+                resource_id: "stamina".to_string(),
+                amount: 5,
+            }],
+            modifiers: vec![
+                Modifier {
+                    attribute_id: "strength".to_string(),
+                    operator: Operator::Multiply,
+                },
+                Modifier {
+                    attribute_id: "dexterity".to_string(),
+                    operator: Operator::Add,
+                },
+            ],
         };
         let json = serde_json::to_string(&ability).unwrap();
         let restored: Ability = serde_json::from_str(&json).unwrap();
@@ -81,9 +155,24 @@ mod tests {
             }],
             engagement_types: vec![EngagementType::Battle],
             costs: vec![],
+            modifiers: vec![],
         };
         let json = serde_json::to_string(&ability).unwrap();
         let restored: Ability = serde_json::from_str(&json).unwrap();
         assert_eq!(ability, restored);
+    }
+
+    #[test]
+    fn ability_missing_modifiers_field_deserializes() {
+        let json = r#"{
+            "id": "heal",
+            "name": "Heal",
+            "description": null,
+            "effects": [],
+            "engagement_types": [],
+            "costs": []
+        }"#;
+        let ability: Ability = serde_json::from_str(json).unwrap();
+        assert!(ability.modifiers.is_empty());
     }
 }
