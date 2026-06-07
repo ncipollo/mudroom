@@ -58,6 +58,7 @@ pub use map::Navigation;
 pub use map::Room;
 pub use map::Universe;
 pub use map::World;
+pub use map::sync_universe_config;
 pub use messaging::PlayerMessage;
 pub use messaging::message;
 pub use player::Player;
