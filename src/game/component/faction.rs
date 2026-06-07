@@ -7,9 +7,26 @@ pub struct Faction {
     pub description: String,
 }
 
+impl Faction {
+    pub fn player() -> Self {
+        Self {
+            id: "player".to_string(),
+            name: "Player".to_string(),
+            description: "All player characters.".to_string(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn player_faction_has_correct_fields() {
+        let faction = Faction::player();
+        assert_eq!(faction.id, "player");
+        assert_eq!(faction.name, "Player");
+    }
 
     #[test]
     fn faction_serde_round_trip() {

@@ -19,11 +19,7 @@ impl FactionConfig {
     pub fn default_config() -> Self {
         Self {
             factions: vec![
-                Faction {
-                    id: "player".to_string(),
-                    name: "Player".to_string(),
-                    description: "All player characters.".to_string(),
-                },
+                Faction::player(),
                 Faction {
                     id: "monster".to_string(),
                     name: "Monster".to_string(),
