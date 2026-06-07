@@ -8,6 +8,7 @@ pub mod map_config;
 pub mod map_loader;
 pub mod mud_config;
 mod persona_parser;
+pub mod resource_config;
 
 pub use agent_config::{AgentConfig, AgentProviderConfig};
 pub use attribute_config::AttributeConfig;
@@ -21,3 +22,4 @@ pub use mud_config::{MudConfig, SpawnConfig};
 pub use persona_parser::{
     CompareOp, PersonaCondition, PersonaContext, PersonaFile, PersonaFrontMatter, PersonaSection,
 };
+pub use resource_config::ResourceConfig;

@@ -6,6 +6,7 @@ pub mod description;
 pub mod effect;
 pub mod interaction;
 pub mod location;
+pub mod resource_definition;
 
 pub use ability::Ability;
 pub use ability::Cost;
@@ -24,3 +25,5 @@ pub use interaction::Direction;
 pub use interaction::Interaction;
 pub use interaction::Movement;
 pub use location::Location;
+pub use resource_definition::ResourceDefinition;
+pub use resource_definition::ResourceLifespan;
