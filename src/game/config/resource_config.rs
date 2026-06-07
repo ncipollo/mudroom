@@ -20,20 +20,21 @@ impl ResourceConfig {
         Self {
             resources: vec![
                 ResourceDefinition {
-                    id: "mp".to_string(),
-                    name: "Mana Points".to_string(),
-                    description: "Magical energy available for spells and abilities.".to_string(),
-                    min_value: 0,
-                    max_value: 999,
-                    lifespan: ResourceLifespan::Perpetual,
-                },
-                ResourceDefinition {
-                    id: "stamina".to_string(),
-                    name: "Stamina".to_string(),
-                    description: "Physical endurance consumed during an engagement.".to_string(),
+                    id: "action_points".to_string(),
+                    name: "Action Points".to_string(),
+                    description: "Points spent to perform actions during an engagement."
+                        .to_string(),
                     min_value: 0,
                     max_value: 100,
                     lifespan: ResourceLifespan::Engagement,
+                },
+                ResourceDefinition {
+                    id: "gold".to_string(),
+                    name: "Gold".to_string(),
+                    description: "Currency used for trading and purchasing items.".to_string(),
+                    min_value: 0,
+                    max_value: i64::MAX,
+                    lifespan: ResourceLifespan::Perpetual,
                 },
             ],
         }
@@ -50,8 +51,8 @@ mod tests {
     fn default_config_has_expected_resources() {
         let config = ResourceConfig::default_config();
         let ids: Vec<&str> = config.resources.iter().map(|r| r.id.as_str()).collect();
-        assert!(ids.contains(&"mp"));
-        assert!(ids.contains(&"stamina"));
+        assert!(ids.contains(&"action_points"));
+        assert!(ids.contains(&"gold"));
         assert_eq!(config.resources.len(), 2);
     }
 
