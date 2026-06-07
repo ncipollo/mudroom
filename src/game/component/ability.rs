@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case", tag = "type")]
 pub enum Cost {
-    Resource { attribute_id: String, amount: i64 },
+    Resource { resource_id: String, amount: i64 },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -38,7 +38,7 @@ mod tests {
     #[test]
     fn cost_resource_serde_round_trip() {
         let cost = Cost::Resource {
-            attribute_id: "mp".to_string(),
+            resource_id: "mp".to_string(),
             amount: 5,
         };
         let json = serde_json::to_string(&cost).unwrap();
@@ -55,7 +55,7 @@ mod tests {
             effects: vec![attack_effect()],
             engagement_types: vec![EngagementType::Battle],
             costs: vec![Cost::Resource {
-                attribute_id: "stamina".to_string(),
+                resource_id: "stamina".to_string(),
                 amount: 5,
             }],
         };
