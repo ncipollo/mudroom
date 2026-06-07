@@ -34,7 +34,7 @@ pub async fn run_server(
     let (server_session, config_path_buf) = init_server_session(name, config).await?;
     let (game_state, db) = init_game_resources(&server_session, config_path_buf.as_deref()).await?;
     if reload_maps || game::should_auto_load(db.pool()).await? {
-        load_maps_into_db(&db, config_path_buf.as_deref(), reload_maps).await?;
+        load_maps_into_db(&db, config_path_buf.as_deref(), reload_maps, &game_state).await?;
     }
     serve_and_wait(server_session, game_state, db, config_path_buf).await
 }
@@ -115,34 +115,16 @@ async fn load_maps_into_db(
     db: &persistence::Database,
     config_path: Option<&std::path::Path>,
     forced: bool,
+    game_state: &game::GameState,
 ) -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("Loading maps from config (forced={forced})");
-    let universe = persist_universe(db, config_path).await?;
-    if let Some(config_dir) = config_path {
-        load_entity_data(db, &universe, config_dir).await?;
-    }
-    Ok(())
-}
-
-async fn persist_universe(
-    db: &persistence::Database,
-    config_path: Option<&std::path::Path>,
-) -> Result<game::Universe, Box<dyn std::error::Error>> {
-    let universe = game::load_map(config_path)?;
-    game::load_map_into_db(db.pool(), &universe).await?;
-    tracing::info!("Maps loaded into database");
-    Ok(universe)
-}
-
-async fn load_entity_data(
-    db: &persistence::Database,
-    universe: &game::Universe,
-    config_dir: &std::path::Path,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let entity_configs = game::load_entity_configs(config_dir)?;
-    game::load_entities_into_db(db.pool(), universe, &entity_configs).await?;
-    tracing::info!("Entities loaded into database");
-    Ok(())
+    game::sync_universe_config(
+        db.pool(),
+        config_path,
+        &game_state.faction_config,
+        &game_state.resource_config,
+    )
+    .await
 }
 
 pub async fn run_client(

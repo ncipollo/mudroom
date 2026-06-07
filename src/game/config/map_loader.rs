@@ -1,19 +1,60 @@
 use sqlx::SqlitePool;
 use std::collections::HashMap;
 use std::error::Error;
+use std::path::Path;
 
 use crate::game::component::Attribute;
-use crate::game::config::entity_config::EntityTypeConfig;
-use crate::game::{EntityConfig, EntityType, Location, Universe, World};
+use crate::game::config::entity_config::{EntityTypeConfig, load_entity_configs};
+use crate::game::config::map_config::load_map;
+use crate::game::config::{FactionConfig, ResourceConfig};
+use crate::game::{EntityConfig, EntityType, Location, Room, Universe, World};
 use crate::persistence::{
-    dungeon_repo, entity_effect_repo, entity_repo, room_repo, server_state_repo, world_repo,
+    ability_repo, dungeon_repo, entity_effect_repo, entity_repo, faction_repo, resource_repo,
+    room_repo, server_state_repo, world_repo,
 };
 
 const LAST_MAP_LOAD_KEY: &str = "last_map_load_date";
 
+pub async fn sync_universe_config(
+    pool: &SqlitePool,
+    config_path: Option<&Path>,
+    faction_config: &FactionConfig,
+    resource_config: &ResourceConfig,
+) -> Result<(), Box<dyn Error>> {
+    let universe = load_map(config_path)?;
+    load_map_into_db(pool, &universe).await?;
+    load_factions_into_db(pool, faction_config).await?;
+    load_resources_into_db(pool, resource_config).await?;
+    if let Some(config_dir) = config_path {
+        let entity_configs = load_entity_configs(config_dir)?;
+        load_entities_into_db(pool, &universe, &entity_configs).await?;
+    }
+    Ok(())
+}
+
 pub async fn should_auto_load(pool: &SqlitePool) -> Result<bool, Box<dyn Error>> {
     let value = server_state_repo::get(pool, LAST_MAP_LOAD_KEY).await?;
     Ok(value.is_none())
+}
+
+pub async fn load_factions_into_db(
+    pool: &SqlitePool,
+    faction_config: &FactionConfig,
+) -> Result<(), Box<dyn Error>> {
+    for faction in &faction_config.factions {
+        faction_repo::upsert(pool, faction).await?;
+    }
+    Ok(())
+}
+
+pub async fn load_resources_into_db(
+    pool: &SqlitePool,
+    resource_config: &ResourceConfig,
+) -> Result<(), Box<dyn Error>> {
+    for resource in &resource_config.resources {
+        resource_repo::upsert_definition(pool, resource).await?;
+    }
+    Ok(())
 }
 
 pub async fn load_map_into_db(
@@ -109,41 +150,83 @@ pub async fn load_entities_into_db(
     for world in universe.worlds.values() {
         for dungeon in world.dungeons.values() {
             for room in dungeon.rooms.values() {
-                for config_id in &room.entities {
-                    let Some(config) = entity_configs.get(config_id) else {
-                        continue;
-                    };
-                    let entity_type = match config.entity_type {
-                        EntityTypeConfig::Character => EntityType::Character,
-                        EntityTypeConfig::Object => EntityType::Object,
-                    };
-                    let location = Location {
-                        world_id: world.id.clone(),
-                        dungeon_id: dungeon.id.clone(),
-                        room_id: room.id.clone(),
-                    };
-
-                    let (entity_id, is_new) = entity_repo::insert_config_entity_if_missing(
-                        pool,
-                        &entity_type,
-                        &location,
-                        config_id,
-                        config.description.as_deref(),
-                    )
-                    .await?;
-
-                    if is_new {
-                        for effect in &config.entity_effects {
-                            entity_effect_repo::insert(pool, entity_id, effect).await?;
-                        }
-                    }
-
-                    if !config.attributes.is_empty() {
-                        sync_entity_attributes(pool, entity_id, config).await?;
-                    }
-                }
+                sync_room_entities(pool, &world.id, &dungeon.id, room, entity_configs).await?;
             }
         }
+    }
+    Ok(())
+}
+
+async fn sync_room_entities(
+    pool: &SqlitePool,
+    world_id: &str,
+    dungeon_id: &str,
+    room: &Room,
+    entity_configs: &HashMap<String, EntityConfig>,
+) -> Result<(), Box<dyn Error>> {
+    for config_id in &room.entities {
+        if let Some(config) = entity_configs.get(config_id) {
+            sync_entity(pool, world_id, dungeon_id, &room.id, config_id, config).await?;
+        }
+    }
+    Ok(())
+}
+
+async fn sync_entity(
+    pool: &SqlitePool,
+    world_id: &str,
+    dungeon_id: &str,
+    room_id: &str,
+    config_id: &str,
+    config: &EntityConfig,
+) -> Result<(), Box<dyn Error>> {
+    let entity_type = match config.entity_type {
+        EntityTypeConfig::Character => EntityType::Character,
+        EntityTypeConfig::Object => EntityType::Object,
+    };
+    let location = Location {
+        world_id: world_id.to_string(),
+        dungeon_id: dungeon_id.to_string(),
+        room_id: room_id.to_string(),
+    };
+    let (entity_id, is_new) = entity_repo::insert_config_entity_if_missing(
+        pool,
+        &entity_type,
+        &location,
+        config_id,
+        config.description.as_deref(),
+    )
+    .await?;
+    if is_new {
+        for effect in &config.entity_effects {
+            entity_effect_repo::insert(pool, entity_id, effect).await?;
+        }
+    }
+    if !config.attributes.is_empty() {
+        sync_entity_attributes(pool, entity_id, config).await?;
+    }
+    if !config.factions.is_empty() {
+        faction_repo::set_entity_factions(pool, entity_id, &config.factions).await?;
+    }
+    sync_entity_abilities(pool, entity_id, config).await?;
+    Ok(())
+}
+
+async fn sync_entity_abilities(
+    pool: &SqlitePool,
+    entity_id: i64,
+    config: &EntityConfig,
+) -> Result<(), Box<dyn Error>> {
+    for ability in &config.innate_abilities {
+        ability_repo::upsert(pool, ability).await?;
+    }
+    if !config.innate_abilities.is_empty() {
+        let ability_ids: Vec<&str> = config
+            .innate_abilities
+            .iter()
+            .map(|a| a.id.as_str())
+            .collect();
+        ability_repo::set_entity_abilities(pool, entity_id, &ability_ids).await?;
     }
     Ok(())
 }
@@ -299,6 +382,8 @@ mod tests {
             persona: None,
             attributes: vec![],
             entity_effects: vec![],
+            innate_abilities: vec![],
+            factions: vec![],
         };
         let mut map = HashMap::new();
         map.insert("entities/innkeeper".to_string(), config);
@@ -329,6 +414,8 @@ mod tests {
                 },
             ],
             entity_effects: vec![],
+            innate_abilities: vec![],
+            factions: vec![],
         };
         let mut map = HashMap::new();
         map.insert("entities/innkeeper".to_string(), config);
@@ -459,6 +546,8 @@ mod tests {
                     },
                 ],
                 entity_effects: vec![],
+                innate_abilities: vec![],
+                factions: vec![],
             },
         );
         let universe = make_universe_with_entity();

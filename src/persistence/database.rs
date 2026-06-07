@@ -99,6 +99,12 @@ mod tests {
             "interactions",
             "players",
             "server_state",
+            "factions",
+            "entity_factions",
+            "resource_definitions",
+            "entity_resources",
+            "abilities",
+            "entity_abilities",
         ] {
             assert!(table_exists(pool, table).await, "missing table: {table}");
         }
@@ -145,5 +151,41 @@ mod tests {
 
         run_up_to(&pool, 4).await;
         assert!(table_exists(&pool, "server_state").await);
+    }
+
+    #[tokio::test]
+    async fn migration_10_adds_faction_tables() {
+        let pool = bare_pool().await;
+        run_up_to(&pool, 9).await;
+        assert!(!table_exists(&pool, "factions").await);
+        assert!(!table_exists(&pool, "entity_factions").await);
+
+        run_up_to(&pool, 10).await;
+        assert!(table_exists(&pool, "factions").await);
+        assert!(table_exists(&pool, "entity_factions").await);
+    }
+
+    #[tokio::test]
+    async fn migration_11_adds_resource_tables() {
+        let pool = bare_pool().await;
+        run_up_to(&pool, 10).await;
+        assert!(!table_exists(&pool, "resource_definitions").await);
+        assert!(!table_exists(&pool, "entity_resources").await);
+
+        run_up_to(&pool, 11).await;
+        assert!(table_exists(&pool, "resource_definitions").await);
+        assert!(table_exists(&pool, "entity_resources").await);
+    }
+
+    #[tokio::test]
+    async fn migration_12_adds_ability_tables() {
+        let pool = bare_pool().await;
+        run_up_to(&pool, 11).await;
+        assert!(!table_exists(&pool, "abilities").await);
+        assert!(!table_exists(&pool, "entity_abilities").await);
+
+        run_up_to(&pool, 12).await;
+        assert!(table_exists(&pool, "abilities").await);
+        assert!(table_exists(&pool, "entity_abilities").await);
     }
 }
