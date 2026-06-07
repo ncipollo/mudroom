@@ -6,7 +6,7 @@ use tokio::sync::RwLock;
 use tokio::sync::broadcast;
 
 use crate::game::config::{
-    AttributeConfig, EntityConfig, FactionConfig, MudConfig, load_entity_configs,
+    AttributeConfig, EntityConfig, FactionConfig, MudConfig, ResourceConfig, load_entity_configs,
 };
 use crate::game::engagement::Engagements;
 use crate::game::entity::Entity;
@@ -20,6 +20,7 @@ mod entity_sync;
 pub struct GameState {
     pub attribute_config: AttributeConfig,
     pub faction_config: FactionConfig,
+    pub resource_config: ResourceConfig,
     pub mud_config: MudConfig,
     pub entity_configs: HashMap<String, EntityConfig>,
     pub active_entities: RwLock<HashMap<i64, Entity>>,
@@ -54,6 +55,17 @@ impl GameState {
             FactionConfig::default_config()
         };
 
+        let resource_config = if let Some(dir) = config_dir {
+            let path = dir.join("resources.toml");
+            if path.exists() {
+                ResourceConfig::load(&path)?
+            } else {
+                ResourceConfig::default_config()
+            }
+        } else {
+            ResourceConfig::default_config()
+        };
+
         let mud_config = if let Some(dir) = config_dir {
             let path = dir.join("mud.toml");
             if path.exists() {
@@ -76,6 +88,7 @@ impl GameState {
         Ok(Self {
             attribute_config,
             faction_config,
+            resource_config,
             mud_config,
             entity_configs,
             active_entities: RwLock::new(HashMap::new()),

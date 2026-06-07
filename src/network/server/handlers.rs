@@ -140,10 +140,24 @@ async fn do_reload_maps(state: &AppState) -> Result<(), StatusCode> {
     let config_path = state.config_path.as_deref();
     let universe = load_map_from_config(config_path)?;
     persist_map_to_db(state.db.pool(), &universe).await?;
+    reload_factions(state).await?;
+    reload_resources(state).await?;
     if let Some(config_dir) = config_path {
         reload_entities(state.db.pool(), &universe, config_dir).await?;
     }
     Ok(())
+}
+
+async fn reload_factions(state: &AppState) -> Result<(), StatusCode> {
+    game::load_factions_into_db(state.db.pool(), &state.game_state.faction_config)
+        .await
+        .map_err(|e| log_internal_error(e, "Failed to reload factions"))
+}
+
+async fn reload_resources(state: &AppState) -> Result<(), StatusCode> {
+    game::load_resources_into_db(state.db.pool(), &state.game_state.resource_config)
+        .await
+        .map_err(|e| log_internal_error(e, "Failed to reload resources"))
 }
 
 fn load_map_from_config(

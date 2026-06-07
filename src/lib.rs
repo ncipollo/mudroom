@@ -34,7 +34,7 @@ pub async fn run_server(
     let (server_session, config_path_buf) = init_server_session(name, config).await?;
     let (game_state, db) = init_game_resources(&server_session, config_path_buf.as_deref()).await?;
     if reload_maps || game::should_auto_load(db.pool()).await? {
-        load_maps_into_db(&db, config_path_buf.as_deref(), reload_maps).await?;
+        load_maps_into_db(&db, config_path_buf.as_deref(), reload_maps, &game_state).await?;
     }
     serve_and_wait(server_session, game_state, db, config_path_buf).await
 }
@@ -115,9 +115,12 @@ async fn load_maps_into_db(
     db: &persistence::Database,
     config_path: Option<&std::path::Path>,
     forced: bool,
+    game_state: &game::GameState,
 ) -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("Loading maps from config (forced={forced})");
     let universe = persist_universe(db, config_path).await?;
+    game::load_factions_into_db(db.pool(), &game_state.faction_config).await?;
+    game::load_resources_into_db(db.pool(), &game_state.resource_config).await?;
     if let Some(config_dir) = config_path {
         load_entity_data(db, &universe, config_dir).await?;
     }
