@@ -9,8 +9,8 @@ use crate::game::config::map_config::load_map;
 use crate::game::config::{FactionConfig, ResourceConfig};
 use crate::game::{EntityConfig, EntityType, Location, Room, Universe, World};
 use crate::persistence::{
-    ability_repo, dungeon_repo, entity_effect_repo, entity_repo, faction_repo, resource_repo,
-    room_repo, server_state_repo, world_repo,
+    ability_repo, dungeon_repo, entity_effect_repo, entity_repo, faction_relations_repo,
+    faction_repo, resource_repo, room_repo, server_state_repo, world_repo,
 };
 
 const LAST_MAP_LOAD_KEY: &str = "last_map_load_date";
@@ -208,6 +208,9 @@ async fn sync_entity(
     if !config.factions.is_empty() {
         faction_repo::set_entity_factions(pool, entity_id, &config.factions).await?;
     }
+    if let Some(relations) = &config.faction_relations {
+        faction_relations_repo::set_entity_relations(pool, entity_id, relations).await?;
+    }
     sync_entity_abilities(pool, entity_id, config).await?;
     Ok(())
 }
@@ -384,6 +387,7 @@ mod tests {
             entity_effects: vec![],
             innate_abilities: vec![],
             factions: vec![],
+            faction_relations: None,
         };
         let mut map = HashMap::new();
         map.insert("entities/innkeeper".to_string(), config);
@@ -416,6 +420,7 @@ mod tests {
             entity_effects: vec![],
             innate_abilities: vec![],
             factions: vec![],
+            faction_relations: None,
         };
         let mut map = HashMap::new();
         map.insert("entities/innkeeper".to_string(), config);
@@ -548,6 +553,7 @@ mod tests {
                 entity_effects: vec![],
                 innate_abilities: vec![],
                 factions: vec![],
+                faction_relations: None,
             },
         );
         let universe = make_universe_with_entity();

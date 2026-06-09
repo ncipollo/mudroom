@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::agent::entity_ai::EntityAI;
 use crate::game::component::Ability;
 use crate::game::component::Attribute;
+use crate::game::component::FactionRelations;
 use crate::game::component::Interaction;
 use crate::game::component::Location;
 
@@ -31,6 +32,8 @@ pub struct Entity {
     pub ai: Option<EntityAI>,
     #[serde(default)]
     pub factions: HashSet<String>,
+    #[serde(default)]
+    pub faction_relations: FactionRelations,
 }
 
 impl Entity {
@@ -50,6 +53,7 @@ impl Entity {
             description: None,
             ai: None,
             factions,
+            faction_relations: FactionRelations::default(),
         }
     }
 }

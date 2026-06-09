@@ -5,6 +5,7 @@ pub mod dungeon_repo;
 pub mod entity_effect_repo;
 pub mod entity_repo;
 pub mod error;
+pub mod faction_relations_repo;
 pub mod faction_repo;
 pub mod interaction_repo;
 pub mod player_repo;

@@ -1,4 +1,5 @@
 use crate::game::component::Ability;
+use crate::game::component::FactionRelations;
 use crate::game::component::effect::Effect;
 use crate::game::config::dialog_parser::parse_dialog_markdown;
 use crate::game::config::persona_parser::{PersonaFile, parse_persona_markdown};
@@ -74,6 +75,8 @@ pub struct EntityConfig {
     pub innate_abilities: Vec<Ability>,
     #[serde(default)]
     pub factions: Vec<String>,
+    #[serde(default)]
+    pub faction_relations: Option<FactionRelations>,
 }
 
 pub fn load_entity_config(path: &Path) -> Result<EntityConfig, Box<dyn Error>> {
