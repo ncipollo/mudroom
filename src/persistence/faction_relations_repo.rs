@@ -13,11 +13,15 @@ pub async fn set_entity_relations(
         .execute(pool)
         .await?;
 
-    insert_relation(pool, entity_id, "player", &relations.player).await?;
-    insert_relation(pool, entity_id, "monster", &relations.monster).await?;
-
     for (faction_id, relation) in &relations.factions {
-        insert_relation(pool, entity_id, faction_id, relation).await?;
+        sqlx::query(
+            "INSERT INTO entity_faction_relations (entity_id, faction_id, relation) VALUES (?, ?, ?)",
+        )
+        .bind(entity_id)
+        .bind(faction_id)
+        .bind(relation_to_str(relation))
+        .execute(pool)
+        .await?;
     }
 
     Ok(())
@@ -34,36 +38,12 @@ pub async fn find_by_entity(
     .fetch_all(pool)
     .await?;
 
-    let mut relations = FactionRelations::default();
-    for (faction_id, relation_str) in rows {
-        let relation = parse_relation(&relation_str);
-        match faction_id.as_str() {
-            "player" => relations.player = relation,
-            "monster" => relations.monster = relation,
-            _ => {
-                relations.factions.insert(faction_id, relation);
-            }
-        }
-    }
-    Ok(relations)
-}
+    let factions = rows
+        .into_iter()
+        .map(|(faction_id, relation_str)| (faction_id, parse_relation(&relation_str)))
+        .collect();
 
-async fn insert_relation(
-    pool: &SqlitePool,
-    entity_id: i64,
-    faction_id: &str,
-    relation: &FactionRelation,
-) -> Result<(), PersistenceError> {
-    let relation_str = relation_to_str(relation);
-    sqlx::query(
-        "INSERT INTO entity_faction_relations (entity_id, faction_id, relation) VALUES (?, ?, ?)",
-    )
-    .bind(entity_id)
-    .bind(faction_id)
-    .bind(relation_str)
-    .execute(pool)
-    .await?;
-    Ok(())
+    Ok(FactionRelations { factions })
 }
 
 fn relation_to_str(relation: &FactionRelation) -> &'static str {
@@ -124,8 +104,8 @@ mod tests {
             .unwrap();
 
         let found = find_by_entity(db.pool(), entity_id).await.unwrap();
-        assert_eq!(found.player, FactionRelation::Hostile);
-        assert_eq!(found.monster, FactionRelation::NonInteractive);
+        assert_eq!(found.player_relation(), &FactionRelation::Hostile);
+        assert_eq!(found.monster_relation(), &FactionRelation::NonInteractive);
         assert_eq!(found.factions["bandits"], FactionRelation::Unfriendly);
     }
 
@@ -151,8 +131,8 @@ mod tests {
         .unwrap();
 
         let found = find_by_entity(db.pool(), entity_id).await.unwrap();
-        assert_eq!(found.player, FactionRelation::Friendly);
-        assert_eq!(found.monster, FactionRelation::Hostile);
+        assert_eq!(found.player_relation(), &FactionRelation::Friendly);
+        assert_eq!(found.monster_relation(), &FactionRelation::Hostile);
     }
 
     #[tokio::test]
@@ -161,8 +141,8 @@ mod tests {
         let entity_id = setup(&db).await;
 
         let found = find_by_entity(db.pool(), entity_id).await.unwrap();
-        assert_eq!(found.player, FactionRelation::NonInteractive);
-        assert_eq!(found.monster, FactionRelation::NonInteractive);
+        assert_eq!(found.player_relation(), &FactionRelation::NonInteractive);
+        assert_eq!(found.monster_relation(), &FactionRelation::NonInteractive);
         assert!(found.factions.is_empty());
     }
 
@@ -182,7 +162,7 @@ mod tests {
         entity_repo::delete(db.pool(), entity_id).await.unwrap();
 
         let found = find_by_entity(db.pool(), entity_id).await.unwrap();
-        assert_eq!(found.player, FactionRelation::NonInteractive);
+        assert_eq!(found.player_relation(), &FactionRelation::NonInteractive);
         assert!(found.factions.is_empty());
     }
 }

@@ -2,6 +2,9 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+const PLAYER_FACTION_ID: &str = "player";
+const MONSTER_FACTION_ID: &str = "monster";
+
 static NON_INTERACTIVE: FactionRelation = FactionRelation::NonInteractive;
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -14,52 +17,40 @@ pub enum FactionRelation {
     NonInteractive,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct FactionRelations {
-    #[serde(default)]
-    pub player: FactionRelation,
-    #[serde(default)]
-    pub monster: FactionRelation,
     #[serde(default)]
     pub factions: HashMap<String, FactionRelation>,
 }
 
-impl Default for FactionRelations {
-    fn default() -> Self {
-        Self {
-            player: FactionRelation::NonInteractive,
-            monster: FactionRelation::NonInteractive,
-            factions: HashMap::new(),
-        }
-    }
-}
-
 impl FactionRelations {
     pub fn default_for_monster() -> Self {
-        Self {
-            player: FactionRelation::Hostile,
-            monster: FactionRelation::NonInteractive,
-            factions: HashMap::new(),
-        }
+        let mut factions = HashMap::new();
+        factions.insert(PLAYER_FACTION_ID.to_string(), FactionRelation::Hostile);
+        Self { factions }
     }
 
     pub fn default_for_player() -> Self {
-        Self {
-            player: FactionRelation::Friendly,
-            monster: FactionRelation::Hostile,
-            factions: HashMap::new(),
-        }
+        let mut factions = HashMap::new();
+        factions.insert(PLAYER_FACTION_ID.to_string(), FactionRelation::Friendly);
+        factions.insert(MONSTER_FACTION_ID.to_string(), FactionRelation::Hostile);
+        Self { factions }
+    }
+
+    pub fn player_relation(&self) -> &FactionRelation {
+        self.factions
+            .get(PLAYER_FACTION_ID)
+            .unwrap_or(&NON_INTERACTIVE)
+    }
+
+    pub fn monster_relation(&self) -> &FactionRelation {
+        self.factions
+            .get(MONSTER_FACTION_ID)
+            .unwrap_or(&NON_INTERACTIVE)
     }
 
     pub fn relation_for(&self, faction_id: &str) -> &FactionRelation {
-        if let Some(rel) = self.factions.get(faction_id) {
-            return rel;
-        }
-        match faction_id {
-            "player" => &self.player,
-            "monster" => &self.monster,
-            _ => &NON_INTERACTIVE,
-        }
+        self.factions.get(faction_id).unwrap_or(&NON_INTERACTIVE)
     }
 }
 
@@ -100,62 +91,48 @@ mod tests {
     }
 
     #[test]
-    fn faction_relations_default_is_all_non_interactive() {
+    fn faction_relations_default_is_empty() {
         let relations = FactionRelations::default();
-        assert_eq!(relations.player, FactionRelation::NonInteractive);
-        assert_eq!(relations.monster, FactionRelation::NonInteractive);
         assert!(relations.factions.is_empty());
     }
 
     #[test]
     fn default_for_monster_has_player_hostile() {
         let relations = FactionRelations::default_for_monster();
-        assert_eq!(relations.player, FactionRelation::Hostile);
-        assert_eq!(relations.monster, FactionRelation::NonInteractive);
-    }
-
-    #[test]
-    fn default_for_player_has_monster_hostile() {
-        let relations = FactionRelations::default_for_player();
-        assert_eq!(relations.player, FactionRelation::Friendly);
-        assert_eq!(relations.monster, FactionRelation::Hostile);
-    }
-
-    #[test]
-    fn relation_for_checks_factions_map_first() {
-        let mut relations = FactionRelations::default_for_player();
-        relations
-            .factions
-            .insert("player".to_string(), FactionRelation::Unfriendly);
+        assert_eq!(relations.player_relation(), &FactionRelation::Hostile);
         assert_eq!(
-            relations.relation_for("player"),
-            &FactionRelation::Unfriendly
-        );
-    }
-
-    #[test]
-    fn relation_for_falls_back_to_player_shortcut() {
-        let relations = FactionRelations::default_for_monster();
-        assert_eq!(relations.relation_for("player"), &FactionRelation::Hostile);
-    }
-
-    #[test]
-    fn relation_for_falls_back_to_monster_shortcut() {
-        let relations = FactionRelations::default_for_player();
-        assert_eq!(relations.relation_for("monster"), &FactionRelation::Hostile);
-    }
-
-    #[test]
-    fn relation_for_unknown_faction_returns_non_interactive() {
-        let relations = FactionRelations::default_for_monster();
-        assert_eq!(
-            relations.relation_for("bandits"),
+            relations.monster_relation(),
             &FactionRelation::NonInteractive
         );
     }
 
     #[test]
-    fn relation_for_specific_faction_override() {
+    fn default_for_player_has_player_friendly_monster_hostile() {
+        let relations = FactionRelations::default_for_player();
+        assert_eq!(relations.player_relation(), &FactionRelation::Friendly);
+        assert_eq!(relations.monster_relation(), &FactionRelation::Hostile);
+    }
+
+    #[test]
+    fn player_relation_returns_non_interactive_when_absent() {
+        let relations = FactionRelations::default();
+        assert_eq!(
+            relations.player_relation(),
+            &FactionRelation::NonInteractive
+        );
+    }
+
+    #[test]
+    fn monster_relation_returns_non_interactive_when_absent() {
+        let relations = FactionRelations::default();
+        assert_eq!(
+            relations.monster_relation(),
+            &FactionRelation::NonInteractive
+        );
+    }
+
+    #[test]
+    fn relation_for_returns_mapped_value() {
         let mut relations = FactionRelations::default();
         relations
             .factions
@@ -167,17 +144,25 @@ mod tests {
     }
 
     #[test]
+    fn relation_for_returns_non_interactive_for_unknown_faction() {
+        let relations = FactionRelations::default_for_monster();
+        assert_eq!(
+            relations.relation_for("bandits"),
+            &FactionRelation::NonInteractive
+        );
+    }
+
+    #[test]
     fn faction_relations_toml_round_trip() {
         let toml = r#"
+[factions]
 player = "hostile"
 monster = "friendly"
-
-[factions]
 bandits = "unfriendly"
 "#;
         let relations: FactionRelations = toml::from_str(toml).unwrap();
-        assert_eq!(relations.player, FactionRelation::Hostile);
-        assert_eq!(relations.monster, FactionRelation::Friendly);
+        assert_eq!(relations.player_relation(), &FactionRelation::Hostile);
+        assert_eq!(relations.monster_relation(), &FactionRelation::Friendly);
         assert_eq!(relations.factions["bandits"], FactionRelation::Unfriendly);
     }
 }
