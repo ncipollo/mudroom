@@ -1,0 +1,17 @@
+entity_type = "monster"
+factions = ["monster"]
+
+[[attributes]]
+definition_id = "hp"
+min_value = 0
+max_value = 50
+current_value = 50
+
+[[attributes]]
+definition_id = "speed"
+min_value = 1
+max_value = 10
+current_value = 3
+
+[faction_relations.factions]
+player = "hostile"

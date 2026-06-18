@@ -13,6 +13,7 @@ use crate::game::component::Location;
 pub enum EntityType {
     Player,
     Character,
+    Monster,
     Object,
 }
 
@@ -41,6 +42,9 @@ impl Entity {
         let mut factions = HashSet::new();
         if matches!(entity_type, EntityType::Player) {
             factions.insert("player".to_string());
+        }
+        if matches!(entity_type, EntityType::Monster) {
+            factions.insert("monster".to_string());
         }
         Self {
             id,
@@ -83,6 +87,13 @@ mod tests {
     fn player_entity_has_player_faction() {
         let entity = Entity::new(1, EntityType::Player, test_location());
         assert!(entity.factions.contains("player"));
+        assert_eq!(entity.factions.len(), 1);
+    }
+
+    #[test]
+    fn monster_entity_has_monster_faction() {
+        let entity = Entity::new(2, EntityType::Monster, test_location());
+        assert!(entity.factions.contains("monster"));
         assert_eq!(entity.factions.len(), 1);
     }
 
