@@ -262,7 +262,7 @@ fn entity_type_to_str(et: &EntityType) -> &'static str {
     match et {
         EntityType::Player => "player",
         EntityType::Character => "character",
-        EntityType::Monster => "monster",
+        EntityType::Enemy => "enemy",
         EntityType::Object => "object",
     }
 }
@@ -270,7 +270,7 @@ fn entity_type_to_str(et: &EntityType) -> &'static str {
 fn entity_type_from_str(s: &str) -> EntityType {
     match s {
         "player" => EntityType::Player,
-        "monster" => EntityType::Monster,
+        "enemy" => EntityType::Enemy,
         "object" => EntityType::Object,
         _ => EntityType::Character,
     }

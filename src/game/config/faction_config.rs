@@ -21,8 +21,8 @@ impl FactionConfig {
             factions: vec![
                 Faction::player(),
                 Faction {
-                    id: "monster".to_string(),
-                    name: "Monster".to_string(),
+                    id: "enemy".to_string(),
+                    name: "Enemy".to_string(),
                     description: "Hostile creatures of the world.".to_string(),
                 },
             ],
@@ -41,7 +41,7 @@ mod tests {
         let config = FactionConfig::default_config();
         let ids: Vec<&str> = config.factions.iter().map(|f| f.id.as_str()).collect();
         assert!(ids.contains(&"player"));
-        assert!(ids.contains(&"monster"));
+        assert!(ids.contains(&"enemy"));
         assert_eq!(config.factions.len(), 2);
     }
 

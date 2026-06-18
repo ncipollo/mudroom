@@ -94,7 +94,7 @@ mod tests {
         let db = Database::connect_in_memory().await.unwrap();
         let entity_id = setup(&db).await;
 
-        let mut relations = FactionRelations::default_for_monster();
+        let mut relations = FactionRelations::default_for_enemy();
         relations
             .factions
             .insert("bandits".to_string(), FactionRelation::Unfriendly);
@@ -105,7 +105,7 @@ mod tests {
 
         let found = find_by_entity(db.pool(), entity_id).await.unwrap();
         assert_eq!(found.player_relation(), &FactionRelation::Hostile);
-        assert_eq!(found.monster_relation(), &FactionRelation::NonInteractive);
+        assert_eq!(found.enemy_relation(), &FactionRelation::NonInteractive);
         assert_eq!(found.factions["bandits"], FactionRelation::Unfriendly);
     }
 
@@ -114,13 +114,9 @@ mod tests {
         let db = Database::connect_in_memory().await.unwrap();
         let entity_id = setup(&db).await;
 
-        set_entity_relations(
-            db.pool(),
-            entity_id,
-            &FactionRelations::default_for_monster(),
-        )
-        .await
-        .unwrap();
+        set_entity_relations(db.pool(), entity_id, &FactionRelations::default_for_enemy())
+            .await
+            .unwrap();
 
         set_entity_relations(
             db.pool(),
@@ -132,7 +128,7 @@ mod tests {
 
         let found = find_by_entity(db.pool(), entity_id).await.unwrap();
         assert_eq!(found.player_relation(), &FactionRelation::Friendly);
-        assert_eq!(found.monster_relation(), &FactionRelation::Hostile);
+        assert_eq!(found.enemy_relation(), &FactionRelation::Hostile);
     }
 
     #[tokio::test]
@@ -142,7 +138,7 @@ mod tests {
 
         let found = find_by_entity(db.pool(), entity_id).await.unwrap();
         assert_eq!(found.player_relation(), &FactionRelation::NonInteractive);
-        assert_eq!(found.monster_relation(), &FactionRelation::NonInteractive);
+        assert_eq!(found.enemy_relation(), &FactionRelation::NonInteractive);
         assert!(found.factions.is_empty());
     }
 
@@ -151,13 +147,9 @@ mod tests {
         let db = Database::connect_in_memory().await.unwrap();
         let entity_id = setup(&db).await;
 
-        set_entity_relations(
-            db.pool(),
-            entity_id,
-            &FactionRelations::default_for_monster(),
-        )
-        .await
-        .unwrap();
+        set_entity_relations(db.pool(), entity_id, &FactionRelations::default_for_enemy())
+            .await
+            .unwrap();
 
         entity_repo::delete(db.pool(), entity_id).await.unwrap();
 

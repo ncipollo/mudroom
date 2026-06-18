@@ -193,7 +193,7 @@ room_id = "default"
             .map(|f| f.id.as_str())
             .collect();
         assert!(ids.contains(&"player"));
-        assert!(ids.contains(&"monster"));
+        assert!(ids.contains(&"enemy"));
     }
 
     #[test]
