@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::path::Path;
 
-use crate::game::component::Attribute;
+use crate::game::component::{Attribute, FactionRelations};
 use crate::game::config::entity_config::{EntityTypeConfig, load_entity_configs};
 use crate::game::config::map_config::load_map;
 use crate::game::config::{FactionConfig, ResourceConfig};
@@ -206,12 +206,10 @@ async fn sync_entity(
     if !config.attributes.is_empty() {
         sync_entity_attributes(pool, entity_id, config).await?;
     }
-    if !config.factions.is_empty() {
-        faction_repo::set_entity_factions(pool, entity_id, &config.factions).await?;
-    }
-    if let Some(relations) = &config.faction_relations {
-        faction_relations_repo::set_entity_relations(pool, entity_id, relations).await?;
-    }
+    let factions = effective_factions(&entity_type, &config.factions);
+    faction_repo::set_entity_factions(pool, entity_id, &factions).await?;
+    let relations = effective_faction_relations(&entity_type, config.faction_relations.as_ref());
+    faction_relations_repo::set_entity_relations(pool, entity_id, &relations).await?;
     sync_entity_abilities(pool, entity_id, config).await?;
     Ok(())
 }
@@ -263,6 +261,30 @@ async fn sync_entity_attributes(
         .collect();
     entity_repo::update_attributes(pool, entity_id, &attrs).await?;
     Ok(())
+}
+
+fn effective_factions(entity_type: &EntityType, config_factions: &[String]) -> Vec<String> {
+    if !config_factions.is_empty() {
+        return config_factions.to_vec();
+    }
+    match entity_type {
+        EntityType::Player => vec!["player".to_string()],
+        EntityType::Enemy => vec!["enemy".to_string()],
+        _ => vec![],
+    }
+}
+
+fn effective_faction_relations(
+    entity_type: &EntityType,
+    config_relations: Option<&FactionRelations>,
+) -> FactionRelations {
+    config_relations
+        .cloned()
+        .unwrap_or_else(|| match entity_type {
+            EntityType::Player => FactionRelations::default_for_player(),
+            EntityType::Enemy => FactionRelations::default_for_enemy(),
+            _ => FactionRelations::default(),
+        })
 }
 
 #[cfg(test)]
@@ -567,5 +589,91 @@ mod tests {
         assert_eq!(attrs["hp"], Attribute::new("hp".to_string(), 10, 90, 75));
         // mp current_value 50 clamped to new max 30
         assert_eq!(attrs["mp"], Attribute::new("mp".to_string(), 0, 30, 30));
+    }
+
+    fn make_enemy_configs() -> HashMap<String, EntityConfig> {
+        use crate::game::config::entity_config::{EntityConfig, EntityTypeConfig};
+        let config = EntityConfig {
+            id: Some("entities/zombie".to_string()),
+            entity_type: EntityTypeConfig::Enemy,
+            description: None,
+            persona: None,
+            attributes: vec![],
+            entity_effects: vec![],
+            innate_abilities: vec![],
+            factions: vec![],
+            faction_relations: None,
+        };
+        let mut map = HashMap::new();
+        map.insert("entities/zombie".to_string(), config);
+        map
+    }
+
+    fn make_universe_with_enemy() -> Universe {
+        let mut universe = Universe::default();
+        let mut world = World::new("w1".to_string());
+        let mut dungeon = Dungeon::new("d1".to_string());
+        let mut room = Room::new(
+            "r1".to_string(),
+            Description::new(Some("A room.".to_string())),
+        );
+        room.entities.push("entities/zombie".to_string());
+        dungeon.rooms.insert("r1".to_string(), room);
+        world.dungeons.insert("d1".to_string(), dungeon);
+        universe.worlds.insert("w1".to_string(), world);
+        universe
+    }
+
+    async fn setup_enemy_faction(db: &Database) {
+        use crate::game::component::Faction;
+        faction_repo::upsert(
+            db.pool(),
+            &Faction {
+                id: "enemy".to_string(),
+                name: "Enemy".to_string(),
+                description: "Hostile creatures of the world.".to_string(),
+            },
+        )
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn load_entities_writes_default_factions_for_enemy() {
+        let db = Database::connect_in_memory().await.unwrap();
+        setup_enemy_faction(&db).await;
+        let universe = make_universe_with_enemy();
+        load_map_into_db(db.pool(), &universe).await.unwrap();
+        load_entities_into_db(db.pool(), &universe, &make_enemy_configs())
+            .await
+            .unwrap();
+
+        let entities = entity_repo::find_by_location(db.pool(), &innkeeper_location())
+            .await
+            .unwrap();
+        assert_eq!(entities.len(), 1);
+        assert!(entities[0].factions.contains("enemy"));
+    }
+
+    #[tokio::test]
+    async fn load_entities_writes_default_faction_relations_for_enemy() {
+        use crate::game::component::faction_relations::FactionRelation;
+
+        let db = Database::connect_in_memory().await.unwrap();
+        setup_enemy_faction(&db).await;
+        let universe = make_universe_with_enemy();
+        load_map_into_db(db.pool(), &universe).await.unwrap();
+        load_entities_into_db(db.pool(), &universe, &make_enemy_configs())
+            .await
+            .unwrap();
+
+        let entities = entity_repo::find_by_location(db.pool(), &innkeeper_location())
+            .await
+            .unwrap();
+        assert_eq!(entities.len(), 1);
+        assert_eq!(
+            entities[0].faction_relations.player_relation(),
+            &FactionRelation::Hostile
+        );
     }
 }

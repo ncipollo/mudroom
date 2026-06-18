@@ -1,10 +1,11 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use sqlx::SqlitePool;
 
 use crate::game::component::Attribute;
 use crate::game::{Entity, EntityType, Location};
 use crate::persistence::error::PersistenceError;
+use crate::persistence::{faction_relations_repo, faction_repo};
 
 type EntityRow = (
     i64,
@@ -93,36 +94,17 @@ pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<Entity>, Pe
     let row: Option<EntityRow> = sqlx::query_as(
         "SELECT id, entity_type, world_id, dungeon_id, room_id, config_id, attributes, description FROM entities WHERE id = ?",
     )
-        .bind(id)
-        .fetch_optional(pool)
-        .await?;
+    .bind(id)
+    .fetch_optional(pool)
+    .await?;
 
-    Ok(row.map(
-        |(id, et, world_id, dungeon_id, room_id, config_id, attrs_json, description)| {
-            let attributes = attrs_json
-                .and_then(|json| match serde_json::from_str(&json) {
-                    Ok(v) => Some(v),
-                    Err(e) => {
-                        tracing::warn!("Failed to deserialize attributes for entity {id}: {e}");
-                        None
-                    }
-                })
-                .unwrap_or_default();
-            let mut entity = Entity::new(
-                id,
-                entity_type_from_str(&et),
-                Location {
-                    world_id,
-                    dungeon_id,
-                    room_id,
-                },
-            );
-            entity.config_id = config_id;
-            entity.attributes = attributes;
-            entity.description = description;
-            entity
-        },
-    ))
+    if let Some(row) = row {
+        let mut entity = build_entity(row);
+        load_faction_data(pool, &mut entity).await?;
+        Ok(Some(entity))
+    } else {
+        Ok(None)
+    }
 }
 
 pub async fn find_by_location(
@@ -132,41 +114,19 @@ pub async fn find_by_location(
     let rows: Vec<EntityRow> = sqlx::query_as(
         "SELECT id, entity_type, world_id, dungeon_id, room_id, config_id, attributes, description FROM entities WHERE world_id = ? AND dungeon_id = ? AND room_id = ?",
     )
-        .bind(&location.world_id)
-        .bind(&location.dungeon_id)
-        .bind(&location.room_id)
-        .fetch_all(pool)
-        .await?;
+    .bind(&location.world_id)
+    .bind(&location.dungeon_id)
+    .bind(&location.room_id)
+    .fetch_all(pool)
+    .await?;
 
-    Ok(rows
-        .into_iter()
-        .map(
-            |(id, et, world_id, dungeon_id, room_id, config_id, attrs_json, description)| {
-                let attributes = attrs_json
-                    .and_then(|json| match serde_json::from_str(&json) {
-                        Ok(v) => Some(v),
-                        Err(e) => {
-                            tracing::warn!("Failed to deserialize attributes for entity {id}: {e}");
-                            None
-                        }
-                    })
-                    .unwrap_or_default();
-                let mut entity = Entity::new(
-                    id,
-                    entity_type_from_str(&et),
-                    Location {
-                        world_id,
-                        dungeon_id,
-                        room_id,
-                    },
-                );
-                entity.config_id = config_id;
-                entity.attributes = attributes;
-                entity.description = description;
-                entity
-            },
-        )
-        .collect())
+    let mut entities = Vec::new();
+    for row in rows {
+        let mut entity = build_entity(row);
+        load_faction_data(pool, &mut entity).await?;
+        entities.push(entity);
+    }
+    Ok(entities)
 }
 
 pub async fn find_config_entities_by_dungeon(
@@ -182,35 +142,56 @@ pub async fn find_config_entities_by_dungeon(
     .fetch_all(pool)
     .await?;
 
-    Ok(rows
+    let mut entities = Vec::new();
+    for row in rows {
+        let mut entity = build_entity(row);
+        load_faction_data(pool, &mut entity).await?;
+        entities.push(entity);
+    }
+    Ok(entities)
+}
+
+fn build_entity(
+    (id, et, world_id, dungeon_id, room_id, config_id, attrs_json, description): EntityRow,
+) -> Entity {
+    let attributes = attrs_json
+        .and_then(|json| match serde_json::from_str(&json) {
+            Ok(v) => Some(v),
+            Err(e) => {
+                tracing::warn!("Failed to deserialize attributes for entity {id}: {e}");
+                None
+            }
+        })
+        .unwrap_or_default();
+    let mut entity = Entity::new(
+        id,
+        entity_type_from_str(&et),
+        Location {
+            world_id,
+            dungeon_id,
+            room_id,
+        },
+    );
+    entity.config_id = config_id;
+    entity.attributes = attributes;
+    entity.description = description;
+    entity
+}
+
+async fn load_faction_data(pool: &SqlitePool, entity: &mut Entity) -> Result<(), PersistenceError> {
+    let db_factions: HashSet<String> = faction_repo::find_by_entity(pool, entity.id)
+        .await?
         .into_iter()
-        .map(
-            |(id, et, world_id, dungeon_id, room_id, config_id, attrs_json, description)| {
-                let attributes = attrs_json
-                    .and_then(|json| match serde_json::from_str(&json) {
-                        Ok(v) => Some(v),
-                        Err(e) => {
-                            tracing::warn!("Failed to deserialize attributes for entity {id}: {e}");
-                            None
-                        }
-                    })
-                    .unwrap_or_default();
-                let mut entity = Entity::new(
-                    id,
-                    entity_type_from_str(&et),
-                    Location {
-                        world_id,
-                        dungeon_id,
-                        room_id,
-                    },
-                );
-                entity.config_id = config_id;
-                entity.attributes = attributes;
-                entity.description = description;
-                entity
-            },
-        )
-        .collect())
+        .map(|f| f.id)
+        .collect();
+    if !db_factions.is_empty() {
+        entity.factions = db_factions;
+    }
+    let db_relations = faction_relations_repo::find_by_entity(pool, entity.id).await?;
+    if !db_relations.factions.is_empty() {
+        entity.faction_relations = db_relations;
+    }
+    Ok(())
 }
 
 pub async fn update_attributes(
@@ -576,6 +557,67 @@ mod tests {
 
         let found = find_by_id(db.pool(), id).await.unwrap().unwrap();
         assert!(found.attributes.is_empty());
+    }
+
+    #[tokio::test]
+    async fn find_by_id_loads_factions_and_faction_relations() {
+        use crate::game::component::Faction;
+        use crate::game::component::faction_relations::FactionRelation;
+        use crate::persistence::{faction_relations_repo, faction_repo};
+
+        let db = Database::connect_in_memory().await.unwrap();
+        setup(&db).await;
+
+        let entity = Entity::new(0, EntityType::Enemy, test_location());
+        let id = insert(db.pool(), &entity).await.unwrap();
+
+        faction_repo::upsert(
+            db.pool(),
+            &Faction {
+                id: "enemy".to_string(),
+                name: "Enemy".to_string(),
+                description: "Hostile creatures.".to_string(),
+            },
+        )
+        .await
+        .unwrap();
+        faction_repo::set_entity_factions(db.pool(), id, &["enemy".to_string()])
+            .await
+            .unwrap();
+
+        use crate::game::component::FactionRelations;
+        faction_relations_repo::set_entity_relations(
+            db.pool(),
+            id,
+            &FactionRelations::default_for_enemy(),
+        )
+        .await
+        .unwrap();
+
+        let found = find_by_id(db.pool(), id).await.unwrap().unwrap();
+        assert!(found.factions.contains("enemy"));
+        assert_eq!(
+            found.faction_relations.player_relation(),
+            &FactionRelation::Hostile
+        );
+    }
+
+    #[tokio::test]
+    async fn find_by_id_uses_entity_defaults_when_no_faction_data() {
+        use crate::game::component::faction_relations::FactionRelation;
+
+        let db = Database::connect_in_memory().await.unwrap();
+        setup(&db).await;
+
+        let entity = Entity::new(0, EntityType::Enemy, test_location());
+        let id = insert(db.pool(), &entity).await.unwrap();
+
+        let found = find_by_id(db.pool(), id).await.unwrap().unwrap();
+        assert!(found.factions.contains("enemy"));
+        assert_eq!(
+            found.faction_relations.player_relation(),
+            &FactionRelation::Hostile
+        );
     }
 
     #[tokio::test]
