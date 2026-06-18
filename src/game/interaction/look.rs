@@ -37,6 +37,7 @@ pub async fn process(game_state: &Arc<GameState>, db: &Database, player: &Player
 fn entity_type_label(entity_type: &EntityType) -> &'static str {
     match entity_type {
         EntityType::Character => "character",
+        EntityType::Monster => "monster",
         EntityType::Object => "object",
         EntityType::Player => "player",
     }

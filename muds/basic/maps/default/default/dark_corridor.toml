@@ -1,0 +1,7 @@
+entities = ["entities/zombie"]
+
+[description]
+standard = "A dark, damp corridor. The stench of decay hangs in the air. Something shambles in the shadows."
+
+[west]
+room_id = "default"

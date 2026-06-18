@@ -182,6 +182,7 @@ async fn sync_entity(
 ) -> Result<(), Box<dyn Error>> {
     let entity_type = match config.entity_type {
         EntityTypeConfig::Character => EntityType::Character,
+        EntityTypeConfig::Monster => EntityType::Monster,
         EntityTypeConfig::Object => EntityType::Object,
     };
     let location = Location {

@@ -1,5 +1,8 @@
 [description]
-standard = "You stand at the crossroads of a small town. A tavern lies to the north."
+standard = "You stand at the crossroads of a small town. A tavern lies to the north. A dark corridor leads to the east."
 
 [north]
 room_id = "tavern"
+
+[east]
+room_id = "dark_corridor"
