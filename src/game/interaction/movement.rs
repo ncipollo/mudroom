@@ -11,6 +11,7 @@ use crate::persistence::Database;
 use crate::persistence::{entity_repo, room_repo};
 
 use super::look;
+use super::room_threats;
 
 struct NavTarget {
     world_id: Option<String>,
@@ -89,6 +90,7 @@ async fn execute_move(
         format!("You move {direction}."),
     );
     look::process(game_state, db, player).await;
+    room_threats::check_room_hostility(game_state, player, &new_location.room_id).await;
 }
 
 async fn update_entity_location(

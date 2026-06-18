@@ -30,6 +30,26 @@ impl Engagements {
         id
     }
 
+    /// Create a battle engagement tied to a specific room. Returns the new engagement's id.
+    pub async fn add_battle(&self, room_id: String, entity_ids: Vec<i64>) -> i64 {
+        let id = self.next_id.fetch_add(1, Ordering::Relaxed);
+        let engagement = Engagement::new_battle(id, room_id, entity_ids);
+        self.engagements_by_id.write().await.insert(id, engagement);
+        id
+    }
+
+    /// Returns the engagement id of an active Battle in the given room, or `None`.
+    pub async fn find_battle_for_room(&self, room_id: &str) -> Option<i64> {
+        self.engagements_by_id
+            .read()
+            .await
+            .values()
+            .find(|e| {
+                e.engagement_type == EngagementType::Battle && e.room_id.as_deref() == Some(room_id)
+            })
+            .map(|e| e.id)
+    }
+
     /// Create a conversation engagement where only the player takes turns.
     /// Returns the new engagement's id.
     pub async fn add_conversation(&self, player_entity_id: i64, npc_entity_id: i64) -> i64 {
@@ -134,6 +154,43 @@ fn build_resolved_action(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn add_battle_sets_room_id() {
+        let engagements = Engagements::new();
+        let id = engagements
+            .add_battle("room1".to_string(), vec![1, 2])
+            .await;
+        let map = engagements.engagements_by_id.read().await;
+        let eng = map.get(&id).unwrap();
+        assert_eq!(eng.room_id, Some("room1".to_string()));
+        assert_eq!(eng.engagement_type, EngagementType::Battle);
+    }
+
+    #[tokio::test]
+    async fn find_battle_for_room_returns_id_when_present() {
+        let engagements = Engagements::new();
+        let id = engagements
+            .add_battle("room1".to_string(), vec![1, 2])
+            .await;
+        assert_eq!(engagements.find_battle_for_room("room1").await, Some(id));
+    }
+
+    #[tokio::test]
+    async fn find_battle_for_room_returns_none_for_different_room() {
+        let engagements = Engagements::new();
+        engagements
+            .add_battle("room1".to_string(), vec![1, 2])
+            .await;
+        assert_eq!(engagements.find_battle_for_room("room2").await, None);
+    }
+
+    #[tokio::test]
+    async fn find_battle_for_room_returns_none_for_conversation() {
+        let engagements = Engagements::new();
+        engagements.add_conversation(1, 2).await;
+        assert_eq!(engagements.find_battle_for_room("room1").await, None);
+    }
 
     #[tokio::test]
     async fn add_returns_sequential_ids() {

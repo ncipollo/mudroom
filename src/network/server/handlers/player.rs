@@ -5,6 +5,7 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use tracing::info;
 
+use crate::game::interaction::room_threats;
 use crate::game::{Entity, EntityType, Location, Player};
 use crate::network::event::{NetworkEvent, PlayerInfo, PlayerListResponse};
 use crate::network::server::state::{AppState, PlayerCreateBody, PlayerListBody, PlayerSelectBody};
@@ -89,8 +90,10 @@ async fn activate_player(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .ok_or(StatusCode::NOT_FOUND)?;
 
+    let room_id = entity.location.room_id.clone();
     register_player_in_game_state(state, client_id, player, entity).await;
     notify_player_selected(state, client_id, player).await;
+    room_threats::check_room_hostility(&state.game_state, player, &room_id).await;
     Ok(())
 }
 

@@ -17,6 +17,8 @@ pub enum Interaction {
     EngagementAction(TurnAction),
     StartConversation { initial_message: Option<String> },
     EndConversation,
+    JoinBattle { engagement_id: i64 },
+    LeaveBattle { engagement_id: i64 },
 }
 
 #[cfg(test)]
