@@ -13,7 +13,7 @@ use crate::game::component::Location;
 pub enum EntityType {
     Player,
     Character,
-    Monster,
+    Enemy,
     Object,
 }
 
@@ -43,9 +43,14 @@ impl Entity {
         if matches!(entity_type, EntityType::Player) {
             factions.insert("player".to_string());
         }
-        if matches!(entity_type, EntityType::Monster) {
-            factions.insert("monster".to_string());
+        if matches!(entity_type, EntityType::Enemy) {
+            factions.insert("enemy".to_string());
         }
+        let faction_relations = match entity_type {
+            EntityType::Player => FactionRelations::default_for_player(),
+            EntityType::Enemy => FactionRelations::default_for_enemy(),
+            _ => FactionRelations::default(),
+        };
         Self {
             id,
             entity_type,
@@ -57,7 +62,7 @@ impl Entity {
             description: None,
             ai: None,
             factions,
-            faction_relations: FactionRelations::default(),
+            faction_relations,
         }
     }
 }
@@ -65,6 +70,7 @@ impl Entity {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::game::component::faction_relations::FactionRelation;
 
     fn test_location() -> Location {
         Location {
@@ -91,9 +97,9 @@ mod tests {
     }
 
     #[test]
-    fn monster_entity_has_monster_faction() {
-        let entity = Entity::new(2, EntityType::Monster, test_location());
-        assert!(entity.factions.contains("monster"));
+    fn enemy_entity_has_enemy_faction() {
+        let entity = Entity::new(2, EntityType::Enemy, test_location());
+        assert!(entity.factions.contains("enemy"));
         assert_eq!(entity.factions.len(), 1);
     }
 
@@ -101,5 +107,37 @@ mod tests {
     fn non_player_entity_has_empty_factions() {
         let entity = Entity::new(2, EntityType::Character, test_location());
         assert!(entity.factions.is_empty());
+    }
+
+    #[test]
+    fn player_entity_has_default_faction_relations() {
+        let entity = Entity::new(1, EntityType::Player, test_location());
+        assert_eq!(
+            entity.faction_relations.player_relation(),
+            &FactionRelation::Friendly
+        );
+        assert_eq!(
+            entity.faction_relations.enemy_relation(),
+            &FactionRelation::Hostile
+        );
+    }
+
+    #[test]
+    fn enemy_entity_has_default_faction_relations() {
+        let entity = Entity::new(2, EntityType::Enemy, test_location());
+        assert_eq!(
+            entity.faction_relations.player_relation(),
+            &FactionRelation::Hostile
+        );
+        assert_eq!(
+            entity.faction_relations.enemy_relation(),
+            &FactionRelation::NonInteractive
+        );
+    }
+
+    #[test]
+    fn character_entity_has_empty_faction_relations() {
+        let entity = Entity::new(3, EntityType::Character, test_location());
+        assert!(entity.faction_relations.factions.is_empty());
     }
 }

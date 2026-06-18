@@ -1,5 +1,5 @@
-entity_type = "monster"
-factions = ["monster"]
+entity_type = "enemy"
+factions = ["enemy"]
 
 [[attributes]]
 definition_id = "hp"

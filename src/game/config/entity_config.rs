@@ -16,7 +16,7 @@ fn default_agent_type() -> String {
 #[serde(rename_all = "snake_case")]
 pub enum EntityTypeConfig {
     Character,
-    Monster,
+    Enemy,
     Object,
 }
 
