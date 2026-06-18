@@ -4,6 +4,7 @@ use std::sync::Arc;
 use tracing;
 
 use crate::game::component::faction_relations::FactionRelation;
+use crate::game::entity::Entity;
 use crate::game::player::Player;
 use crate::game::{GameState, messaging};
 
@@ -74,22 +75,65 @@ async fn start_battle(
     room_id: &str,
     hostile_ids: Vec<i64>,
 ) {
-    let mut battle_ids = vec![player.entity_id];
-    battle_ids.extend(hostile_ids);
+    let (factions, participants) =
+        build_participants(game_state, player.entity_id, &hostile_ids).await;
+    let all_ids: Vec<i64> = participants.values().flatten().copied().collect();
     tracing::info!(
         room_id,
-        entity_ids = ?battle_ids,
+        entity_ids = ?all_ids,
         "battle started"
     );
     game_state
         .engagements
-        .add_battle(room_id.to_string(), battle_ids)
+        .add_battle(room_id.to_string(), factions, participants)
         .await;
     messaging::message(
         &game_state.message_tx,
         player.id,
         "Hostile entities attack! A battle has started.",
     );
+}
+
+async fn build_participants(
+    game_state: &Arc<GameState>,
+    player_entity_id: i64,
+    hostile_ids: &[i64],
+) -> (Vec<String>, HashMap<String, Vec<i64>>) {
+    let entities = game_state.active_entities.read().await;
+
+    let mut participants: HashMap<String, Vec<i64>> = HashMap::new();
+    for &entity_id in std::iter::once(&player_entity_id).chain(hostile_ids.iter()) {
+        if let Some(entity) = entities.get(&entity_id) {
+            for faction in &entity.factions {
+                participants
+                    .entry(faction.clone())
+                    .or_default()
+                    .push(entity_id);
+            }
+        }
+    }
+
+    let factions = ordered_factions(&entities, player_entity_id, &participants);
+    (factions, participants)
+}
+
+fn ordered_factions(
+    entities: &HashMap<i64, Entity>,
+    player_entity_id: i64,
+    participants: &HashMap<String, Vec<i64>>,
+) -> Vec<String> {
+    let mut factions: Vec<String> = Vec::new();
+    if let Some(player_entity) = entities.get(&player_entity_id) {
+        for faction in &player_entity.factions {
+            factions.push(faction.clone());
+        }
+    }
+    for faction in participants.keys() {
+        if !factions.contains(faction) {
+            factions.push(faction.clone());
+        }
+    }
+    factions
 }
 
 fn entity_threat_toward_player(
