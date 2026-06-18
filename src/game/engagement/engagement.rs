@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use crate::game::engagement::EngagementType;
 use crate::game::engagement::TurnAction;
 use crate::game::engagement::TurnOrder;
+use crate::game::engagement::battle::BattleEngagement;
 
 pub struct Engagement {
     pub id: i64,
@@ -12,6 +13,7 @@ pub struct Engagement {
     pub turn_order: TurnOrder,
     pub pending_actions: HashMap<i64, TurnAction>,
     pub ticks_on_current_turn: u64,
+    pub battle: Option<BattleEngagement>,
 }
 
 impl Engagement {
@@ -25,11 +27,19 @@ impl Engagement {
             turn_order,
             pending_actions: HashMap::new(),
             ticks_on_current_turn: 0,
+            battle: None,
         }
     }
 
-    pub fn new_battle(id: i64, room_id: String, entity_ids: Vec<i64>) -> Self {
+    pub fn new_battle(
+        id: i64,
+        room_id: String,
+        factions: Vec<String>,
+        participants: HashMap<String, Vec<i64>>,
+    ) -> Self {
+        let entity_ids: Vec<i64> = participants.values().flatten().copied().collect();
         let turn_order = TurnOrder::new(&entity_ids);
+        let battle = BattleEngagement::new(factions, participants);
         Self {
             id,
             engagement_type: EngagementType::Battle,
@@ -38,6 +48,7 @@ impl Engagement {
             turn_order,
             pending_actions: HashMap::new(),
             ticks_on_current_turn: 0,
+            battle: Some(battle),
         }
     }
 
@@ -53,6 +64,7 @@ impl Engagement {
             turn_order,
             pending_actions: HashMap::new(),
             ticks_on_current_turn: 0,
+            battle: None,
         }
     }
 
@@ -102,12 +114,32 @@ mod tests {
         Engagement::new(1, EngagementType::Battle, vec![10, 20, 30])
     }
 
+    fn make_battle_participants() -> (Vec<String>, HashMap<String, Vec<i64>>) {
+        let mut participants = HashMap::new();
+        participants.insert("player".to_string(), vec![1]);
+        participants.insert("enemy".to_string(), vec![2]);
+        (
+            vec!["player".to_string(), "enemy".to_string()],
+            participants,
+        )
+    }
+
     #[test]
     fn new_battle_sets_room_id_and_type() {
-        let eng = Engagement::new_battle(5, "room1".to_string(), vec![1, 2]);
+        let (factions, participants) = make_battle_participants();
+        let eng = Engagement::new_battle(5, "room1".to_string(), factions, participants);
         assert_eq!(eng.room_id, Some("room1".to_string()));
         assert_eq!(eng.engagement_type, EngagementType::Battle);
-        assert_eq!(eng.entity_ids, vec![1, 2]);
+        let mut ids = eng.entity_ids.clone();
+        ids.sort();
+        assert_eq!(ids, vec![1, 2]);
+    }
+
+    #[test]
+    fn new_battle_initializes_battle_engagement() {
+        let (factions, participants) = make_battle_participants();
+        let eng = Engagement::new_battle(5, "room1".to_string(), factions, participants);
+        assert!(eng.battle.is_some());
     }
 
     #[test]

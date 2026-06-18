@@ -8,6 +8,7 @@ use crate::game::engagement::Engagement;
 use crate::game::engagement::EngagementType;
 use crate::game::engagement::ResolvedAction;
 use crate::game::engagement::TurnAction;
+use crate::game::engagement::battle::{BattlePhase, BattleTick};
 
 pub struct Engagements {
     engagements_by_id: RwLock<HashMap<i64, Engagement>>,
@@ -30,10 +31,15 @@ impl Engagements {
         id
     }
 
-    /// Create a battle engagement tied to a specific room. Returns the new engagement's id.
-    pub async fn add_battle(&self, room_id: String, entity_ids: Vec<i64>) -> i64 {
+    /// Create a faction-aware battle engagement tied to a specific room. Returns the new id.
+    pub async fn add_battle(
+        &self,
+        room_id: String,
+        factions: Vec<String>,
+        participants: HashMap<String, Vec<i64>>,
+    ) -> i64 {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
-        let engagement = Engagement::new_battle(id, room_id, entity_ids);
+        let engagement = Engagement::new_battle(id, room_id, factions, participants);
         self.engagements_by_id.write().await.insert(id, engagement);
         id
     }
@@ -109,6 +115,48 @@ impl Engagements {
         }
         resolved
     }
+
+    /// Advance all battle engagements by one tick. Returns the tick results for each battle.
+    pub async fn tick_battles(&self, max_engage_ticks: u64) -> Vec<BattleTick> {
+        let mut results = Vec::new();
+        let mut map = self.engagements_by_id.write().await;
+        for engagement in map.values_mut() {
+            if let Some(battle) = &mut engagement.battle {
+                results.push(battle.tick(engagement.id, max_engage_ticks));
+            }
+        }
+        results
+    }
+
+    /// Remove dead entities from a battle's participant list. Returns the surviving faction count.
+    pub async fn update_battle_participants(
+        &self,
+        engagement_id: i64,
+        dead_entity_ids: &[i64],
+    ) -> usize {
+        let mut map = self.engagements_by_id.write().await;
+        let Some(engagement) = map.get_mut(&engagement_id) else {
+            return 0;
+        };
+        let Some(battle) = &mut engagement.battle else {
+            return 0;
+        };
+        for &dead_id in dead_entity_ids {
+            battle.remove_entity(dead_id);
+            engagement.entity_ids.retain(|&id| id != dead_id);
+        }
+        battle.surviving_faction_count()
+    }
+
+    /// Mark a battle engagement as concluded.
+    pub async fn conclude_battle(&self, engagement_id: i64) {
+        let mut map = self.engagements_by_id.write().await;
+        if let Some(engagement) = map.get_mut(&engagement_id)
+            && let Some(battle) = &mut engagement.battle
+        {
+            battle.turn_phase = BattlePhase::Concluded;
+        }
+    }
 }
 
 impl Default for Engagements {
@@ -155,11 +203,22 @@ fn build_resolved_action(
 mod tests {
     use super::*;
 
+    fn test_participants() -> (Vec<String>, HashMap<String, Vec<i64>>) {
+        let mut participants = HashMap::new();
+        participants.insert("player".to_string(), vec![1]);
+        participants.insert("enemy".to_string(), vec![2]);
+        (
+            vec!["player".to_string(), "enemy".to_string()],
+            participants,
+        )
+    }
+
     #[tokio::test]
     async fn add_battle_sets_room_id() {
         let engagements = Engagements::new();
+        let (factions, participants) = test_participants();
         let id = engagements
-            .add_battle("room1".to_string(), vec![1, 2])
+            .add_battle("room1".to_string(), factions, participants)
             .await;
         let map = engagements.engagements_by_id.read().await;
         let eng = map.get(&id).unwrap();
@@ -170,8 +229,9 @@ mod tests {
     #[tokio::test]
     async fn find_battle_for_room_returns_id_when_present() {
         let engagements = Engagements::new();
+        let (factions, participants) = test_participants();
         let id = engagements
-            .add_battle("room1".to_string(), vec![1, 2])
+            .add_battle("room1".to_string(), factions, participants)
             .await;
         assert_eq!(engagements.find_battle_for_room("room1").await, Some(id));
     }
@@ -179,8 +239,9 @@ mod tests {
     #[tokio::test]
     async fn find_battle_for_room_returns_none_for_different_room() {
         let engagements = Engagements::new();
+        let (factions, participants) = test_participants();
         engagements
-            .add_battle("room1".to_string(), vec![1, 2])
+            .add_battle("room1".to_string(), factions, participants)
             .await;
         assert_eq!(engagements.find_battle_for_room("room2").await, None);
     }
@@ -190,6 +251,48 @@ mod tests {
         let engagements = Engagements::new();
         engagements.add_conversation(1, 2).await;
         assert_eq!(engagements.find_battle_for_room("room1").await, None);
+    }
+
+    #[tokio::test]
+    async fn tick_battles_advances_battle_phase() {
+        let engagements = Engagements::new();
+        let (factions, participants) = test_participants();
+        engagements
+            .add_battle("room1".to_string(), factions, participants)
+            .await;
+        let results = engagements.tick_battles(30).await;
+        assert_eq!(results.len(), 1);
+        assert_eq!(
+            results[0].phase,
+            crate::game::engagement::battle::BattlePhase::AttackerPlanning
+        );
+    }
+
+    #[tokio::test]
+    async fn update_battle_participants_removes_dead_and_returns_count() {
+        let engagements = Engagements::new();
+        let (factions, participants) = test_participants();
+        let id = engagements
+            .add_battle("room1".to_string(), factions, participants)
+            .await;
+        let surviving = engagements.update_battle_participants(id, &[1]).await;
+        assert_eq!(surviving, 1); // only enemy remains
+    }
+
+    #[tokio::test]
+    async fn conclude_battle_sets_concluded_phase() {
+        let engagements = Engagements::new();
+        let (factions, participants) = test_participants();
+        let id = engagements
+            .add_battle("room1".to_string(), factions, participants)
+            .await;
+        engagements.conclude_battle(id).await;
+        let map = engagements.engagements_by_id.read().await;
+        let eng = map.get(&id).unwrap();
+        assert_eq!(
+            eng.battle.as_ref().unwrap().turn_phase,
+            crate::game::engagement::battle::BattlePhase::Concluded
+        );
     }
 
     #[tokio::test]

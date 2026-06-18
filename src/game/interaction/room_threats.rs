@@ -7,6 +7,8 @@ use crate::game::component::faction_relations::FactionRelation;
 use crate::game::player::Player;
 use crate::game::{GameState, messaging};
 
+mod participants;
+
 enum RoomThreat {
     Hostile,
     Unfriendly,
@@ -74,16 +76,17 @@ async fn start_battle(
     room_id: &str,
     hostile_ids: Vec<i64>,
 ) {
-    let mut battle_ids = vec![player.entity_id];
-    battle_ids.extend(hostile_ids);
+    let (factions, participants) =
+        participants::build_participants(game_state, player.entity_id, &hostile_ids).await;
+    let all_ids: Vec<i64> = participants.values().flatten().copied().collect();
     tracing::info!(
         room_id,
-        entity_ids = ?battle_ids,
+        entity_ids = ?all_ids,
         "battle started"
     );
     game_state
         .engagements
-        .add_battle(room_id.to_string(), battle_ids)
+        .add_battle(room_id.to_string(), factions, participants)
         .await;
     messaging::message(
         &game_state.message_tx,
