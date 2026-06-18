@@ -2,6 +2,7 @@ pub mod conversation;
 pub mod help;
 pub mod look;
 pub mod movement;
+pub mod room_threats;
 
 use std::sync::Arc;
 
