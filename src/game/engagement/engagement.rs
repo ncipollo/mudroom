@@ -7,6 +7,7 @@ use crate::game::engagement::TurnOrder;
 pub struct Engagement {
     pub id: i64,
     pub engagement_type: EngagementType,
+    pub room_id: Option<String>,
     pub entity_ids: Vec<i64>,
     pub turn_order: TurnOrder,
     pub pending_actions: HashMap<i64, TurnAction>,
@@ -19,6 +20,20 @@ impl Engagement {
         Self {
             id,
             engagement_type,
+            room_id: None,
+            entity_ids,
+            turn_order,
+            pending_actions: HashMap::new(),
+            ticks_on_current_turn: 0,
+        }
+    }
+
+    pub fn new_battle(id: i64, room_id: String, entity_ids: Vec<i64>) -> Self {
+        let turn_order = TurnOrder::new(&entity_ids);
+        Self {
+            id,
+            engagement_type: EngagementType::Battle,
+            room_id: Some(room_id),
             entity_ids,
             turn_order,
             pending_actions: HashMap::new(),
@@ -33,6 +48,7 @@ impl Engagement {
         Self {
             id,
             engagement_type: EngagementType::Conversation,
+            room_id: None,
             entity_ids: vec![player_entity_id, npc_entity_id],
             turn_order,
             pending_actions: HashMap::new(),
@@ -84,6 +100,26 @@ mod tests {
 
     fn make_engagement() -> Engagement {
         Engagement::new(1, EngagementType::Battle, vec![10, 20, 30])
+    }
+
+    #[test]
+    fn new_battle_sets_room_id_and_type() {
+        let eng = Engagement::new_battle(5, "room1".to_string(), vec![1, 2]);
+        assert_eq!(eng.room_id, Some("room1".to_string()));
+        assert_eq!(eng.engagement_type, EngagementType::Battle);
+        assert_eq!(eng.entity_ids, vec![1, 2]);
+    }
+
+    #[test]
+    fn new_sets_room_id_to_none() {
+        let eng = make_engagement();
+        assert_eq!(eng.room_id, None);
+    }
+
+    #[test]
+    fn new_conversation_sets_room_id_to_none() {
+        let eng = Engagement::new_conversation(2, 10, 20);
+        assert_eq!(eng.room_id, None);
     }
 
     #[test]

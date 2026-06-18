@@ -8,6 +8,7 @@ use std::sync::Arc;
 use tracing;
 
 use crate::game::component::interaction::Movement;
+use crate::game::engagement::TurnAction;
 use crate::game::player::Player;
 use crate::game::{GameState, Interaction};
 use crate::persistence::Database;
@@ -42,32 +43,63 @@ async fn dispatch_interaction(
     interaction: Interaction,
 ) {
     match interaction {
-        Interaction::Look => {
-            look::process(game_state, db, player).await;
+        Interaction::Look => look::process(game_state, db, player).await,
+        Interaction::Help => help::process(game_state, player).await,
+        Interaction::Movement(m) => dispatch_movement(game_state, db, player, m).await,
+        Interaction::EngagementAction(action) => {
+            dispatch_engagement_action(game_state, player, action).await;
         }
-        Interaction::Help => {
-            help::process(game_state, player).await;
+        conv @ (Interaction::StartConversation { .. } | Interaction::EndConversation) => {
+            dispatch_conversation(game_state, player, conv).await;
         }
-        Interaction::Movement(Movement::TryDirection(direction)) => {
+        Interaction::JoinBattle { engagement_id } | Interaction::LeaveBattle { engagement_id } => {
+            tracing::debug!(engagement_id, "battle interaction");
+        }
+    }
+}
+
+async fn dispatch_movement(
+    game_state: &Arc<GameState>,
+    db: &Database,
+    player: &Player,
+    movement: Movement,
+) {
+    match movement {
+        Movement::TryDirection(direction) => {
             movement::process(game_state, db, player, direction).await;
         }
-        Interaction::Movement(Movement::Warp(_)) => {}
-        Interaction::EngagementAction(action) => {
-            let accepted = game_state
-                .engagements
-                .submit_action_for_entity(player.entity_id, action)
-                .await;
-            tracing::debug!(
-                entity_id = player.entity_id,
-                accepted,
-                "engagement action submitted"
-            );
-        }
+        Movement::Warp(_) => {}
+    }
+}
+
+async fn dispatch_engagement_action(
+    game_state: &Arc<GameState>,
+    player: &Player,
+    action: TurnAction,
+) {
+    let accepted = game_state
+        .engagements
+        .submit_action_for_entity(player.entity_id, action)
+        .await;
+    tracing::debug!(
+        entity_id = player.entity_id,
+        accepted,
+        "engagement action submitted"
+    );
+}
+
+async fn dispatch_conversation(
+    game_state: &Arc<GameState>,
+    player: &Player,
+    interaction: Interaction,
+) {
+    match interaction {
         Interaction::StartConversation { initial_message } => {
             conversation::process(game_state, player, initial_message).await;
         }
         Interaction::EndConversation => {
             conversation::end_player_conversation(game_state, player).await;
         }
+        _ => {}
     }
 }
