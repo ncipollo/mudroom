@@ -3,7 +3,13 @@ use std::sync::Arc;
 
 use tracing;
 
+use crate::game::component::attribute_definition::AttributeType;
 use crate::game::component::faction_relations::FactionRelation;
+use crate::game::engagement::battle::{
+    BattlePhase, default_attack_ability, entity_innate_battle_abilities,
+};
+use crate::game::entity::Entity;
+use crate::game::messaging::{BattleParticipantInfo, BattleStartedMessage};
 use crate::game::player::Player;
 use crate::game::{GameState, messaging};
 
@@ -84,15 +90,123 @@ async fn start_battle(
         entity_ids = ?all_ids,
         "battle started"
     );
-    game_state
+
+    let engagement_id = game_state
         .engagements
-        .add_battle(room_id.to_string(), factions, participants)
+        .add_battle(room_id.to_string(), factions.clone(), participants.clone())
         .await;
+
+    let max_engage_ticks = (game_state.mud_config.game_loop.max_engage_ms
+        / game_state.mud_config.game_loop.tick_rate_ms)
+        .max(1);
+
+    let started_msg = build_battle_started_message(
+        game_state,
+        player,
+        engagement_id,
+        &factions,
+        &participants,
+        max_engage_ticks,
+    )
+    .await;
+
+    messaging::battle_started(&game_state.message_tx, player.id, started_msg);
     messaging::message(
         &game_state.message_tx,
         player.id,
         "Hostile entities attack! A battle has started.",
     );
+}
+
+async fn build_battle_started_message(
+    game_state: &Arc<GameState>,
+    player: &Player,
+    engagement_id: i64,
+    factions: &[String],
+    participants: &HashMap<String, Vec<i64>>,
+    max_turn_ticks: u64,
+) -> BattleStartedMessage {
+    let entities = game_state.active_entities.read().await;
+    let players = game_state.active_players.read().await;
+    let hp_attr_id = hp_attribute_id(&game_state.attribute_config);
+
+    let participant_infos = build_participant_infos(participants, &entities, &players, &hp_attr_id);
+
+    let mut available_abilities = entities
+        .get(&player.entity_id)
+        .map(entity_innate_battle_abilities)
+        .unwrap_or_default();
+    if available_abilities.is_empty() {
+        available_abilities.push(default_attack_ability());
+    }
+
+    let mut turn_order: Vec<i64> = participants.values().flatten().copied().collect();
+    turn_order.sort_unstable();
+
+    BattleStartedMessage {
+        engagement_id,
+        factions: factions.to_vec(),
+        participants: participant_infos,
+        phase: BattlePhase::InnateEffects,
+        turn_order,
+        countdown_ticks: max_turn_ticks,
+        max_turn_ticks,
+        available_abilities,
+    }
+}
+
+fn build_participant_infos(
+    participants: &HashMap<String, Vec<i64>>,
+    entities: &HashMap<i64, Entity>,
+    players: &HashMap<String, Player>,
+    hp_attr_id: &str,
+) -> HashMap<String, Vec<BattleParticipantInfo>> {
+    participants
+        .iter()
+        .map(|(faction, ids)| {
+            let infos = ids
+                .iter()
+                .map(|&id| {
+                    let entity = entities.get(&id);
+                    let name = resolve_entity_name(id, entity, players);
+                    let (hp_current, hp_max) = entity
+                        .and_then(|e| e.attributes.get(hp_attr_id))
+                        .map(|a| (a.current_value, a.max_value))
+                        .unwrap_or((0, 0));
+                    BattleParticipantInfo {
+                        id,
+                        name,
+                        hp_current,
+                        hp_max,
+                    }
+                })
+                .collect();
+            (faction.clone(), infos)
+        })
+        .collect()
+}
+
+fn resolve_entity_name(
+    entity_id: i64,
+    entity: Option<&Entity>,
+    players: &HashMap<String, Player>,
+) -> String {
+    if let Some(player) = players.values().find(|p| p.entity_id == entity_id) {
+        return player.name.clone();
+    }
+    entity
+        .and_then(|e| e.config_id.as_deref())
+        .map(str::to_string)
+        .unwrap_or_else(|| format!("Entity {entity_id}"))
+}
+
+fn hp_attribute_id(attribute_config: &crate::game::config::AttributeConfig) -> String {
+    attribute_config
+        .attributes
+        .iter()
+        .find(|def| matches!(def.attribute_type, AttributeType::HP))
+        .map(|def| def.id.clone())
+        .unwrap_or_else(|| "hp".to_string())
 }
 
 fn entity_threat_toward_player(

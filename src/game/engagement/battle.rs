@@ -5,6 +5,7 @@ pub mod queued_ability;
 
 use std::collections::HashMap;
 
+use crate::game::component::effect::{Effect, EffectDescription, EffectType, TriggerInfo};
 use crate::game::component::{Ability, Attribute, Cost};
 use crate::game::engagement::EngagementType;
 
@@ -19,6 +20,8 @@ pub struct BattleTick {
     pub innate_entity_ids: Vec<i64>,
     pub resolution_queue: Vec<QueuedAbility>,
     pub phase: BattlePhase,
+    pub factions: Vec<String>,
+    pub participants: HashMap<String, Vec<i64>>,
 }
 
 pub struct BattleEngagement {
@@ -204,6 +207,8 @@ impl BattleEngagement {
             innate_entity_ids,
             resolution_queue,
             phase: self.turn_phase.clone(),
+            factions: self.factions.clone(),
+            participants: self.participants.clone(),
         }
     }
 }
@@ -219,6 +224,26 @@ fn battle_abilities(entity: &crate::game::entity::Entity) -> Vec<Ability> {
 
 pub fn entity_innate_battle_abilities(entity: &crate::game::entity::Entity) -> Vec<Ability> {
     battle_abilities(entity)
+}
+
+pub fn default_attack_ability() -> Ability {
+    Ability {
+        id: "attack".to_string(),
+        name: "Attack".to_string(),
+        description: Some("A basic physical attack.".to_string()),
+        effects: vec![Effect {
+            name: "physical_damage".to_string(),
+            effect_type: EffectType::AttributeUpdate {
+                attribute_id: "hp".to_string(),
+                value: -10,
+            },
+            trigger_info: TriggerInfo::Once,
+            description: EffectDescription::default(),
+        }],
+        engagement_types: vec![EngagementType::Battle],
+        costs: vec![],
+        modifiers: vec![],
+    }
 }
 
 #[cfg(test)]

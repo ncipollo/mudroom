@@ -10,7 +10,9 @@ use crate::network::NetworkEvent;
 use crate::network::client::list_players;
 
 use super::app::{App, GameMode};
-use super::screens::{agent_conversation, conversation, game as game_screen, player_select};
+use super::screens::{
+    agent_conversation, battle as battle_screen, conversation, game as game_screen, player_select,
+};
 
 pub async fn run(
     terminal: &mut DefaultTerminal,
@@ -72,6 +74,9 @@ async fn handle_terminal_event(
                 }
                 GameMode::AgentConversation => {
                     agent_conversation::handle_key(app, key.modifiers, key.code).await;
+                }
+                GameMode::Battle => {
+                    battle_screen::handle_key(app, key.modifiers, key.code).await;
                 }
             }
             true

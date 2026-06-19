@@ -1,6 +1,8 @@
+mod battle_state;
 mod conversation_state;
 mod network_event_handler;
 
+pub use battle_state::{BattleFocus, BattleState};
 pub use conversation_state::ConversationState;
 
 use crate::network::event::PlayerInfo;
@@ -33,6 +35,7 @@ pub enum GameMode {
     Game,
     StandardConversation,
     AgentConversation,
+    Battle,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -58,6 +61,7 @@ pub struct App {
     pub connection: ConnectionState,
     pub player_select: PlayerSelectState,
     pub conversation: ConversationState,
+    pub battle: Option<BattleState>,
     pub current_player_id: Option<i64>,
     pub streaming_message_index: Option<usize>,
     pub agent_responding: bool,
@@ -78,6 +82,7 @@ impl App {
             connection: ConnectionState::default(),
             player_select: PlayerSelectState::default(),
             conversation: ConversationState::default(),
+            battle: None,
             current_player_id: None,
             streaming_message_index: None,
             agent_responding: false,
@@ -98,6 +103,7 @@ impl App {
             },
             player_select: PlayerSelectState::default(),
             conversation: ConversationState::default(),
+            battle: None,
             current_player_id: None,
             streaming_message_index: None,
             agent_responding: false,

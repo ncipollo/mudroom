@@ -5,8 +5,10 @@ use tokio::sync::RwLock;
 use tokio::sync::broadcast;
 
 use crate::game::GameState;
-use crate::game::messaging::{Message, PlayerMessage, StreamingState};
-use crate::network::event::NetworkEvent;
+use crate::game::messaging::{
+    BattleStartedMessage, BattleUpdateMessage, Message, PlayerMessage, StreamingState,
+};
+use crate::network::event::{BattleSnapshot, NetworkEvent, ParticipantInfo};
 
 use super::state::ConnectedClient;
 
@@ -23,7 +25,6 @@ pub fn spawn(
 ) {
     tokio::spawn(async move {
         while let Ok(pm) = msg_rx.recv().await {
-            // Map the game message to the appropriate network event.
             let (player_id, network_event) = match pm.message {
                 Message::Complete(content) => (
                     pm.player_id,
@@ -33,7 +34,6 @@ pub fn spawn(
                     },
                 ),
                 Message::Streaming { chunk, state } => {
-                    // is_final signals the client that the streaming message is complete.
                     let is_final = matches!(state, StreamingState::Complete);
                     (
                         pm.player_id,
@@ -49,8 +49,30 @@ pub fn spawn(
                     NetworkEvent::ConversationStarted { kind, options },
                 ),
                 Message::ConversationEnded => (pm.player_id, NetworkEvent::ConversationEnded),
+                Message::BattleStarted(data) => (
+                    pm.player_id,
+                    NetworkEvent::BattleStarted {
+                        engagement_id: data.engagement_id,
+                        snapshot: battle_snapshot_from_message(*data),
+                    },
+                ),
+                Message::BattleUpdate(data) => {
+                    let messages = data.messages.clone();
+                    let engagement_id = data.engagement_id;
+                    (
+                        pm.player_id,
+                        NetworkEvent::BattleUpdate {
+                            engagement_id,
+                            snapshot: battle_update_snapshot(*data),
+                            messages,
+                        },
+                    )
+                }
+                Message::BattleEnded { engagement_id } => {
+                    (pm.player_id, NetworkEvent::BattleEnded { engagement_id })
+                }
             };
-            // Look up the client_id for this player to find their SSE channel.
+
             let players = game_state.active_players.read().await;
             let client_id = players
                 .iter()
@@ -65,4 +87,60 @@ pub fn spawn(
             }
         }
     });
+}
+
+fn battle_update_snapshot(data: BattleUpdateMessage) -> BattleSnapshot {
+    let participants = data
+        .participants
+        .into_iter()
+        .map(|(faction, infos)| {
+            let converted = infos
+                .into_iter()
+                .map(|p| ParticipantInfo {
+                    id: p.id,
+                    name: p.name,
+                    hp_current: p.hp_current,
+                    hp_max: p.hp_max,
+                })
+                .collect();
+            (faction, converted)
+        })
+        .collect();
+    BattleSnapshot {
+        factions: data.factions,
+        participants,
+        phase: data.phase,
+        turn_order: vec![],
+        countdown_ticks: 0,
+        max_turn_ticks: data.max_turn_ticks,
+        available_abilities: vec![],
+    }
+}
+
+fn battle_snapshot_from_message(data: BattleStartedMessage) -> BattleSnapshot {
+    let participants = data
+        .participants
+        .into_iter()
+        .map(|(faction, infos)| {
+            let converted = infos
+                .into_iter()
+                .map(|p| ParticipantInfo {
+                    id: p.id,
+                    name: p.name,
+                    hp_current: p.hp_current,
+                    hp_max: p.hp_max,
+                })
+                .collect();
+            (faction, converted)
+        })
+        .collect();
+    BattleSnapshot {
+        factions: data.factions,
+        participants,
+        phase: data.phase,
+        turn_order: data.turn_order,
+        countdown_ticks: data.countdown_ticks,
+        max_turn_ticks: data.max_turn_ticks,
+        available_abilities: data.available_abilities,
+    }
 }

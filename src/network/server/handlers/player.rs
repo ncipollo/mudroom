@@ -5,6 +5,7 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use tracing::info;
 
+use crate::game::component::Attribute;
 use crate::game::interaction::room_threats;
 use crate::game::{Entity, EntityType, Location, Player};
 use crate::network::event::{NetworkEvent, PlayerInfo, PlayerListResponse};
@@ -43,7 +44,8 @@ pub async fn player_create_handler(
         dungeon_id: spawn.dungeon_id.clone(),
         room_id: spawn.room_id.clone(),
     };
-    let entity = Entity::new(0, EntityType::Player, location);
+    let mut entity = Entity::new(0, EntityType::Player, location);
+    entity.attributes = default_player_attributes();
     let entity_id = entity_repo::insert(pool, &entity)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -119,6 +121,19 @@ async fn register_player_in_game_state(
     if let Err(e) = state.game_state.sync_active_entities(pool).await {
         tracing::error!(error = %e, "Failed to sync active entities on player select");
     }
+}
+
+fn default_player_attributes() -> std::collections::HashMap<String, Attribute> {
+    let mut attrs = std::collections::HashMap::new();
+    attrs.insert(
+        "hp".to_string(),
+        Attribute::new("hp".to_string(), 0, 100, 100),
+    );
+    attrs.insert(
+        "mp".to_string(),
+        Attribute::new("mp".to_string(), 0, 50, 50),
+    );
+    attrs
 }
 
 async fn notify_player_selected(state: &AppState, client_id: &str, player: &Player) {
