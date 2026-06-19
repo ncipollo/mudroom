@@ -286,7 +286,9 @@ mod tests {
         assert_eq!(results.len(), 1);
         assert_eq!(
             results[0].phase,
-            crate::game::engagement::battle::BattlePhase::AttackerPlanning
+            crate::game::engagement::battle::BattlePhase::Planning {
+                faction: "player".into()
+            }
         );
     }
 

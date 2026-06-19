@@ -32,6 +32,7 @@ pub struct BattleEngagement {
     action_queue: HashMap<i64, Vec<QueuedAbility>>,
     ticks_in_phase: u64,
     pending_costs: HashMap<i64, Vec<(String, i64)>>,
+    planning_faction_index: usize,
 }
 
 impl BattleEngagement {
@@ -43,6 +44,7 @@ impl BattleEngagement {
             action_queue: HashMap::new(),
             ticks_in_phase: 0,
             pending_costs: HashMap::new(),
+            planning_faction_index: 0,
         }
     }
 
@@ -50,19 +52,25 @@ impl BattleEngagement {
         self.participants.values().flatten().copied().collect()
     }
 
-    pub fn attacker_ids(&self) -> Vec<i64> {
+    fn planning_faction(&self) -> &str {
         self.factions
-            .first()
-            .and_then(|f| self.participants.get(f))
+            .get(self.planning_faction_index)
+            .map(String::as_str)
+            .unwrap_or_default()
+    }
+
+    pub fn planning_ids(&self) -> Vec<i64> {
+        self.participants
+            .get(self.planning_faction())
             .cloned()
             .unwrap_or_default()
     }
 
-    pub fn defender_ids(&self) -> Vec<i64> {
-        let attacker_faction = self.factions.first().map(String::as_str);
+    pub fn responding_ids(&self) -> Vec<i64> {
+        let planning = self.planning_faction();
         self.participants
             .iter()
-            .filter(|(f, _)| Some(f.as_str()) != attacker_faction)
+            .filter(|(f, _)| f.as_str() != planning)
             .flat_map(|(_, ids)| ids.iter().copied())
             .collect()
     }
@@ -150,31 +158,38 @@ impl BattleEngagement {
         match self.turn_phase.clone() {
             BattlePhase::InnateEffects => {
                 innate_entity_ids = all_participant_ids.clone();
+                let faction = self.planning_faction().to_string();
+                let next = BattlePhase::Planning {
+                    faction: faction.clone(),
+                };
                 messages.push(BattleMessage::PhaseChange {
-                    phase: BattlePhase::AttackerPlanning,
+                    phase: next.clone(),
                 });
-                self.turn_phase = BattlePhase::AttackerPlanning;
+                self.turn_phase = next;
                 self.ticks_in_phase = 0;
             }
-            BattlePhase::AttackerPlanning => {
+            BattlePhase::Planning { faction } => {
                 self.ticks_in_phase += 1;
-                let attacker_ids = self.attacker_ids();
-                let all_submitted = attacker_ids
+                let planning_ids = self.planning_ids();
+                let all_submitted = planning_ids
                     .iter()
                     .all(|id| self.action_queue.contains_key(id));
                 if all_submitted || self.ticks_in_phase >= max_engage_ticks {
+                    let next = BattlePhase::Response {
+                        faction: faction.clone(),
+                    };
                     messages.push(BattleMessage::PhaseChange {
-                        phase: BattlePhase::DefenderResponse,
+                        phase: next.clone(),
                     });
-                    self.turn_phase = BattlePhase::DefenderResponse;
+                    self.turn_phase = next;
                     self.ticks_in_phase = 0;
                 }
             }
-            BattlePhase::DefenderResponse => {
+            BattlePhase::Response { .. } => {
                 self.ticks_in_phase += 1;
-                let defender_ids = self.defender_ids();
-                let all_submitted = defender_ids.is_empty()
-                    || defender_ids
+                let responding_ids = self.responding_ids();
+                let all_submitted = responding_ids.is_empty()
+                    || responding_ids
                         .iter()
                         .all(|id| self.action_queue.contains_key(id));
                 if all_submitted || self.ticks_in_phase >= max_engage_ticks {
@@ -192,6 +207,10 @@ impl BattleEngagement {
                     .flat_map(|(_, abilities)| abilities)
                     .collect();
                 self.pending_costs.clear();
+                if !self.factions.is_empty() {
+                    self.planning_faction_index =
+                        (self.planning_faction_index + 1) % self.factions.len();
+                }
                 messages.push(BattleMessage::PhaseChange {
                     phase: BattlePhase::InnateEffects,
                 });
@@ -280,15 +299,15 @@ mod tests {
     }
 
     #[test]
-    fn attacker_ids_returns_first_faction() {
+    fn planning_ids_returns_current_planning_faction() {
         let eng = make_engagement();
-        assert_eq!(eng.attacker_ids(), vec![1]);
+        assert_eq!(eng.planning_ids(), vec![1]);
     }
 
     #[test]
-    fn defender_ids_returns_non_first_factions() {
+    fn responding_ids_returns_non_planning_factions() {
         let eng = make_engagement();
-        let mut ids = eng.defender_ids();
+        let mut ids = eng.responding_ids();
         ids.sort();
         assert_eq!(ids, vec![2, 3]);
     }
@@ -311,47 +330,62 @@ mod tests {
     }
 
     #[test]
-    fn tick_innate_effects_transitions_to_attacker_planning() {
+    fn tick_innate_effects_transitions_to_planning() {
         let mut eng = make_engagement();
         let tick = eng.tick(1, 30);
-        assert_eq!(eng.turn_phase, BattlePhase::AttackerPlanning);
+        assert_eq!(
+            eng.turn_phase,
+            BattlePhase::Planning {
+                faction: "player".into()
+            }
+        );
         assert!(!tick.innate_entity_ids.is_empty());
         assert!(tick.messages.iter().any(|m| matches!(
             m,
             BattleMessage::PhaseChange {
-                phase: BattlePhase::AttackerPlanning
+                phase: BattlePhase::Planning { .. }
             }
         )));
     }
 
     #[test]
-    fn tick_attacker_planning_waits_for_timeout() {
+    fn tick_planning_waits_for_timeout() {
         let mut eng = make_engagement();
-        eng.tick(1, 30); // InnateEffects → AttackerPlanning
+        eng.tick(1, 30); // InnateEffects → Planning
         let tick = eng.tick(1, 30);
-        assert_eq!(eng.turn_phase, BattlePhase::AttackerPlanning);
+        assert_eq!(
+            eng.turn_phase,
+            BattlePhase::Planning {
+                faction: "player".into()
+            }
+        );
         assert!(tick.messages.is_empty());
     }
 
     #[test]
-    fn tick_attacker_planning_advances_on_timeout() {
+    fn tick_planning_advances_on_timeout() {
         let mut eng = make_engagement();
-        eng.tick(1, 1); // InnateEffects → AttackerPlanning
-        let tick = eng.tick(1, 1); // timeout
-        assert_eq!(eng.turn_phase, BattlePhase::DefenderResponse);
+        eng.tick(1, 1); // InnateEffects → Planning{player}
+        let tick = eng.tick(1, 1); // timeout → Response{player}
+        assert_eq!(
+            eng.turn_phase,
+            BattlePhase::Response {
+                faction: "player".into()
+            }
+        );
         assert!(tick.messages.iter().any(|m| matches!(
             m,
             BattleMessage::PhaseChange {
-                phase: BattlePhase::DefenderResponse
+                phase: BattlePhase::Response { .. }
             }
         )));
     }
 
     #[test]
-    fn tick_defender_response_advances_on_timeout() {
+    fn tick_response_advances_on_timeout() {
         let mut eng = make_engagement();
-        eng.tick(1, 1); // InnateEffects → AttackerPlanning
-        eng.tick(1, 1); // timeout → DefenderResponse
+        eng.tick(1, 1); // InnateEffects → Planning
+        eng.tick(1, 1); // timeout → Response
         let tick = eng.tick(1, 1); // timeout → Resolution
         assert_eq!(eng.turn_phase, BattlePhase::Resolution);
         assert!(tick.messages.iter().any(|m| matches!(
@@ -365,8 +399,8 @@ mod tests {
     #[test]
     fn tick_resolution_drains_queue_and_resets() {
         let mut eng = make_engagement();
-        eng.tick(1, 1); // → AttackerPlanning
-        eng.tick(1, 1); // → DefenderResponse
+        eng.tick(1, 1); // → Planning
+        eng.tick(1, 1); // → Response
         eng.tick(1, 1); // → Resolution
         let tick = eng.tick(1, 1); // Resolution → InnateEffects
         assert_eq!(eng.turn_phase, BattlePhase::InnateEffects);
@@ -374,6 +408,30 @@ mod tests {
             m,
             BattleMessage::PhaseChange {
                 phase: BattlePhase::InnateEffects
+            }
+        )));
+    }
+
+    #[test]
+    fn tick_resolution_advances_planning_faction_index() {
+        let mut eng = make_engagement();
+        assert_eq!(eng.planning_faction_index, 0);
+        eng.tick(1, 1); // → Planning{player}
+        eng.tick(1, 1); // → Response{player}
+        eng.tick(1, 1); // → Resolution
+        eng.tick(1, 1); // Resolution → InnateEffects (index advances to 1)
+        assert_eq!(eng.planning_faction_index, 1);
+        let tick = eng.tick(1, 1); // InnateEffects → Planning{enemy}
+        assert_eq!(
+            eng.turn_phase,
+            BattlePhase::Planning {
+                faction: "enemy".into()
+            }
+        );
+        assert!(tick.messages.iter().any(|m| matches!(
+            m,
+            BattleMessage::PhaseChange {
+                phase: BattlePhase::Planning { .. }
             }
         )));
     }

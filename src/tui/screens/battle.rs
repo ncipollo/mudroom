@@ -397,8 +397,8 @@ fn render_status_bar(frame: &mut Frame, battle: &BattleState, area: Rect) {
         "↑↓ Navigate  Tab Switch Focus  Enter Select Ability  Esc Leave".to_string()
     };
 
-    let timer_str = match battle.snapshot.phase {
-        BattlePhase::AttackerPlanning | BattlePhase::DefenderResponse => {
+    let timer_str = match &battle.snapshot.phase {
+        BattlePhase::Planning { .. } | BattlePhase::Response { .. } => {
             let remaining = battle.snapshot.countdown_ticks;
             let max = battle.snapshot.max_turn_ticks.max(1);
             let filled = ((remaining * 10) / max).min(10) as usize;
