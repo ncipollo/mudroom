@@ -7,7 +7,7 @@ use ratatui::{
     widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap},
 };
 
-use crate::game::engagement::battle::BattleMessage;
+use crate::game::engagement::battle::{BattleMessage, BattlePhase};
 use crate::game::{Interaction, TurnAction};
 use crate::network::client::send_interaction;
 use crate::network::event::ParticipantInfo;
@@ -389,13 +389,24 @@ fn render_status_bar(frame: &mut Frame, battle: &BattleState, area: Rect) {
         "↑↓ Navigate  Tab Switch Focus  Enter Select Ability  Esc Leave".to_string()
     };
 
+    let timer_str = match battle.snapshot.phase {
+        BattlePhase::AttackerPlanning | BattlePhase::DefenderResponse => {
+            let remaining = battle.snapshot.countdown_ticks;
+            let max = battle.snapshot.max_turn_ticks.max(1);
+            let filled = ((remaining * 10) / max).min(10) as usize;
+            let bar = format!("{}{}", "█".repeat(filled), "░".repeat(10 - filled));
+            format!(" | [{bar}] {remaining}")
+        }
+        _ => String::new(),
+    };
+
     let status_text = if let Some(p) = player_hp {
         format!(
-            "HP: {}/{} | [{phase_str}] | {hints}",
+            "HP: {}/{}{timer_str} | [{phase_str}] | {hints}",
             p.hp_current, p.hp_max
         )
     } else {
-        format!("[{phase_str}] | {hints}")
+        format!("[{phase_str}]{timer_str} | {hints}")
     };
 
     let status = Paragraph::new(status_text)

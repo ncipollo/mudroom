@@ -22,6 +22,7 @@ pub struct BattleTick {
     pub phase: BattlePhase,
     pub factions: Vec<String>,
     pub participants: HashMap<String, Vec<i64>>,
+    pub ticks_in_phase: u64,
 }
 
 pub struct BattleEngagement {
@@ -209,6 +210,7 @@ impl BattleEngagement {
             phase: self.turn_phase.clone(),
             factions: self.factions.clone(),
             participants: self.participants.clone(),
+            ticks_in_phase: self.ticks_in_phase,
         }
     }
 }

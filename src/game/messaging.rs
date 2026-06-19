@@ -40,6 +40,7 @@ pub struct BattleUpdateMessage {
     pub participants: HashMap<String, Vec<BattleParticipantInfo>>,
     pub phase: BattlePhase,
     pub messages: Vec<BattleMessage>,
+    pub countdown_ticks: u64,
     pub max_turn_ticks: u64,
 }
 
