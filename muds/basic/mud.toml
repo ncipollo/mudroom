@@ -1,6 +1,6 @@
 [game_loop]
 tick_rate_ms = 500
-max_engage_ms = 300000
+max_engage_ms = 5000
 world_update_ms = 600000
 
 [spawn]

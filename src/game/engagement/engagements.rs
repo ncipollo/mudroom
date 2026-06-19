@@ -4,6 +4,7 @@ use std::sync::atomic::{AtomicI64, Ordering};
 use tokio::sync::RwLock;
 use tracing;
 
+use crate::game::component::{Ability, Attribute};
 use crate::game::engagement::Engagement;
 use crate::game::engagement::EngagementType;
 use crate::game::engagement::ResolvedAction;
@@ -146,6 +147,27 @@ impl Engagements {
             engagement.entity_ids.retain(|&id| id != dead_id);
         }
         battle.surviving_faction_count()
+    }
+
+    /// Queue an ability in the entity's active battle engagement.
+    /// Returns false if the entity is not in a battle or lacks resources.
+    pub async fn queue_battle_ability(
+        &self,
+        entity_id: i64,
+        ability: Ability,
+        target_id: i64,
+        entity_attrs: &HashMap<String, Attribute>,
+    ) -> bool {
+        let mut map = self.engagements_by_id.write().await;
+        for engagement in map.values_mut() {
+            if engagement.engagement_type == EngagementType::Battle
+                && engagement.entity_ids.contains(&entity_id)
+                && let Some(battle) = &mut engagement.battle
+            {
+                return battle.queue_ability(entity_id, ability, target_id, entity_attrs);
+            }
+        }
+        false
     }
 
     /// Mark a battle engagement as concluded.

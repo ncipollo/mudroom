@@ -10,6 +10,7 @@ use tracing;
 
 use crate::game::component::interaction::Movement;
 use crate::game::engagement::TurnAction;
+use crate::game::engagement::battle;
 use crate::game::player::Player;
 use crate::game::{GameState, Interaction};
 use crate::persistence::Database;
@@ -78,14 +79,57 @@ async fn dispatch_engagement_action(
     player: &Player,
     action: TurnAction,
 ) {
+    match action {
+        TurnAction::QueueAbility {
+            ability_id,
+            target_id,
+        } => {
+            dispatch_queue_ability(game_state, player, &ability_id, target_id).await;
+        }
+        other => {
+            let accepted = game_state
+                .engagements
+                .submit_action_for_entity(player.entity_id, other)
+                .await;
+            tracing::debug!(
+                entity_id = player.entity_id,
+                accepted,
+                "engagement action submitted"
+            );
+        }
+    }
+}
+
+async fn dispatch_queue_ability(
+    game_state: &Arc<GameState>,
+    player: &Player,
+    ability_id: &str,
+    target_id: i64,
+) {
+    let (ability_opt, attrs) = {
+        let entities = game_state.active_entities.read().await;
+        let Some(entity) = entities.get(&player.entity_id) else {
+            return;
+        };
+        let ability = entity
+            .innate_abilities
+            .iter()
+            .find(|a| a.id == ability_id)
+            .cloned()
+            .or_else(|| (ability_id == "attack").then(battle::default_attack_ability));
+        (ability, entity.attributes.clone())
+    };
+    let Some(ability) = ability_opt else {
+        return;
+    };
     let accepted = game_state
         .engagements
-        .submit_action_for_entity(player.entity_id, action)
+        .queue_battle_ability(player.entity_id, ability, target_id, &attrs)
         .await;
     tracing::debug!(
         entity_id = player.entity_id,
         accepted,
-        "engagement action submitted"
+        "battle ability queued"
     );
 }
 

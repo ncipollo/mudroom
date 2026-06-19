@@ -7,6 +7,7 @@ pub enum TurnAction {
     SelectDialogChoice { choice: String },
     SendMessage { content: String },
     Respond { content: String },
+    QueueAbility { ability_id: String, target_id: i64 },
 }
 
 #[cfg(test)]

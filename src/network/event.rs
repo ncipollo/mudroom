@@ -1,5 +1,9 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
+use crate::game::component::Ability;
+use crate::game::engagement::battle::{BattleMessage, BattlePhase};
 use crate::game::messaging::ConversationKind;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -22,6 +26,25 @@ pub struct PlayerInfo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlayerListResponse {
     pub players: Vec<PlayerInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ParticipantInfo {
+    pub id: i64,
+    pub name: String,
+    pub hp_current: i64,
+    pub hp_max: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct BattleSnapshot {
+    pub factions: Vec<String>,
+    pub participants: HashMap<String, Vec<ParticipantInfo>>,
+    pub phase: BattlePhase,
+    pub turn_order: Vec<i64>,
+    pub countdown_ticks: u64,
+    pub max_turn_ticks: u64,
+    pub available_abilities: Vec<Ability>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -54,6 +77,18 @@ pub enum NetworkEvent {
         options: Vec<String>,
     },
     ConversationEnded,
+    BattleStarted {
+        engagement_id: i64,
+        snapshot: BattleSnapshot,
+    },
+    BattleUpdate {
+        engagement_id: i64,
+        snapshot: BattleSnapshot,
+        messages: Vec<BattleMessage>,
+    },
+    BattleEnded {
+        engagement_id: i64,
+    },
 }
 
 #[cfg(test)]

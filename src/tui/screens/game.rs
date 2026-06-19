@@ -8,7 +8,7 @@ use ratatui::{
 };
 
 use super::super::components::message_log;
-use super::{agent_conversation, conversation, player_select};
+use super::{agent_conversation, battle, conversation, player_select};
 use crate::game::{Interaction, Movement, TurnAction};
 use crate::network::client::send_interaction;
 use crate::tui::app::{App, AppMessage, GameMode};
@@ -96,6 +96,11 @@ pub fn render(frame: &mut Frame, app: &App) {
 
     if app.mode == GameMode::AgentConversation {
         agent_conversation::render(frame, app);
+        return;
+    }
+
+    if app.mode == GameMode::Battle {
+        battle::render(frame, app);
         return;
     }
 
