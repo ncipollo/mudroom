@@ -90,16 +90,17 @@ async fn handle_battle_tick(
         .update_battle_participants(engagement_id, &dead_ids)
         .await;
 
-    let update = build_battle_update(
-        game_state,
-        &result.factions,
-        &result.participants,
-        result.phase,
-        all_tick_messages,
-        max_engage_ticks,
+    let countdown_ticks = max_engage_ticks.saturating_sub(result.ticks_in_phase);
+    let params = BattleUpdateParams {
         engagement_id,
-    )
-    .await;
+        factions: result.factions,
+        participants: result.participants,
+        phase: result.phase,
+        messages: all_tick_messages,
+        countdown_ticks,
+        max_turn_ticks: max_engage_ticks,
+    };
+    let update = build_battle_update(game_state, params).await;
 
     for &pid in &player_ids {
         messaging::battle_update(&game_state.message_tx, pid, update.clone());
@@ -299,20 +300,26 @@ async fn find_participant_player_ids(game_state: &Arc<GameState>, entity_ids: &[
         .collect()
 }
 
-async fn build_battle_update(
-    game_state: &Arc<GameState>,
-    factions: &[String],
-    participants: &HashMap<String, Vec<i64>>,
+struct BattleUpdateParams {
+    engagement_id: i64,
+    factions: Vec<String>,
+    participants: HashMap<String, Vec<i64>>,
     phase: crate::game::engagement::battle::BattlePhase,
     messages: Vec<BattleMessage>,
+    countdown_ticks: u64,
     max_turn_ticks: u64,
-    engagement_id: i64,
+}
+
+async fn build_battle_update(
+    game_state: &Arc<GameState>,
+    params: BattleUpdateParams,
 ) -> BattleUpdateMessage {
     let entities = game_state.active_entities.read().await;
     let players = game_state.active_players.read().await;
     let hp_attr_id = messaging::hp_attribute_id(&game_state.attribute_config);
 
-    let participant_infos = participants
+    let participant_infos = params
+        .participants
         .iter()
         .map(|(faction, ids)| {
             let infos = ids
@@ -346,11 +353,12 @@ async fn build_battle_update(
         .collect();
 
     BattleUpdateMessage {
-        engagement_id,
-        factions: factions.to_vec(),
+        engagement_id: params.engagement_id,
+        factions: params.factions,
         participants: participant_infos,
-        phase,
-        messages,
-        max_turn_ticks,
+        phase: params.phase,
+        messages: params.messages,
+        countdown_ticks: params.countdown_ticks,
+        max_turn_ticks: params.max_turn_ticks,
     }
 }

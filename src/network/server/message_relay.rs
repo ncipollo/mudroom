@@ -111,7 +111,7 @@ fn battle_update_snapshot(data: BattleUpdateMessage) -> BattleSnapshot {
         participants,
         phase: data.phase,
         turn_order: vec![],
-        countdown_ticks: 0,
+        countdown_ticks: data.countdown_ticks,
         max_turn_ticks: data.max_turn_ticks,
         available_abilities: vec![],
     }

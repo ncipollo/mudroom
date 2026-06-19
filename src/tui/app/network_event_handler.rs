@@ -127,6 +127,8 @@ impl App {
         }
         battle.snapshot.participants = snapshot.participants;
         battle.snapshot.phase = snapshot.phase;
+        battle.snapshot.countdown_ticks = snapshot.countdown_ticks;
+        battle.snapshot.max_turn_ticks = snapshot.max_turn_ticks;
         battle.message_log.extend(messages);
     }
 }
