@@ -8,6 +8,7 @@ use crate::game::component::Attribute;
 use crate::game::component::FactionRelations;
 use crate::game::component::Interaction;
 use crate::game::component::Location;
+use crate::game::component::effect::Effect;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum EntityType {
@@ -35,6 +36,8 @@ pub struct Entity {
     pub factions: HashSet<String>,
     #[serde(default)]
     pub faction_relations: FactionRelations,
+    #[serde(skip)]
+    pub active_effects: Vec<Effect>,
 }
 
 impl Entity {
@@ -63,6 +66,7 @@ impl Entity {
             ai: None,
             factions,
             faction_relations,
+            active_effects: Vec::new(),
         }
     }
 }
