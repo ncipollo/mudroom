@@ -2,6 +2,7 @@ pub mod loot;
 pub mod message;
 pub mod phase;
 pub mod queued_ability;
+pub mod tick;
 
 use std::collections::HashMap;
 
