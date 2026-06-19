@@ -14,6 +14,9 @@
 ///   message to the player. If the reply has no further responses the conversation ends.
 /// - **`Respond { content }`**: the player sent a free-text message to an agent NPC.
 ///   The handler calls the LLM provider and streams the response.
+///
+/// Returns `true` if the engagement ended this tick so the caller can call
+/// `engagements.remove()` without this module reaching back into `Engagements` directly.
 mod agent_turn;
 
 use std::sync::Arc;
@@ -28,15 +31,16 @@ use crate::game::{GameState, messaging};
 
 use agent_turn::AgentTurnHandler;
 
-pub async fn handle(game_state: &Arc<GameState>, resolved: &ResolvedAction) {
+/// Returns `true` if the engagement ended and the caller should call `engagements.remove()`.
+pub async fn handle(game_state: &Arc<GameState>, resolved: &ResolvedAction) -> bool {
     let Some((player_entity_id, npc_entity_id)) = find_player_and_npc(game_state, resolved).await
     else {
-        return;
+        return false;
     };
     let Some(player) = find_player_by_entity(game_state, player_entity_id).await else {
-        return;
+        return false;
     };
-    dispatch_action(game_state, &player, npc_entity_id, resolved).await;
+    dispatch_action(game_state, &player, npc_entity_id, resolved).await
 }
 
 async fn dispatch_action(
@@ -44,7 +48,7 @@ async fn dispatch_action(
     player: &Player,
     npc_entity_id: i64,
     resolved: &ResolvedAction,
-) {
+) -> bool {
     match &resolved.action {
         None => handle_timeout(game_state, player, npc_entity_id, resolved.engagement_id).await,
         Some(TurnAction::SelectDialogChoice { choice }) => {
@@ -55,62 +59,62 @@ async fn dispatch_action(
                 resolved.engagement_id,
                 choice,
             )
-            .await;
+            .await
         }
         Some(TurnAction::Respond { content }) => {
             let handler =
                 AgentTurnHandler::new(game_state, player, npc_entity_id, resolved.engagement_id);
             if handler.has_agent_state().await {
-                handler.handle(content).await;
+                handler.handle(content).await
             } else {
                 tracing::warn!(
                     "NPC {npc_entity_id} has no agent state for engagement {}",
                     resolved.engagement_id
                 );
+                false
             }
         }
-        Some(_) => {}
+        Some(_) => false,
     }
 }
 
+/// Returns `true` — the engagement should be removed by the caller.
 async fn handle_timeout(
     game_state: &Arc<GameState>,
     player: &Player,
     npc_entity_id: i64,
     engagement_id: i64,
-) {
+) -> bool {
     messaging::message(
         &game_state.message_tx,
         player.id,
         "The conversation has ended.",
     );
     remove_npc_conversation_state(game_state, npc_entity_id, engagement_id).await;
-    game_state.engagements.remove(engagement_id).await;
     messaging::conversation_ended(&game_state.message_tx, player.id);
+    true
 }
 
+/// Returns `true` if the engagement ended (invalid choice falls through to no-op → `false`).
 async fn handle_choice(
     game_state: &Arc<GameState>,
     player: &Player,
     npc_entity_id: i64,
     engagement_id: i64,
     choice: &str,
-) {
+) -> bool {
     let index: usize = match choice.parse::<usize>() {
         Ok(n) if n >= 1 => n - 1,
         _ => {
             messaging::message(&game_state.message_tx, player.id, "Invalid choice.");
             resend_current_dialog(game_state, player, npc_entity_id, engagement_id).await;
-            return;
+            return false;
         }
     };
 
     let dialog = match get_current_dialog(game_state, npc_entity_id, engagement_id).await {
         Some(d) => d,
-        None => {
-            game_state.engagements.remove(engagement_id).await;
-            return;
-        }
+        None => return true,
     };
 
     let response = match dialog.responses.get(index) {
@@ -118,7 +122,7 @@ async fn handle_choice(
         None => {
             messaging::message(&game_state.message_tx, player.id, "Invalid choice.");
             resend_current_dialog(game_state, player, npc_entity_id, engagement_id).await;
-            return;
+            return false;
         }
     };
 
@@ -144,24 +148,26 @@ async fn get_current_dialog(
         .and_then(|ctx| ctx.current_dialog.clone())
 }
 
+/// Returns `true` — the engagement should be removed by the caller.
 async fn end_conversation(
     game_state: &Arc<GameState>,
     player: &Player,
     npc_entity_id: i64,
     engagement_id: i64,
-) {
+) -> bool {
     remove_npc_conversation_state(game_state, npc_entity_id, engagement_id).await;
-    game_state.engagements.remove(engagement_id).await;
     messaging::conversation_ended(&game_state.message_tx, player.id);
+    true
 }
 
+/// Returns `true` if the dialog tree is exhausted and the engagement should end.
 async fn advance_dialog(
     game_state: &Arc<GameState>,
     player: &Player,
     npc_entity_id: i64,
     engagement_id: i64,
     reply: &DialogLine,
-) {
+) -> bool {
     let reply_text = pick_text(reply).to_string();
     let reply_responses = reply.responses.clone();
 
@@ -179,7 +185,7 @@ async fn advance_dialog(
     let msg = format_dialog_message(&reply_text, &reply_responses);
     messaging::stream_message(game_state.message_tx.clone(), player.id, msg);
     if reply_responses.is_empty() {
-        end_conversation(game_state, player, npc_entity_id, engagement_id).await;
+        end_conversation(game_state, player, npc_entity_id, engagement_id).await
     } else {
         let options: Vec<String> = reply_responses.iter().map(|r| r.text.clone()).collect();
         messaging::conversation_started(
@@ -188,6 +194,7 @@ async fn advance_dialog(
             ConversationKind::Dialog,
             options,
         );
+        false
     }
 }
 
