@@ -9,6 +9,7 @@ use crate::game::component::FactionRelations;
 use crate::game::component::Interaction;
 use crate::game::component::Location;
 use crate::game::component::effect::Effect;
+use crate::game::config::BattleAiConfig;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum EntityType {
@@ -32,6 +33,8 @@ pub struct Entity {
     pub description: Option<String>,
     #[serde(skip)]
     pub ai: Option<EntityAI>,
+    #[serde(default)]
+    pub battle_ai: BattleAiConfig,
     #[serde(default)]
     pub factions: HashSet<String>,
     #[serde(default)]
@@ -64,6 +67,7 @@ impl Entity {
             config_id: None,
             description: None,
             ai: None,
+            battle_ai: BattleAiConfig::default(),
             factions,
             faction_relations,
             active_effects: Vec::new(),

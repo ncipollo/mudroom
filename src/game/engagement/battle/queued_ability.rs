@@ -10,6 +10,7 @@ pub struct QueuedAbility {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::game::component::ability::AbilityRole;
     use crate::game::component::effect::{Effect, EffectDescription, EffectType, TriggerInfo};
     use crate::game::engagement::EngagementType;
 
@@ -30,6 +31,7 @@ mod tests {
             engagement_types: vec![EngagementType::Battle],
             costs: vec![],
             modifiers: vec![],
+            role: AbilityRole::Attack,
         }
     }
 

@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use sqlx::SqlitePool;
 
 use crate::game::component::Attribute;
+use crate::game::config::{BattleAiConfig, BattleAiType};
 use crate::game::{Entity, EntityType, Location};
 use crate::persistence::error::PersistenceError;
 use crate::persistence::{faction_relations_repo, faction_repo};
@@ -16,6 +17,7 @@ type EntityRow = (
     Option<String>,
     Option<String>,
     Option<String>,
+    String,
 );
 
 pub async fn insert(pool: &SqlitePool, entity: &Entity) -> Result<i64, PersistenceError> {
@@ -92,7 +94,7 @@ pub async fn insert_config_entity_if_missing(
 
 pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<Entity>, PersistenceError> {
     let row: Option<EntityRow> = sqlx::query_as(
-        "SELECT id, entity_type, world_id, dungeon_id, room_id, config_id, attributes, description FROM entities WHERE id = ?",
+        "SELECT id, entity_type, world_id, dungeon_id, room_id, config_id, attributes, description, battle_ai_type FROM entities WHERE id = ?",
     )
     .bind(id)
     .fetch_optional(pool)
@@ -112,7 +114,7 @@ pub async fn find_by_location(
     location: &Location,
 ) -> Result<Vec<Entity>, PersistenceError> {
     let rows: Vec<EntityRow> = sqlx::query_as(
-        "SELECT id, entity_type, world_id, dungeon_id, room_id, config_id, attributes, description FROM entities WHERE world_id = ? AND dungeon_id = ? AND room_id = ?",
+        "SELECT id, entity_type, world_id, dungeon_id, room_id, config_id, attributes, description, battle_ai_type FROM entities WHERE world_id = ? AND dungeon_id = ? AND room_id = ?",
     )
     .bind(&location.world_id)
     .bind(&location.dungeon_id)
@@ -135,7 +137,7 @@ pub async fn find_config_entities_by_dungeon(
     dungeon_id: &str,
 ) -> Result<Vec<Entity>, PersistenceError> {
     let rows: Vec<EntityRow> = sqlx::query_as(
-        "SELECT id, entity_type, world_id, dungeon_id, room_id, config_id, attributes, description FROM entities WHERE config_id IS NOT NULL AND world_id = ? AND dungeon_id = ?",
+        "SELECT id, entity_type, world_id, dungeon_id, room_id, config_id, attributes, description, battle_ai_type FROM entities WHERE config_id IS NOT NULL AND world_id = ? AND dungeon_id = ?",
     )
     .bind(world_id)
     .bind(dungeon_id)
@@ -152,7 +154,7 @@ pub async fn find_config_entities_by_dungeon(
 }
 
 fn build_entity(
-    (id, et, world_id, dungeon_id, room_id, config_id, attrs_json, description): EntityRow,
+    (id, et, world_id, dungeon_id, room_id, config_id, attrs_json, description, battle_ai_type): EntityRow,
 ) -> Entity {
     let attributes = attrs_json
         .and_then(|json| match serde_json::from_str(&json) {
@@ -175,7 +177,37 @@ fn build_entity(
     entity.config_id = config_id;
     entity.attributes = attributes;
     entity.description = description;
+    entity.battle_ai = BattleAiConfig {
+        ai_type: battle_ai_type_from_str(&battle_ai_type),
+    };
     entity
+}
+
+pub async fn update_battle_ai_type(
+    pool: &SqlitePool,
+    entity_id: i64,
+    ai_type: &BattleAiType,
+) -> Result<(), PersistenceError> {
+    sqlx::query("UPDATE entities SET battle_ai_type = ? WHERE id = ?")
+        .bind(battle_ai_type_to_str(ai_type))
+        .bind(entity_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+fn battle_ai_type_to_str(ai_type: &BattleAiType) -> &'static str {
+    match ai_type {
+        BattleAiType::None => "none",
+        BattleAiType::SimpleRandom => "simple_random",
+    }
+}
+
+fn battle_ai_type_from_str(s: &str) -> BattleAiType {
+    match s {
+        "simple_random" => BattleAiType::SimpleRandom,
+        _ => BattleAiType::None,
+    }
 }
 
 async fn load_faction_data(pool: &SqlitePool, entity: &mut Entity) -> Result<(), PersistenceError> {
@@ -638,5 +670,52 @@ mod tests {
         let found = find_by_id(db.pool(), id).await.unwrap().unwrap();
         assert_eq!(found.attributes.len(), 1);
         assert_eq!(found.attributes["str"].current_value, 15);
+    }
+
+    #[tokio::test]
+    async fn insert_and_find_preserves_default_battle_ai_type() {
+        let db = Database::connect_in_memory().await.unwrap();
+        setup(&db).await;
+
+        let entity = Entity::new(0, EntityType::Enemy, test_location());
+        let id = insert(db.pool(), &entity).await.unwrap();
+
+        let found = find_by_id(db.pool(), id).await.unwrap().unwrap();
+        assert_eq!(found.battle_ai.ai_type, BattleAiType::None);
+    }
+
+    #[tokio::test]
+    async fn update_battle_ai_type_persists_simple_random() {
+        let db = Database::connect_in_memory().await.unwrap();
+        setup(&db).await;
+
+        let entity = Entity::new(0, EntityType::Enemy, test_location());
+        let id = insert(db.pool(), &entity).await.unwrap();
+
+        update_battle_ai_type(db.pool(), id, &BattleAiType::SimpleRandom)
+            .await
+            .unwrap();
+
+        let found = find_by_id(db.pool(), id).await.unwrap().unwrap();
+        assert_eq!(found.battle_ai.ai_type, BattleAiType::SimpleRandom);
+    }
+
+    #[tokio::test]
+    async fn update_battle_ai_type_can_reset_to_none() {
+        let db = Database::connect_in_memory().await.unwrap();
+        setup(&db).await;
+
+        let entity = Entity::new(0, EntityType::Enemy, test_location());
+        let id = insert(db.pool(), &entity).await.unwrap();
+
+        update_battle_ai_type(db.pool(), id, &BattleAiType::SimpleRandom)
+            .await
+            .unwrap();
+        update_battle_ai_type(db.pool(), id, &BattleAiType::None)
+            .await
+            .unwrap();
+
+        let found = find_by_id(db.pool(), id).await.unwrap().unwrap();
+        assert_eq!(found.battle_ai.ai_type, BattleAiType::None);
     }
 }

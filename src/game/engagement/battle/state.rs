@@ -220,6 +220,7 @@ impl BattleEngagement {
 
 #[cfg(test)]
 mod tests {
+    use crate::game::component::ability::AbilityRole;
     use crate::game::component::effect::{Effect, EffectDescription, EffectType, TriggerInfo};
     use crate::game::component::{Ability, Attribute, Cost};
     use crate::game::engagement::EngagementType;
@@ -424,6 +425,7 @@ mod tests {
                 amount: 10,
             }],
             modifiers: vec![],
+            role: AbilityRole::Attack,
         };
         let attrs: HashMap<String, Attribute> = HashMap::new(); // no mp
         assert!(!eng.queue_ability(1, ability, 2, &attrs));

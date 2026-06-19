@@ -33,4 +33,5 @@ pub async fn process(game_state: &Arc<GameState>, _tick: u64) {
     }
 
     battle::process_ticks(game_state, max_engage_ticks).await;
+    battle::run_battle_ai(game_state).await;
 }

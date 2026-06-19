@@ -102,6 +102,7 @@ mod tests {
     use crate::game::component::Ability;
     use crate::game::component::Attribute;
     use crate::game::component::Location;
+    use crate::game::component::ability::AbilityRole;
     use crate::game::component::effect::{Effect, EffectDescription, EffectType, TriggerInfo};
     use crate::game::engagement::EngagementType;
     use crate::game::entity::{Entity, EntityType};
@@ -151,6 +152,7 @@ mod tests {
             engagement_types: vec![EngagementType::Battle],
             costs: vec![],
             modifiers: vec![],
+            role: AbilityRole::Attack,
         }
     }
 

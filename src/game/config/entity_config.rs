@@ -1,6 +1,7 @@
 use crate::game::component::Ability;
 use crate::game::component::FactionRelations;
 use crate::game::component::effect::Effect;
+use crate::game::config::battle_ai_config::BattleAiConfig;
 use crate::game::config::dialog_parser::parse_dialog_markdown;
 use crate::game::config::persona_parser::{PersonaFile, parse_persona_markdown};
 use serde::{Deserialize, Serialize};
@@ -78,6 +79,8 @@ pub struct EntityConfig {
     pub factions: Vec<String>,
     #[serde(default)]
     pub faction_relations: Option<FactionRelations>,
+    #[serde(default)]
+    pub battle_ai: BattleAiConfig,
 }
 
 pub fn load_entity_config(path: &Path) -> Result<EntityConfig, Box<dyn Error>> {

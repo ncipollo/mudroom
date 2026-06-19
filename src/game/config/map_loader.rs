@@ -198,6 +198,7 @@ async fn sync_entity(
         config.description.as_deref(),
     )
     .await?;
+    entity_repo::update_battle_ai_type(pool, entity_id, &config.battle_ai.ai_type).await?;
     if is_new {
         for effect in &config.entity_effects {
             entity_effect_repo::insert(pool, entity_id, effect).await?;
@@ -290,6 +291,7 @@ fn effective_faction_relations(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::game::config::BattleAiConfig;
     use crate::game::{Description, Dungeon, EntityConfig, Room, World};
     use crate::persistence::database::Database;
 
@@ -411,6 +413,7 @@ mod tests {
             innate_abilities: vec![],
             factions: vec![],
             faction_relations: None,
+            battle_ai: BattleAiConfig::default(),
         };
         let mut map = HashMap::new();
         map.insert("entities/innkeeper".to_string(), config);
@@ -444,6 +447,7 @@ mod tests {
             innate_abilities: vec![],
             factions: vec![],
             faction_relations: None,
+            battle_ai: BattleAiConfig::default(),
         };
         let mut map = HashMap::new();
         map.insert("entities/innkeeper".to_string(), config);
@@ -577,6 +581,7 @@ mod tests {
                 innate_abilities: vec![],
                 factions: vec![],
                 faction_relations: None,
+                battle_ai: BattleAiConfig::default(),
             },
         );
         let universe = make_universe_with_entity();
@@ -603,6 +608,7 @@ mod tests {
             innate_abilities: vec![],
             factions: vec![],
             faction_relations: None,
+            battle_ai: BattleAiConfig::default(),
         };
         let mut map = HashMap::new();
         map.insert("entities/zombie".to_string(), config);
