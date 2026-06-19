@@ -80,6 +80,9 @@ fn handle_ability_selected(app: &mut App) {
     let Some(battle) = &mut app.battle else {
         return;
     };
+    if !battle.is_player_turn() {
+        return;
+    }
     if battle.focus != BattleFocus::Abilities {
         return;
     }
@@ -318,9 +321,14 @@ fn render_abilities_panel(frame: &mut Frame, battle: &BattleState, area: Rect) {
         })
         .collect();
 
+    let title = if battle.is_player_turn() {
+        "Abilities"
+    } else {
+        "Abilities (waiting\u{2026})"
+    };
     let list = List::new(items).block(
         Block::default()
-            .title("Abilities")
+            .title(title)
             .borders(Borders::ALL)
             .border_style(border_style),
     );

@@ -1,4 +1,4 @@
-use crate::game::engagement::battle::BattleMessage;
+use crate::game::engagement::battle::{BattleMessage, BattlePhase};
 use crate::network::event::{BattleSnapshot, ParticipantInfo};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -114,5 +114,59 @@ impl BattleState {
     pub fn dialog_target_id(&self) -> Option<i64> {
         let dialog = self.dialog.as_ref()?;
         dialog.targets.get(dialog.selected_index).map(|p| p.id)
+    }
+
+    pub fn is_player_turn(&self) -> bool {
+        self.snapshot.phase == BattlePhase::AttackerPlanning
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use super::*;
+    use crate::game::component::Ability;
+    use crate::network::event::BattleSnapshot;
+
+    fn make_snapshot(phase: BattlePhase) -> BattleSnapshot {
+        BattleSnapshot {
+            factions: vec!["player".to_string(), "enemy".to_string()],
+            participants: HashMap::new(),
+            phase,
+            turn_order: vec![],
+            countdown_ticks: 0,
+            max_turn_ticks: 30,
+            available_abilities: vec![],
+        }
+    }
+
+    fn make_state(phase: BattlePhase) -> BattleState {
+        BattleState::new(1, make_snapshot(phase))
+    }
+
+    #[test]
+    fn is_player_turn_true_during_attacker_planning() {
+        assert!(make_state(BattlePhase::AttackerPlanning).is_player_turn());
+    }
+
+    #[test]
+    fn is_player_turn_false_during_defender_response() {
+        assert!(!make_state(BattlePhase::DefenderResponse).is_player_turn());
+    }
+
+    #[test]
+    fn is_player_turn_false_during_innate_effects() {
+        assert!(!make_state(BattlePhase::InnateEffects).is_player_turn());
+    }
+
+    #[test]
+    fn is_player_turn_false_during_resolution() {
+        assert!(!make_state(BattlePhase::Resolution).is_player_turn());
+    }
+
+    #[test]
+    fn is_player_turn_false_during_concluded() {
+        assert!(!make_state(BattlePhase::Concluded).is_player_turn());
     }
 }
