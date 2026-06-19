@@ -4,7 +4,7 @@ use ratatui::{
     layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span, Text},
-    widgets::{Block, Borders, List, ListItem, Paragraph, Wrap},
+    widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap},
 };
 
 use crate::game::engagement::battle::BattleMessage;
@@ -14,6 +14,10 @@ use crate::network::event::ParticipantInfo;
 use crate::tui::app::{App, BattleFocus, BattleState, GameMode};
 
 pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
+    if app.battle.as_ref().is_some_and(|b| b.dialog.is_some()) {
+        handle_dialog_key(app, modifiers, code).await;
+        return;
+    }
     match (modifiers, code) {
         (KeyModifiers::CONTROL, KeyCode::Char('c')) => app.should_quit = true,
         (_, KeyCode::Up) => handle_navigate_up(app),
@@ -23,10 +27,33 @@ pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
                 battle.toggle_focus();
             }
         }
-        (_, KeyCode::Enter) => handle_queue_ability(app).await,
+        (_, KeyCode::Enter) => handle_ability_selected(app),
         (_, KeyCode::Esc) => handle_leave_battle(app).await,
         (_, KeyCode::PageUp) => handle_page_up(app),
         (_, KeyCode::PageDown) => handle_page_down(app),
+        _ => {}
+    }
+}
+
+async fn handle_dialog_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
+    match (modifiers, code) {
+        (KeyModifiers::CONTROL, KeyCode::Char('c')) => app.should_quit = true,
+        (_, KeyCode::Up) => {
+            if let Some(battle) = &mut app.battle {
+                battle.target_dialog_prev();
+            }
+        }
+        (_, KeyCode::Down) => {
+            if let Some(battle) = &mut app.battle {
+                battle.target_dialog_next();
+            }
+        }
+        (_, KeyCode::Enter) => handle_dialog_confirm(app).await,
+        (_, KeyCode::Esc) => {
+            if let Some(battle) = &mut app.battle {
+                battle.close_target_dialog();
+            }
+        }
         _ => {}
     }
 }
@@ -49,29 +76,51 @@ fn handle_navigate_down(app: &mut App) {
     }
 }
 
-async fn handle_queue_ability(app: &mut App) {
-    let Some(battle) = &app.battle else { return };
+fn handle_ability_selected(app: &mut App) {
+    let Some(battle) = &mut app.battle else {
+        return;
+    };
     if battle.focus != BattleFocus::Abilities {
         return;
     }
-    let ability = battle
+    let ability_id = battle
         .snapshot
         .available_abilities
         .get(battle.selected_ability_index)
-        .cloned();
-    let target_id = battle.selected_target_id();
+        .map(|a| a.id.clone());
+    if let Some(ability_id) = ability_id {
+        battle.open_target_dialog(ability_id);
+    }
+}
+
+async fn handle_dialog_confirm(app: &mut App) {
+    let Some(battle) = &app.battle else { return };
+    let Some(dialog) = &battle.dialog else { return };
+    let ability_id = dialog.pending_ability_id.clone();
+    let target_id = battle.dialog_target_id();
     let Some(url) = app.connection.server_url.as_deref() else {
+        if let Some(battle) = &mut app.battle {
+            battle.close_target_dialog();
+        }
         return;
     };
+    let url = url.to_owned();
     let Some(client_id) = app.connection.client_id.as_deref() else {
+        if let Some(battle) = &mut app.battle {
+            battle.close_target_dialog();
+        }
         return;
     };
-    if let (Some(ability), Some(target_id)) = (ability, target_id) {
+    let client_id = client_id.to_owned();
+    if let Some(target_id) = target_id {
         let action = Interaction::EngagementAction(TurnAction::QueueAbility {
-            ability_id: ability.id,
+            ability_id,
             target_id,
         });
-        let _ = send_interaction(url, client_id, &action).await;
+        let _ = send_interaction(&url, &client_id, &action).await;
+    }
+    if let Some(battle) = &mut app.battle {
+        battle.close_target_dialog();
     }
 }
 
@@ -133,6 +182,10 @@ pub fn render(frame: &mut Frame, app: &App) {
     render_combatants_panel(frame, battle, areas[0]);
     render_middle_row(frame, app, battle, areas[1]);
     render_status_bar(frame, battle, areas[2]);
+
+    if battle.dialog.is_some() {
+        render_target_dialog(frame, battle, frame.area());
+    }
 }
 
 fn render_combatants_panel(frame: &mut Frame, battle: &BattleState, area: Rect) {
@@ -330,17 +383,63 @@ fn render_status_bar(frame: &mut Frame, battle: &BattleState, area: Rect) {
         .and_then(|f| battle.snapshot.participants.get(f))
         .and_then(|ps| ps.first());
 
+    let hints = if battle.dialog.is_some() {
+        "↑↓ Navigate  Enter Confirm  Esc Cancel".to_string()
+    } else {
+        "↑↓ Navigate  Tab Switch Focus  Enter Select Ability  Esc Leave".to_string()
+    };
+
     let status_text = if let Some(p) = player_hp {
         format!(
-            "HP: {}/{} | [{phase_str}] | ↑↓ Navigate  Tab Switch Focus  Enter Queue  Esc Leave",
+            "HP: {}/{} | [{phase_str}] | {hints}",
             p.hp_current, p.hp_max
         )
     } else {
-        format!("[{phase_str}] | ↑↓ Navigate  Tab Switch Focus  Enter Queue  Esc Leave")
+        format!("[{phase_str}] | {hints}")
     };
 
     let status = Paragraph::new(status_text)
         .style(Style::default().fg(Color::Green))
         .block(Block::default().title("Status").borders(Borders::ALL));
     frame.render_widget(status, area);
+}
+
+fn centered_rect(width: u16, height: u16, area: Rect) -> Rect {
+    let x = area.x + area.width.saturating_sub(width) / 2;
+    let y = area.y + area.height.saturating_sub(height) / 2;
+    Rect::new(x, y, width.min(area.width), height.min(area.height))
+}
+
+fn render_target_dialog(frame: &mut Frame, battle: &BattleState, area: Rect) {
+    let Some(dialog) = &battle.dialog else { return };
+
+    let height = (dialog.targets.len() as u16 + 2).min(20);
+    let dialog_area = centered_rect(40, height, area);
+
+    frame.render_widget(Clear, dialog_area);
+
+    let items: Vec<ListItem> = dialog
+        .targets
+        .iter()
+        .enumerate()
+        .map(|(i, p)| {
+            if i == dialog.selected_index {
+                ListItem::new(p.name.clone()).style(
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                )
+            } else {
+                ListItem::new(p.name.clone())
+            }
+        })
+        .collect();
+
+    let list = List::new(items).block(
+        Block::default()
+            .title("Select Target")
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Yellow)),
+    );
+    frame.render_widget(list, dialog_area);
 }
