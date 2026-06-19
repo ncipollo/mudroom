@@ -1,10 +1,10 @@
 pub mod abilities;
-pub mod engagement;
 pub mod loot;
 pub mod message;
 pub mod phase;
 pub mod queued_ability;
 pub mod resolution;
+pub mod state;
 pub mod tick;
 
 use std::collections::HashMap;
@@ -12,10 +12,10 @@ use std::collections::HashMap;
 pub use abilities::{
     default_attack_ability, default_defend_ability, entity_innate_battle_abilities,
 };
-pub use engagement::BattleEngagement;
 pub use message::BattleMessage;
 pub use phase::BattlePhase;
 pub use queued_ability::QueuedAbility;
+pub use state::BattleEngagement;
 pub use tick::process_ticks;
 
 pub struct BattleTick {
