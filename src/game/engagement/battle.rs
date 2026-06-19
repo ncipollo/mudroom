@@ -16,6 +16,7 @@ pub use engagement::BattleEngagement;
 pub use message::BattleMessage;
 pub use phase::BattlePhase;
 pub use queued_ability::QueuedAbility;
+pub use tick::process_ticks;
 
 pub struct BattleTick {
     pub engagement_id: i64,

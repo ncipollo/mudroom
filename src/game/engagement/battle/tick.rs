@@ -14,24 +14,39 @@ use super::{
     BattleMessage, BattlePhase, BattleTick, QueuedAbility, entity_innate_battle_abilities,
 };
 
-/// The outcome of resolving a single battle tick. Returned to the caller so that engagement
-/// lifecycle operations (removing dead participants, concluding, removing the engagement) happen
-/// in one place rather than being scattered across the resolution pipeline.
-pub struct BattleTickOutcome {
-    pub engagement_id: i64,
-    /// All participant ids at the start of this tick (before any deaths are processed).
-    pub all_participant_ids: Vec<i64>,
-    /// Entity ids whose HP dropped to or below their minimum this tick.
-    pub dead_entity_ids: Vec<i64>,
-    /// Player ids subscribed to this battle (for follow-up messaging).
-    pub player_ids: Vec<i64>,
+struct BattleTickOutcome {
+    engagement_id: i64,
+    all_participant_ids: Vec<i64>,
+    dead_entity_ids: Vec<i64>,
+    player_ids: Vec<i64>,
+}
+
+/// Advances all active battle engagements one tick and handles the full lifecycle:
+/// phase state machine → effect resolution → dead-entity removal → engagement conclusion.
+/// This is the single entry point for battle processing; no battle-specific logic escapes
+/// into the engagement orchestration layer.
+pub async fn process_ticks(game_state: &Arc<GameState>, max_engage_ticks: u64) {
+    let battle_results = game_state.engagements.tick_battles(max_engage_ticks).await;
+    for result in battle_results {
+        let outcome = handle_tick(game_state, result, max_engage_ticks).await;
+        let surviving = game_state
+            .engagements
+            .update_battle_participants(outcome.engagement_id, &outcome.dead_entity_ids)
+            .await;
+        if surviving <= 1 {
+            handle_battle_ended(game_state, &outcome).await;
+            game_state
+                .engagements
+                .conclude_battle(outcome.engagement_id)
+                .await;
+            game_state.engagements.remove(outcome.engagement_id).await;
+        }
+    }
 }
 
 /// Resolves effects from a completed battle tick: applies innate and queued ability effects,
 /// detects entity deaths, and broadcasts the battle state update to all player participants.
-/// Returns a `BattleTickOutcome` so the caller can apply engagement lifecycle changes
-/// (update participants, conclude, remove) without this function reaching back into `Engagements`.
-pub async fn handle_tick(
+async fn handle_tick(
     game_state: &Arc<GameState>,
     result: BattleTick,
     max_engage_ticks: u64,
@@ -99,9 +114,7 @@ pub async fn handle_tick(
     }
 }
 
-/// Called when a battle ends (surviving factions <= 1). Clears transient effects from all
-/// participants and sends the battle-ended event to each player.
-pub async fn handle_battle_ended(game_state: &Arc<GameState>, outcome: &BattleTickOutcome) {
+async fn handle_battle_ended(game_state: &Arc<GameState>, outcome: &BattleTickOutcome) {
     loot::resolve_loot(&outcome.all_participant_ids);
     clear_active_effects(game_state, &outcome.all_participant_ids).await;
     for &pid in &outcome.player_ids {

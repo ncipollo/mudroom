@@ -10,18 +10,13 @@ use super::conversation;
 ///
 /// Pipeline per tick:
 /// 1. Compute `max_engage_ticks` from the mud config (`max_engage_ms / tick_rate_ms`).
-/// 2. [`Engagements::process_tick`] — advance every non-battle engagement one step. Any
-///    engagement whose current entity has submitted an action (or whose turn timed out) is
-///    resolved and returned as a [`crate::game::ResolvedAction`].
+/// 2. [`Engagements::process_tick`] — advance every non-battle engagement one step and
+///    return resolved actions for entities whose turn completed or timed out.
 /// 3. Dispatch each resolved action to its type-specific handler:
-///    - Conversation: [`conversation::handle`] resolves the player action and returns whether
-///      the engagement ended; if so, `processing` removes it from `Engagements`.
-/// 4. [`Engagements::tick_battles`] — advance every battle through its phase state machine,
-///    returning a [`battle::BattleTick`] snapshot per battle.
-/// 5. [`battle::tick::handle_tick`] — for each snapshot, apply innate and queued-ability
-///    effects, detect deaths, and broadcast the updated battle state to players. Returns a
-///    [`battle::tick::BattleTickOutcome`] so `processing` can update participants, conclude,
-///    and remove the engagement without `handle_tick` reaching back into `Engagements`.
+///    - Conversation: [`conversation::handle`] returns whether the engagement ended;
+///      if so, `processing` removes it from `Engagements`.
+/// 4. [`battle::process_ticks`] — advance every battle through its full tick lifecycle
+///    (phase state machine → effect resolution → dead-entity removal → conclusion).
 pub async fn process(game_state: &Arc<GameState>, _tick: u64) {
     let max_engage_ticks = (game_state.mud_config.game_loop.max_engage_ms
         / game_state.mud_config.game_loop.tick_rate_ms)
@@ -37,20 +32,5 @@ pub async fn process(game_state: &Arc<GameState>, _tick: u64) {
         }
     }
 
-    let battle_results = game_state.engagements.tick_battles(max_engage_ticks).await;
-    for result in battle_results {
-        let outcome = battle::tick::handle_tick(game_state, result, max_engage_ticks).await;
-        let surviving = game_state
-            .engagements
-            .update_battle_participants(outcome.engagement_id, &outcome.dead_entity_ids)
-            .await;
-        if surviving <= 1 {
-            battle::tick::handle_battle_ended(game_state, &outcome).await;
-            game_state
-                .engagements
-                .conclude_battle(outcome.engagement_id)
-                .await;
-            game_state.engagements.remove(outcome.engagement_id).await;
-        }
-    }
+    battle::process_ticks(game_state, max_engage_ticks).await;
 }
