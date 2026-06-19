@@ -19,6 +19,10 @@ pub enum EffectType {
         attribute_id: String,
         value: i64,
     },
+    AttributeShield {
+        attribute_id: String,
+        absorb_amount: i64,
+    },
     EntitySpawn {
         entity_id: String,
         location: Option<Location>,
@@ -61,6 +65,22 @@ mod tests {
                 start_description: Some("You feel better.".to_string()),
                 end_description: None,
             },
+        };
+        let json = serde_json::to_string(&effect).unwrap();
+        let restored: Effect = serde_json::from_str(&json).unwrap();
+        assert_eq!(effect, restored);
+    }
+
+    #[test]
+    fn attribute_shield_serde_round_trip() {
+        let effect = Effect {
+            name: "damage_reduction".to_string(),
+            effect_type: EffectType::AttributeShield {
+                attribute_id: "hp".to_string(),
+                absorb_amount: 5,
+            },
+            trigger_info: TriggerInfo::Once,
+            description: EffectDescription::default(),
         };
         let json = serde_json::to_string(&effect).unwrap();
         let restored: Effect = serde_json::from_str(&json).unwrap();
