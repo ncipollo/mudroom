@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::game::component::{Ability, AttributeType, EffectType, TriggerInfo};
+use crate::game::component::{Ability, AttributeType};
 use crate::game::config::AttributeConfig;
 use crate::game::engagement::TurnOrder;
 use crate::game::entity::Entity;
@@ -9,6 +9,7 @@ use crate::game::messaging::{BattleParticipantInfo, BattleUpdateMessage};
 use crate::game::{GameState, messaging};
 
 use super::loot;
+use super::resolution;
 use super::{
     BattleMessage, BattlePhase, BattleTick, QueuedAbility, entity_innate_battle_abilities,
 };
@@ -163,10 +164,14 @@ async fn apply_battle_effects(
     cast_messages: &mut Vec<BattleMessage>,
 ) {
     let mut entities = game_state.active_entities.write().await;
+    let mut target_effects = HashMap::new();
 
     for (entity_id, abilities) in innate_jobs {
         for ability in abilities {
-            apply_once_effects(ability, *entity_id, &mut entities);
+            target_effects
+                .entry(*entity_id)
+                .or_insert_with(Vec::new)
+                .extend(ability.effects.clone());
         }
     }
 
@@ -176,18 +181,26 @@ async fn apply_battle_effects(
     }
 
     for &caster_id in speed_sorted_casters {
-        if let Some(abilities) = by_caster.remove(&caster_id) {
-            for qa in &abilities {
-                apply_once_effects(&qa.ability, qa.target_id, &mut entities);
-                cast_messages.push(ability_cast_message(qa, entity_names));
-            }
+        for qa in by_caster.remove(&caster_id).unwrap_or_default() {
+            cast_messages.push(ability_cast_message(&qa, entity_names));
+            target_effects
+                .entry(qa.target_id)
+                .or_insert_with(Vec::new)
+                .extend(qa.ability.effects.clone());
         }
     }
     for abilities in by_caster.into_values() {
-        for qa in &abilities {
-            apply_once_effects(&qa.ability, qa.target_id, &mut entities);
-            cast_messages.push(ability_cast_message(qa, entity_names));
+        for qa in abilities {
+            cast_messages.push(ability_cast_message(&qa, entity_names));
+            target_effects
+                .entry(qa.target_id)
+                .or_insert_with(Vec::new)
+                .extend(qa.ability.effects.clone());
         }
+    }
+
+    for (target_id, effects) in target_effects {
+        resolution::resolve_effects(target_id, effects, &mut entities);
     }
 }
 
@@ -202,59 +215,6 @@ fn ability_cast_message(qa: &QueuedAbility, entity_names: &HashMap<i64, String>)
             .cloned()
             .unwrap_or_else(|| "Unknown".to_string()),
         ability_name: qa.ability.name.clone(),
-    }
-}
-
-fn absorb_with_shields(entity: &mut Entity, attribute_id: &str, value: i64) -> i64 {
-    if value >= 0 {
-        return value;
-    }
-    let mut remaining = value;
-    let mut consumed_once = Vec::new();
-    for (i, effect) in entity.active_effects.iter().enumerate() {
-        if let EffectType::AttributeShield {
-            attribute_id: shield_attr,
-            absorb_amount,
-        } = &effect.effect_type
-            && shield_attr == attribute_id
-        {
-            remaining = (remaining + absorb_amount).min(0);
-            if matches!(effect.trigger_info, TriggerInfo::Once) {
-                consumed_once.push(i);
-            }
-        }
-    }
-    for i in consumed_once.into_iter().rev() {
-        entity.active_effects.remove(i);
-    }
-    remaining
-}
-
-fn apply_once_effects(ability: &Ability, target_id: i64, entities: &mut HashMap<i64, Entity>) {
-    let Some(entity) = entities.get_mut(&target_id) else {
-        return;
-    };
-    for effect in &ability.effects {
-        match (&effect.trigger_info, &effect.effect_type) {
-            (
-                TriggerInfo::Once,
-                EffectType::AttributeUpdate {
-                    attribute_id,
-                    value,
-                },
-            ) => {
-                let adjusted = absorb_with_shields(entity, attribute_id, *value);
-                if let Some(attr) = entity.attributes.get_mut(attribute_id) {
-                    attr.current_value = (attr.current_value + adjusted)
-                        .max(attr.min_value)
-                        .min(attr.max_value);
-                }
-            }
-            (_, EffectType::AttributeShield { .. }) => {
-                entity.active_effects.push(effect.clone());
-            }
-            _ => {}
-        }
     }
 }
 
@@ -368,163 +328,5 @@ async fn build_battle_update(
         messages: params.messages,
         countdown_ticks: params.countdown_ticks,
         max_turn_ticks: params.max_turn_ticks,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::game::component::Ability;
-    use crate::game::component::Attribute;
-    use crate::game::component::Location;
-    use crate::game::component::effect::{Effect, EffectDescription, EffectType, TriggerInfo};
-    use crate::game::engagement::EngagementType;
-    use crate::game::entity::{Entity, EntityType};
-
-    fn test_location() -> Location {
-        Location {
-            world_id: "w".to_string(),
-            dungeon_id: "d".to_string(),
-            room_id: "r".to_string(),
-        }
-    }
-
-    fn hp_attribute(current: i64) -> Attribute {
-        Attribute::new("hp".to_string(), 0, 100, current)
-    }
-
-    fn attack_ability(damage: i64) -> Ability {
-        Ability {
-            id: "attack".to_string(),
-            name: "Attack".to_string(),
-            description: None,
-            effects: vec![Effect {
-                name: "damage".to_string(),
-                effect_type: EffectType::AttributeUpdate {
-                    attribute_id: "hp".to_string(),
-                    value: damage,
-                },
-                trigger_info: TriggerInfo::Once,
-                description: EffectDescription::default(),
-            }],
-            engagement_types: vec![EngagementType::Battle],
-            costs: vec![],
-            modifiers: vec![],
-        }
-    }
-
-    fn shield_effect(absorb_amount: i64, trigger: TriggerInfo) -> Effect {
-        Effect {
-            name: "damage_reduction".to_string(),
-            effect_type: EffectType::AttributeShield {
-                attribute_id: "hp".to_string(),
-                absorb_amount,
-            },
-            trigger_info: trigger,
-            description: EffectDescription::default(),
-        }
-    }
-
-    #[test]
-    fn shield_absorbs_partial_damage_and_is_consumed() {
-        let mut entities: HashMap<i64, Entity> = HashMap::new();
-        let mut entity = Entity::new(1, EntityType::Player, test_location());
-        entity
-            .attributes
-            .insert("hp".to_string(), hp_attribute(100));
-        entity
-            .active_effects
-            .push(shield_effect(5, TriggerInfo::Once));
-        entities.insert(1, entity);
-
-        apply_once_effects(&attack_ability(-10), 1, &mut entities);
-
-        let entity = entities.get(&1).unwrap();
-        assert_eq!(entity.attributes["hp"].current_value, 95);
-        assert!(entity.active_effects.is_empty());
-    }
-
-    #[test]
-    fn over_time_shield_absorbs_and_is_not_consumed() {
-        let mut entities: HashMap<i64, Entity> = HashMap::new();
-        let mut entity = Entity::new(1, EntityType::Player, test_location());
-        entity
-            .attributes
-            .insert("hp".to_string(), hp_attribute(100));
-        entity.active_effects.push(shield_effect(
-            5,
-            TriggerInfo::OverTime {
-                start: 0,
-                end: None,
-                rate: 1,
-            },
-        ));
-        entities.insert(1, entity);
-
-        apply_once_effects(&attack_ability(-10), 1, &mut entities);
-
-        let entity = entities.get(&1).unwrap();
-        assert_eq!(entity.attributes["hp"].current_value, 95);
-        assert_eq!(entity.active_effects.len(), 1);
-    }
-
-    #[test]
-    fn shield_does_not_affect_positive_attribute_updates() {
-        let mut entities: HashMap<i64, Entity> = HashMap::new();
-        let mut entity = Entity::new(1, EntityType::Player, test_location());
-        entity.attributes.insert("hp".to_string(), hp_attribute(50));
-        entity
-            .active_effects
-            .push(shield_effect(5, TriggerInfo::Once));
-        entities.insert(1, entity);
-
-        apply_once_effects(&attack_ability(10), 1, &mut entities);
-
-        let entity = entities.get(&1).unwrap();
-        assert_eq!(entity.attributes["hp"].current_value, 60);
-        assert_eq!(entity.active_effects.len(), 1);
-    }
-
-    #[test]
-    fn applying_shield_ability_adds_to_active_effects() {
-        let mut entities: HashMap<i64, Entity> = HashMap::new();
-        let mut entity = Entity::new(1, EntityType::Player, test_location());
-        entity
-            .attributes
-            .insert("hp".to_string(), hp_attribute(100));
-        entities.insert(1, entity);
-
-        let defend_ability = Ability {
-            id: "defend".to_string(),
-            name: "Defend".to_string(),
-            description: None,
-            effects: vec![shield_effect(5, TriggerInfo::Once)],
-            engagement_types: vec![EngagementType::Battle],
-            costs: vec![],
-            modifiers: vec![],
-        };
-        apply_once_effects(&defend_ability, 1, &mut entities);
-
-        let entity = entities.get(&1).unwrap();
-        assert_eq!(entity.active_effects.len(), 1);
-        assert_eq!(entity.attributes["hp"].current_value, 100);
-    }
-
-    #[test]
-    fn absorb_with_shields_clamps_to_zero_not_positive() {
-        let mut entities: HashMap<i64, Entity> = HashMap::new();
-        let mut entity = Entity::new(1, EntityType::Player, test_location());
-        entity
-            .attributes
-            .insert("hp".to_string(), hp_attribute(100));
-        entity
-            .active_effects
-            .push(shield_effect(20, TriggerInfo::Once));
-        entities.insert(1, entity);
-
-        apply_once_effects(&attack_ability(-10), 1, &mut entities);
-
-        let entity = entities.get(&1).unwrap();
-        assert_eq!(entity.attributes["hp"].current_value, 100);
     }
 }
