@@ -14,7 +14,43 @@ use super::{
     BattleMessage, BattlePhase, BattleTick, QueuedAbility, entity_innate_battle_abilities,
 };
 
-pub async fn handle_tick(game_state: &Arc<GameState>, result: BattleTick, max_engage_ticks: u64) {
+struct BattleTickOutcome {
+    engagement_id: i64,
+    all_participant_ids: Vec<i64>,
+    dead_entity_ids: Vec<i64>,
+    player_ids: Vec<i64>,
+}
+
+/// Advances all active battle engagements one tick and handles the full lifecycle:
+/// phase state machine → effect resolution → dead-entity removal → engagement conclusion.
+/// This is the single entry point for battle processing; no battle-specific logic escapes
+/// into the engagement orchestration layer.
+pub async fn process_ticks(game_state: &Arc<GameState>, max_engage_ticks: u64) {
+    let battle_results = game_state.engagements.tick_battles(max_engage_ticks).await;
+    for result in battle_results {
+        let outcome = handle_tick(game_state, result, max_engage_ticks).await;
+        let surviving = game_state
+            .engagements
+            .update_battle_participants(outcome.engagement_id, &outcome.dead_entity_ids)
+            .await;
+        if surviving <= 1 {
+            handle_battle_ended(game_state, &outcome).await;
+            game_state
+                .engagements
+                .conclude_battle(outcome.engagement_id)
+                .await;
+            game_state.engagements.remove(outcome.engagement_id).await;
+        }
+    }
+}
+
+/// Resolves effects from a completed battle tick: applies innate and queued ability effects,
+/// detects entity deaths, and broadcasts the battle state update to all player participants.
+async fn handle_tick(
+    game_state: &Arc<GameState>,
+    result: BattleTick,
+    max_engage_ticks: u64,
+) -> BattleTickOutcome {
     let engagement_id = result.engagement_id;
     let all_ids = result.all_participant_ids.clone();
 
@@ -54,11 +90,6 @@ pub async fn handle_tick(game_state: &Arc<GameState>, result: BattleTick, max_en
 
     let player_ids = find_participant_player_ids(game_state, &all_ids).await;
 
-    let surviving = game_state
-        .engagements
-        .update_battle_participants(engagement_id, &dead_ids)
-        .await;
-
     let countdown_ticks = max_engage_ticks.saturating_sub(result.ticks_in_phase);
     let params = BattleUpdateParams {
         engagement_id,
@@ -75,14 +106,19 @@ pub async fn handle_tick(game_state: &Arc<GameState>, result: BattleTick, max_en
         messaging::battle_update(&game_state.message_tx, pid, update.clone());
     }
 
-    if surviving <= 1 {
-        loot::resolve_loot(&all_ids);
-        game_state.engagements.conclude_battle(engagement_id).await;
-        clear_active_effects(game_state, &all_ids).await;
-        for &pid in &player_ids {
-            messaging::battle_ended(&game_state.message_tx, pid, engagement_id);
-        }
-        game_state.engagements.remove(engagement_id).await;
+    BattleTickOutcome {
+        engagement_id,
+        all_participant_ids: all_ids,
+        dead_entity_ids: dead_ids,
+        player_ids,
+    }
+}
+
+async fn handle_battle_ended(game_state: &Arc<GameState>, outcome: &BattleTickOutcome) {
+    loot::resolve_loot(&outcome.all_participant_ids);
+    clear_active_effects(game_state, &outcome.all_participant_ids).await;
+    for &pid in &outcome.player_ids {
+        messaging::battle_ended(&game_state.message_tx, pid, outcome.engagement_id);
     }
 }
 

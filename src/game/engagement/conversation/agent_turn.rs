@@ -38,10 +38,10 @@ impl<'a> AgentTurnHandler<'a> {
             .unwrap_or(false)
     }
 
-    pub async fn handle(&self, player_message: &str) {
+    /// Process the player's message. Returns true if the engagement should end (context missing).
+    pub async fn handle(&self, player_message: &str) -> bool {
         let Some((instructions, history)) = self.load_context().await else {
-            self.game_state.engagements.remove(self.engagement_id).await;
-            return;
+            return true;
         };
 
         let provider = agent::build_provider(&self.game_state.mud_config.agent);
@@ -70,6 +70,7 @@ impl<'a> AgentTurnHandler<'a> {
                 );
             }
         }
+        false
     }
 
     async fn load_context(&self) -> Option<(String, Vec<AgentMessage>)> {
