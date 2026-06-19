@@ -2,6 +2,14 @@ use crate::game::component::effect::Effect;
 use crate::game::engagement::EngagementType;
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum AbilityRole {
+    #[default]
+    Attack,
+    Defend,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case", tag = "type")]
 pub enum Cost {
@@ -33,6 +41,8 @@ pub struct Ability {
     pub costs: Vec<Cost>,
     #[serde(default)]
     pub modifiers: Vec<Modifier>,
+    #[serde(default)]
+    pub role: AbilityRole,
 }
 
 #[cfg(test)]
@@ -104,6 +114,7 @@ mod tests {
                 amount: 5,
             }],
             modifiers: vec![],
+            role: AbilityRole::Attack,
         };
         let json = serde_json::to_string(&ability).unwrap();
         let restored: Ability = serde_json::from_str(&json).unwrap();
@@ -132,6 +143,7 @@ mod tests {
                     operator: Operator::Add,
                 },
             ],
+            role: AbilityRole::Attack,
         };
         let json = serde_json::to_string(&ability).unwrap();
         let restored: Ability = serde_json::from_str(&json).unwrap();
@@ -156,6 +168,7 @@ mod tests {
             engagement_types: vec![EngagementType::Battle],
             costs: vec![],
             modifiers: vec![],
+            role: AbilityRole::Attack,
         };
         let json = serde_json::to_string(&ability).unwrap();
         let restored: Ability = serde_json::from_str(&json).unwrap();

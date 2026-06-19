@@ -9,7 +9,7 @@ use crate::game::engagement::Engagement;
 use crate::game::engagement::EngagementType;
 use crate::game::engagement::ResolvedAction;
 use crate::game::engagement::TurnAction;
-use crate::game::engagement::battle::{BattlePhase, BattleTick};
+use crate::game::engagement::battle::{BattleAiContext, BattlePhase, BattleTick};
 
 pub struct Engagements {
     engagements_by_id: RwLock<HashMap<i64, Engagement>>,
@@ -168,6 +168,27 @@ impl Engagements {
             }
         }
         false
+    }
+
+    /// Return AI context for every battle currently in Planning or Response phase.
+    pub async fn get_battle_ai_contexts(&self) -> Vec<BattleAiContext> {
+        let map = self.engagements_by_id.read().await;
+        map.values()
+            .filter_map(|e| {
+                let battle = e.battle.as_ref()?;
+                match &battle.turn_phase {
+                    BattlePhase::Planning { .. } | BattlePhase::Response { .. } => {
+                        Some(BattleAiContext {
+                            engagement_id: e.id,
+                            phase: battle.turn_phase.clone(),
+                            planning_ids: battle.planning_ids(),
+                            responding_ids: battle.responding_ids(),
+                        })
+                    }
+                    _ => None,
+                }
+            })
+            .collect()
     }
 
     /// Mark a battle engagement as concluded.

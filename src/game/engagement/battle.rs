@@ -1,4 +1,5 @@
 pub mod abilities;
+pub mod ai;
 pub mod loot;
 pub mod message;
 pub mod phase;
@@ -12,6 +13,7 @@ use std::collections::HashMap;
 pub use abilities::{
     default_attack_ability, default_defend_ability, entity_innate_battle_abilities,
 };
+pub use ai::{BattleAiContext, run_battle_ai};
 pub use message::BattleMessage;
 pub use phase::BattlePhase;
 pub use queued_ability::QueuedAbility;

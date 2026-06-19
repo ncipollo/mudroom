@@ -1,12 +1,14 @@
 use sqlx::SqlitePool;
 
 use crate::game::component::Ability;
+use crate::game::component::ability::AbilityRole;
 use crate::persistence::error::PersistenceError;
 
 type AbilityRow = (
     String,
     String,
     Option<String>,
+    String,
     String,
     String,
     String,
@@ -19,10 +21,11 @@ pub async fn upsert(pool: &SqlitePool, ability: &Ability) -> Result<(), Persiste
     let modifiers_json = serde_json::to_string(&ability.modifiers).unwrap_or_default();
     let engagement_types_json =
         serde_json::to_string(&ability.engagement_types).unwrap_or_default();
+    let role_str = ability_role_to_str(&ability.role);
     sqlx::query(
         "INSERT OR REPLACE INTO abilities \
-         (id, name, description, effects_json, costs_json, modifiers_json, engagement_types_json) \
-         VALUES (?, ?, ?, ?, ?, ?, ?)",
+         (id, name, description, effects_json, costs_json, modifiers_json, engagement_types_json, role) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&ability.id)
     .bind(&ability.name)
@@ -31,6 +34,7 @@ pub async fn upsert(pool: &SqlitePool, ability: &Ability) -> Result<(), Persiste
     .bind(&costs_json)
     .bind(&modifiers_json)
     .bind(&engagement_types_json)
+    .bind(role_str)
     .execute(pool)
     .await?;
     Ok(())
@@ -42,7 +46,7 @@ pub async fn find_by_entity(
 ) -> Result<Vec<Ability>, PersistenceError> {
     let rows: Vec<AbilityRow> = sqlx::query_as(
         "SELECT a.id, a.name, a.description, a.effects_json, a.costs_json, \
-             a.modifiers_json, a.engagement_types_json \
+             a.modifiers_json, a.engagement_types_json, a.role \
              FROM abilities a \
              JOIN entity_abilities ea ON a.id = ea.ability_id \
              WHERE ea.entity_id = ?",
@@ -54,7 +58,16 @@ pub async fn find_by_entity(
     Ok(rows
         .into_iter()
         .map(
-            |(id, name, description, effects_json, costs_json, modifiers_json, et_json)| {
+            |(
+                id,
+                name,
+                description,
+                effects_json,
+                costs_json,
+                modifiers_json,
+                et_json,
+                role_str,
+            )| {
                 let effects = serde_json::from_str(&effects_json).unwrap_or_else(|e| {
                     tracing::warn!("Failed to deserialize effects for ability {id}: {e}");
                     vec![]
@@ -79,6 +92,7 @@ pub async fn find_by_entity(
                     costs,
                     modifiers,
                     engagement_types,
+                    role: ability_role_from_str(&role_str),
                 }
             },
         )
@@ -102,6 +116,20 @@ pub async fn set_entity_abilities(
             .await?;
     }
     Ok(())
+}
+
+fn ability_role_to_str(role: &AbilityRole) -> &'static str {
+    match role {
+        AbilityRole::Attack => "attack",
+        AbilityRole::Defend => "defend",
+    }
+}
+
+fn ability_role_from_str(s: &str) -> AbilityRole {
+    match s {
+        "defend" => AbilityRole::Defend,
+        _ => AbilityRole::Attack,
+    }
 }
 
 #[cfg(test)]
@@ -148,6 +176,20 @@ mod tests {
             costs: vec![],
             modifiers: vec![],
             engagement_types: vec![EngagementType::Battle],
+            role: AbilityRole::Attack,
+        }
+    }
+
+    fn defend_ability() -> Ability {
+        Ability {
+            id: "defend".to_string(),
+            name: "Defend".to_string(),
+            description: None,
+            effects: vec![],
+            costs: vec![],
+            modifiers: vec![],
+            engagement_types: vec![EngagementType::Battle],
+            role: AbilityRole::Defend,
         }
     }
 
@@ -166,6 +208,22 @@ mod tests {
         assert_eq!(abilities[0].id, "attack");
         assert_eq!(abilities[0].effects.len(), 1);
         assert_eq!(abilities[0].engagement_types, vec![EngagementType::Battle]);
+        assert_eq!(abilities[0].role, AbilityRole::Attack);
+    }
+
+    #[tokio::test]
+    async fn upsert_preserves_defend_role() {
+        let db = Database::connect_in_memory().await.unwrap();
+        let entity_id = setup(&db).await;
+        let ability = defend_ability();
+        upsert(db.pool(), &ability).await.unwrap();
+        set_entity_abilities(db.pool(), entity_id, &["defend"])
+            .await
+            .unwrap();
+
+        let abilities = find_by_entity(db.pool(), entity_id).await.unwrap();
+        assert_eq!(abilities.len(), 1);
+        assert_eq!(abilities[0].role, AbilityRole::Defend);
     }
 
     #[tokio::test]

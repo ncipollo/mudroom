@@ -1,0 +1,2 @@
+ALTER TABLE entities ADD COLUMN battle_ai_type TEXT NOT NULL DEFAULT 'none';
+ALTER TABLE abilities ADD COLUMN role TEXT NOT NULL DEFAULT 'attack';
