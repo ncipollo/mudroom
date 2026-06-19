@@ -1,6 +1,9 @@
 entity_type = "enemy"
 factions = ["enemy"]
 
+[battle_ai]
+ai_type = "simple_random"
+
 [[attributes]]
 definition_id = "hp"
 min_value = 0
