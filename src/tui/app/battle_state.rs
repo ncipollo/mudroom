@@ -117,7 +117,12 @@ impl BattleState {
     }
 
     pub fn is_player_turn(&self) -> bool {
-        self.snapshot.phase == BattlePhase::AttackerPlanning
+        let player_faction = self.snapshot.factions.first().map(String::as_str);
+        match &self.snapshot.phase {
+            BattlePhase::Planning { faction } => Some(faction.as_str()) == player_faction,
+            BattlePhase::Response { faction } => Some(faction.as_str()) != player_faction,
+            _ => false,
+        }
     }
 }
 
@@ -126,7 +131,6 @@ mod tests {
     use std::collections::HashMap;
 
     use super::*;
-    use crate::game::component::Ability;
     use crate::network::event::BattleSnapshot;
 
     fn make_snapshot(phase: BattlePhase) -> BattleSnapshot {
@@ -146,13 +150,45 @@ mod tests {
     }
 
     #[test]
-    fn is_player_turn_true_during_attacker_planning() {
-        assert!(make_state(BattlePhase::AttackerPlanning).is_player_turn());
+    fn is_player_turn_true_when_player_faction_is_planning() {
+        assert!(
+            make_state(BattlePhase::Planning {
+                faction: "player".into()
+            })
+            .is_player_turn()
+        );
     }
 
     #[test]
-    fn is_player_turn_false_during_defender_response() {
-        assert!(!make_state(BattlePhase::DefenderResponse).is_player_turn());
+    fn is_player_turn_false_when_other_faction_is_planning() {
+        assert!(
+            !make_state(BattlePhase::Planning {
+                faction: "enemy".into()
+            })
+            .is_player_turn()
+        );
+    }
+
+    #[test]
+    fn is_player_turn_true_when_defending_against_enemy_plan() {
+        // Response { faction: "enemy" } means enemy planned; player (factions[0]) is defending
+        assert!(
+            make_state(BattlePhase::Response {
+                faction: "enemy".into()
+            })
+            .is_player_turn()
+        );
+    }
+
+    #[test]
+    fn is_player_turn_false_when_player_planned_and_enemy_defends() {
+        // Response { faction: "player" } means player planned; enemy is defending, not the player
+        assert!(
+            !make_state(BattlePhase::Response {
+                faction: "player".into()
+            })
+            .is_player_turn()
+        );
     }
 
     #[test]
