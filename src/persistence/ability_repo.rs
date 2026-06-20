@@ -122,12 +122,14 @@ fn ability_role_to_str(role: &AbilityRole) -> &'static str {
     match role {
         AbilityRole::Attack => "attack",
         AbilityRole::Defend => "defend",
+        AbilityRole::World => "world",
     }
 }
 
 fn ability_role_from_str(s: &str) -> AbilityRole {
     match s {
         "defend" => AbilityRole::Defend,
+        "world" => AbilityRole::World,
         _ => AbilityRole::Attack,
     }
 }

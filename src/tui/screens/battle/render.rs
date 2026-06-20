@@ -126,9 +126,8 @@ fn render_abilities_panel(frame: &mut Frame, battle: &BattleState, area: Rect) {
         Style::default()
     };
 
-    let items: Vec<ListItem> = battle
-        .snapshot
-        .available_abilities
+    let filtered = battle.filtered_abilities();
+    let items: Vec<ListItem> = filtered
         .iter()
         .enumerate()
         .map(|(i, ability)| {
@@ -161,10 +160,18 @@ fn render_abilities_panel(frame: &mut Frame, battle: &BattleState, area: Rect) {
         })
         .collect();
 
-    let title = if battle.is_player_turn() {
-        "Abilities"
-    } else {
-        "Abilities (waiting\u{2026})"
+    let title = match battle.ability_role_label() {
+        Some("Defend") if battle.has_queued_defend => Line::from(vec![
+            Span::raw("Abilities [Defend] "),
+            Span::styled(
+                "\u{25cf} Defending",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
+        ]),
+        Some(label) => Line::from(format!("Abilities [{label}]")),
+        None => Line::from("Abilities (waiting\u{2026})"),
     };
     let list = List::new(items).block(
         Block::default()
