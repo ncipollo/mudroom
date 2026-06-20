@@ -1,4 +1,4 @@
-use crate::game::engagement::battle::BattleMessage;
+use crate::game::engagement::battle::{BattleMessage, BattlePhase};
 use crate::game::messaging::ConversationKind;
 use crate::network::NetworkEvent;
 use crate::network::event::BattleSnapshot;
@@ -124,6 +124,12 @@ impl App {
         };
         if battle.engagement_id != engagement_id {
             return;
+        }
+        if battle.snapshot.phase != snapshot.phase {
+            battle.selected_ability_index = 0;
+            if matches!(&snapshot.phase, BattlePhase::Planning { .. }) {
+                battle.has_queued_defend = false;
+            }
         }
         battle.snapshot.participants = snapshot.participants;
         battle.snapshot.phase = snapshot.phase;

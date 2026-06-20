@@ -1,3 +1,4 @@
+use crate::game::component::ability::{Ability, AbilityRole};
 use crate::game::engagement::battle::{BattleMessage, BattlePhase};
 use crate::network::event::{BattleSnapshot, ParticipantInfo};
 
@@ -24,6 +25,7 @@ pub struct BattleState {
     pub entity_scroll: usize,
     pub focus: BattleFocus,
     pub dialog: Option<TargetDialog>,
+    pub has_queued_defend: bool,
 }
 
 impl BattleState {
@@ -37,18 +39,51 @@ impl BattleState {
             entity_scroll: 0,
             focus: BattleFocus::Abilities,
             dialog: None,
+            has_queued_defend: false,
+        }
+    }
+
+    pub fn filtered_abilities(&self) -> Vec<&Ability> {
+        if !self.is_player_turn() {
+            return vec![];
+        }
+        match &self.snapshot.phase {
+            BattlePhase::Planning { .. } => self
+                .snapshot
+                .available_abilities
+                .iter()
+                .filter(|a| a.role == AbilityRole::Attack)
+                .collect(),
+            BattlePhase::Response { .. } => self
+                .snapshot
+                .available_abilities
+                .iter()
+                .filter(|a| a.role == AbilityRole::Defend)
+                .collect(),
+            _ => vec![],
+        }
+    }
+
+    pub fn ability_role_label(&self) -> Option<&str> {
+        if !self.is_player_turn() {
+            return None;
+        }
+        match &self.snapshot.phase {
+            BattlePhase::Planning { .. } => Some("Attack"),
+            BattlePhase::Response { .. } => Some("Defend"),
+            _ => None,
         }
     }
 
     pub fn select_next_ability(&mut self) {
-        let len = self.snapshot.available_abilities.len();
+        let len = self.filtered_abilities().len();
         if len > 0 {
             self.selected_ability_index = (self.selected_ability_index + 1) % len;
         }
     }
 
     pub fn select_prev_ability(&mut self) {
-        let len = self.snapshot.available_abilities.len();
+        let len = self.filtered_abilities().len();
         if len > 0 {
             self.selected_ability_index = (self.selected_ability_index + len - 1) % len;
         }

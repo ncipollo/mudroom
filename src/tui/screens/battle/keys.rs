@@ -1,5 +1,6 @@
 use crossterm::event::{KeyCode, KeyModifiers};
 
+use crate::game::engagement::battle::BattlePhase;
 use crate::game::{Interaction, TurnAction};
 use crate::network::client::send_interaction;
 use crate::tui::app::{App, BattleFocus, GameMode};
@@ -78,8 +79,7 @@ fn handle_ability_selected(app: &mut App) {
         return;
     }
     let ability_id = battle
-        .snapshot
-        .available_abilities
+        .filtered_abilities()
         .get(battle.selected_ability_index)
         .map(|a| a.id.clone());
     if let Some(ability_id) = ability_id {
@@ -114,6 +114,9 @@ async fn handle_dialog_confirm(app: &mut App) {
         let _ = send_interaction(&url, &client_id, &action).await;
     }
     if let Some(battle) = &mut app.battle {
+        if matches!(&battle.snapshot.phase, BattlePhase::Response { .. }) {
+            battle.has_queued_defend = true;
+        }
         battle.close_target_dialog();
     }
 }

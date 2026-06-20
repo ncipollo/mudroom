@@ -8,6 +8,7 @@ pub enum AbilityRole {
     #[default]
     Attack,
     Defend,
+    World,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
