@@ -144,14 +144,17 @@ async fn build_battle_started_message(
     let mut turn_order: Vec<i64> = participants.values().flatten().copied().collect();
     turn_order.sort_unstable();
 
+    let tick_rate_ms = game_state.mud_config.game_loop.tick_rate_ms.max(1);
+    let max_turn_secs = max_turn_ticks * tick_rate_ms / 1000;
+
     BattleStartedMessage {
         engagement_id,
         factions: factions.to_vec(),
         participants: participant_infos,
         phase: BattlePhase::InnateEffects,
         turn_order,
-        countdown_ticks: max_turn_ticks,
-        max_turn_ticks,
+        countdown_secs: max_turn_secs,
+        max_turn_secs,
         available_abilities,
     }
 }

@@ -174,8 +174,8 @@ mod tests {
             participants: HashMap::new(),
             phase,
             turn_order: vec![],
-            countdown_ticks: 0,
-            max_turn_ticks: 30,
+            countdown_secs: 0,
+            max_turn_secs: 30,
             available_abilities: vec![],
         }
     }

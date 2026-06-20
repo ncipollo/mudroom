@@ -42,8 +42,8 @@ pub struct BattleSnapshot {
     pub participants: HashMap<String, Vec<ParticipantInfo>>,
     pub phase: BattlePhase,
     pub turn_order: Vec<i64>,
-    pub countdown_ticks: u64,
-    pub max_turn_ticks: u64,
+    pub countdown_secs: u64,
+    pub max_turn_secs: u64,
     pub available_abilities: Vec<Ability>,
 }
 

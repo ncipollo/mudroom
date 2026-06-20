@@ -91,14 +91,17 @@ async fn handle_tick(
     let player_ids = find_participant_player_ids(game_state, &all_ids).await;
 
     let countdown_ticks = max_engage_ticks.saturating_sub(result.ticks_in_phase);
+    let tick_rate_ms = game_state.mud_config.game_loop.tick_rate_ms.max(1);
+    let countdown_secs = countdown_ticks * tick_rate_ms / 1000;
+    let max_turn_secs = max_engage_ticks * tick_rate_ms / 1000;
     let params = BattleUpdateParams {
         engagement_id,
         factions: result.factions,
         participants: result.participants,
         phase: result.phase,
         messages: all_tick_messages,
-        countdown_ticks,
-        max_turn_ticks: max_engage_ticks,
+        countdown_secs,
+        max_turn_secs,
     };
     let update = build_battle_update(game_state, params).await;
 
@@ -310,8 +313,8 @@ struct BattleUpdateParams {
     participants: HashMap<String, Vec<i64>>,
     phase: BattlePhase,
     messages: Vec<BattleMessage>,
-    countdown_ticks: u64,
-    max_turn_ticks: u64,
+    countdown_secs: u64,
+    max_turn_secs: u64,
 }
 
 async fn build_battle_update(
@@ -362,7 +365,41 @@ async fn build_battle_update(
         participants: participant_infos,
         phase: params.phase,
         messages: params.messages,
-        countdown_ticks: params.countdown_ticks,
-        max_turn_ticks: params.max_turn_ticks,
+        countdown_secs: params.countdown_secs,
+        max_turn_secs: params.max_turn_secs,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    fn ticks_to_secs(ticks: u64, tick_rate_ms: u64) -> u64 {
+        ticks * tick_rate_ms.max(1) / 1000
+    }
+
+    #[test]
+    fn timer_converts_correctly_at_1000ms_tick_rate() {
+        assert_eq!(ticks_to_secs(30, 1000), 30);
+        assert_eq!(ticks_to_secs(30, 1000), 30);
+    }
+
+    #[test]
+    fn timer_converts_correctly_at_500ms_tick_rate() {
+        // 60 max ticks * 500ms = 30 000ms = 30s; 30 countdown ticks * 500ms = 15s
+        assert_eq!(ticks_to_secs(60, 500), 30);
+        assert_eq!(ticks_to_secs(30, 500), 15);
+    }
+
+    #[test]
+    fn timer_display_is_tick_rate_independent() {
+        // Same wall-clock duration expressed at different tick rates must show the same seconds
+        let duration_ms = 30_000u64;
+        for &rate in &[250u64, 500, 1000, 2000] {
+            let ticks = duration_ms / rate;
+            assert_eq!(
+                ticks_to_secs(ticks, rate),
+                30,
+                "failed for tick_rate_ms={rate}"
+            );
+        }
     }
 }

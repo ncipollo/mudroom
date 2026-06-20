@@ -111,8 +111,8 @@ fn battle_update_snapshot(data: BattleUpdateMessage) -> BattleSnapshot {
         participants,
         phase: data.phase,
         turn_order: vec![],
-        countdown_ticks: data.countdown_ticks,
-        max_turn_ticks: data.max_turn_ticks,
+        countdown_secs: data.countdown_secs,
+        max_turn_secs: data.max_turn_secs,
         available_abilities: vec![],
     }
 }
@@ -139,8 +139,8 @@ fn battle_snapshot_from_message(data: BattleStartedMessage) -> BattleSnapshot {
         participants,
         phase: data.phase,
         turn_order: data.turn_order,
-        countdown_ticks: data.countdown_ticks,
-        max_turn_ticks: data.max_turn_ticks,
+        countdown_secs: data.countdown_secs,
+        max_turn_secs: data.max_turn_secs,
         available_abilities: data.available_abilities,
     }
 }

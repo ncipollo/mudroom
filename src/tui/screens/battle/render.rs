@@ -246,8 +246,8 @@ fn render_status_bar(frame: &mut Frame, battle: &BattleState, area: Rect) {
 
     let timer_str = match &battle.snapshot.phase {
         BattlePhase::Planning { .. } | BattlePhase::Response { .. } => {
-            let remaining = battle.snapshot.countdown_ticks;
-            let max = battle.snapshot.max_turn_ticks.max(1);
+            let remaining = battle.snapshot.countdown_secs;
+            let max = battle.snapshot.max_turn_secs.max(1);
             let filled = ((remaining * 10) / max).min(10) as usize;
             let bar = format!("{}{}", "█".repeat(filled), "░".repeat(10 - filled));
             format!(" | [{bar}] {remaining}")
