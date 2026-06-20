@@ -44,6 +44,9 @@ impl BattleState {
     }
 
     pub fn filtered_abilities(&self) -> Vec<&Ability> {
+        if !self.is_player_turn() {
+            return vec![];
+        }
         match &self.snapshot.phase {
             BattlePhase::Planning { .. } => self
                 .snapshot
@@ -62,6 +65,9 @@ impl BattleState {
     }
 
     pub fn ability_role_label(&self) -> Option<&str> {
+        if !self.is_player_turn() {
+            return None;
+        }
         match &self.snapshot.phase {
             BattlePhase::Planning { .. } => Some("Attack"),
             BattlePhase::Response { .. } => Some("Defend"),
