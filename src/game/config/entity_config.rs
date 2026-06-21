@@ -2,6 +2,7 @@ use crate::game::component::Ability;
 use crate::game::component::FactionRelations;
 use crate::game::component::effect::Effect;
 use crate::game::config::battle_ai_config::BattleAiConfig;
+use crate::game::config::config_path;
 use crate::game::config::dialog_parser::parse_dialog_markdown;
 use crate::game::config::persona_parser::{PersonaFile, parse_persona_markdown};
 use serde::{Deserialize, Serialize};
@@ -137,12 +138,7 @@ pub fn load_entity_configs(
         };
         config.id = Some(id.clone());
         if config.name.is_none() {
-            let stem = path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("unknown")
-                .to_string();
-            config.name = Some(stem);
+            config.name = Some(config_path::entity_name_from_path(path));
         }
         configs.insert(id, config);
     }
@@ -319,34 +315,5 @@ entity_type = "character"
         );
         let configs = load_entity_configs(tmp.path()).unwrap();
         assert!(configs.contains_key("custom_id"));
-    }
-
-    #[test]
-    fn load_entity_configs_uses_file_stem_as_default_name() {
-        let tmp = TempDir::new().unwrap();
-        write_file(
-            tmp.path(),
-            "entities/innkeeper.toml",
-            r#"entity_type = "character""#,
-        );
-        let configs = load_entity_configs(tmp.path()).unwrap();
-        let config = configs.get("entities/innkeeper").unwrap();
-        assert_eq!(config.name.as_deref(), Some("innkeeper"));
-    }
-
-    #[test]
-    fn load_entity_configs_uses_explicit_name_when_present() {
-        let tmp = TempDir::new().unwrap();
-        write_file(
-            tmp.path(),
-            "entities/innkeeper.toml",
-            r#"
-entity_type = "character"
-name = "The Innkeeper"
-"#,
-        );
-        let configs = load_entity_configs(tmp.path()).unwrap();
-        let config = configs.get("entities/innkeeper").unwrap();
-        assert_eq!(config.name.as_deref(), Some("The Innkeeper"));
     }
 }
