@@ -1,6 +1,9 @@
 entity_type = "enemy"
 factions = ["enemy"]
 
+name = "Zombie"
+description = "A shambling corpse, visbily decayed. Eyes completely white, no pupil to speak of."
+
 [battle_ai]
 ai_type = "simple_random"
 

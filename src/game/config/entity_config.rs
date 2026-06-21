@@ -2,6 +2,7 @@ use crate::game::component::Ability;
 use crate::game::component::FactionRelations;
 use crate::game::component::effect::Effect;
 use crate::game::config::battle_ai_config::BattleAiConfig;
+use crate::game::config::config_path;
 use crate::game::config::dialog_parser::parse_dialog_markdown;
 use crate::game::config::persona_parser::{PersonaFile, parse_persona_markdown};
 use serde::{Deserialize, Serialize};
@@ -65,6 +66,8 @@ pub struct StartingAttribute {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EntityConfig {
     pub id: Option<String>,
+    #[serde(default)]
+    pub name: Option<String>,
     pub entity_type: EntityTypeConfig,
     #[serde(default)]
     pub description: Option<String>,
@@ -134,6 +137,9 @@ pub fn load_entity_configs(
             rel.to_string_lossy().to_string()
         };
         config.id = Some(id.clone());
+        if config.name.is_none() {
+            config.name = Some(config_path::entity_name_from_path(path));
+        }
         configs.insert(id, config);
     }
     Ok(configs)

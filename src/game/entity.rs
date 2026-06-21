@@ -30,6 +30,8 @@ pub struct Entity {
     pub innate_abilities: Vec<Ability>,
     pub config_id: Option<String>,
     #[serde(default)]
+    pub name: String,
+    #[serde(default)]
     pub description: Option<String>,
     #[serde(skip)]
     pub ai: Option<EntityAI>,
@@ -65,6 +67,7 @@ impl Entity {
             interactions: Vec::new(),
             innate_abilities: Vec::new(),
             config_id: None,
+            name: String::new(),
             description: None,
             ai: None,
             battle_ai: BattleAiConfig::default(),
