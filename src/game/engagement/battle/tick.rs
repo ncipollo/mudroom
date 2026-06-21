@@ -8,11 +8,11 @@ use crate::game::entity::Entity;
 use crate::game::messaging::{BattleParticipantInfo, BattleUpdateMessage};
 use crate::game::{GameState, messaging};
 
-use super::{loot, timer};
 use super::resolution;
 use super::{
     BattleMessage, BattlePhase, BattleTick, QueuedAbility, entity_innate_battle_abilities,
 };
+use super::{loot, timer};
 
 struct BattleTickOutcome {
     engagement_id: i64,
@@ -130,7 +130,6 @@ async fn collect_entity_data(
     result: &BattleTick,
 ) -> (Vec<(i64, Vec<Ability>)>, HashMap<i64, String>, Vec<i64>) {
     let entities = game_state.active_entities.read().await;
-    let players = game_state.active_players.read().await;
 
     let innate_jobs: Vec<(i64, Vec<Ability>)> = result
         .innate_entity_ids
@@ -150,16 +149,9 @@ async fn collect_entity_data(
         .all_participant_ids
         .iter()
         .map(|&eid| {
-            let name = players
-                .values()
-                .find(|p| p.entity_id == eid)
-                .map(|p| p.name.clone())
-                .or_else(|| {
-                    entities
-                        .get(&eid)
-                        .and_then(|e| e.config_id.as_deref())
-                        .map(str::to_string)
-                })
+            let name = entities
+                .get(&eid)
+                .map(|e| e.name.clone())
                 .unwrap_or_else(|| format!("Entity {eid}"));
             (eid, name)
         })
@@ -322,7 +314,6 @@ async fn build_battle_update(
     params: BattleUpdateParams,
 ) -> BattleUpdateMessage {
     let entities = game_state.active_entities.read().await;
-    let players = game_state.active_players.read().await;
     let hp_attr_id = messaging::hp_attribute_id(&game_state.attribute_config);
 
     let participant_infos = params
@@ -333,15 +324,8 @@ async fn build_battle_update(
                 .iter()
                 .map(|&id| {
                     let entity = entities.get(&id);
-                    let name = players
-                        .values()
-                        .find(|p| p.entity_id == id)
-                        .map(|p| p.name.clone())
-                        .or_else(|| {
-                            entity
-                                .and_then(|e| e.config_id.as_deref())
-                                .map(str::to_string)
-                        })
+                    let name = entity
+                        .map(|e| e.name.clone())
                         .unwrap_or_else(|| format!("Entity {id}"));
                     let (hp_current, hp_max) = entity
                         .and_then(|e| e.attributes.get(&hp_attr_id))

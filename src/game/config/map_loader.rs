@@ -166,7 +166,11 @@ async fn sync_room_entities(
 ) -> Result<(), Box<dyn Error>> {
     for config_id in &room.entities {
         if let Some(config) = entity_configs.get(config_id) {
-            sync_entity(pool, world_id, dungeon_id, &room.id, config_id, config).await?;
+            let name = config.name.as_deref().unwrap_or("unknown");
+            sync_entity(
+                pool, world_id, dungeon_id, &room.id, config_id, name, config,
+            )
+            .await?;
         }
     }
     Ok(())
@@ -178,6 +182,7 @@ async fn sync_entity(
     dungeon_id: &str,
     room_id: &str,
     config_id: &str,
+    name: &str,
     config: &EntityConfig,
 ) -> Result<(), Box<dyn Error>> {
     let entity_type = match config.entity_type {
@@ -196,6 +201,7 @@ async fn sync_entity(
         &location,
         config_id,
         config.description.as_deref(),
+        name,
     )
     .await?;
     entity_repo::update_battle_ai_type(pool, entity_id, &config.battle_ai.ai_type).await?;
@@ -405,6 +411,7 @@ mod tests {
         use crate::game::config::entity_config::{EntityConfig, EntityTypeConfig};
         let config = EntityConfig {
             id: Some("entities/innkeeper".to_string()),
+            name: Some("innkeeper".to_string()),
             entity_type: EntityTypeConfig::Character,
             description: None,
             persona: None,
@@ -426,6 +433,7 @@ mod tests {
         };
         let config = EntityConfig {
             id: Some("entities/innkeeper".to_string()),
+            name: Some("innkeeper".to_string()),
             entity_type: EntityTypeConfig::Character,
             description: None,
             persona: None,
@@ -560,6 +568,7 @@ mod tests {
             "entities/innkeeper".to_string(),
             EntityConfig {
                 id: Some("entities/innkeeper".to_string()),
+                name: Some("innkeeper".to_string()),
                 entity_type: EntityTypeConfig::Character,
                 description: None,
                 persona: None,
@@ -600,6 +609,7 @@ mod tests {
         use crate::game::config::entity_config::{EntityConfig, EntityTypeConfig};
         let config = EntityConfig {
             id: Some("entities/zombie".to_string()),
+            name: Some("zombie".to_string()),
             entity_type: EntityTypeConfig::Enemy,
             description: None,
             persona: None,

@@ -45,6 +45,7 @@ pub async fn player_create_handler(
         room_id: spawn.room_id.clone(),
     };
     let mut entity = Entity::new(0, EntityType::Player, location);
+    entity.name = body.name.clone();
     entity.attributes = default_player_attributes();
     let entity_id = entity_repo::insert(pool, &entity)
         .await
@@ -87,10 +88,11 @@ async fn activate_player(
     player: &Player,
 ) -> Result<(), StatusCode> {
     let pool = state.db.pool();
-    let entity = entity_repo::find_by_id(pool, player.entity_id)
+    let mut entity = entity_repo::find_by_id(pool, player.entity_id)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .ok_or(StatusCode::NOT_FOUND)?;
+    entity.name = player.name.clone();
 
     let room_id = entity.location.room_id.clone();
     register_player_in_game_state(state, client_id, player, entity).await;

@@ -65,6 +65,8 @@ pub struct StartingAttribute {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EntityConfig {
     pub id: Option<String>,
+    #[serde(default)]
+    pub name: Option<String>,
     pub entity_type: EntityTypeConfig,
     #[serde(default)]
     pub description: Option<String>,
@@ -134,6 +136,14 @@ pub fn load_entity_configs(
             rel.to_string_lossy().to_string()
         };
         config.id = Some(id.clone());
+        if config.name.is_none() {
+            let stem = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("unknown")
+                .to_string();
+            config.name = Some(stem);
+        }
         configs.insert(id, config);
     }
     Ok(configs)
@@ -309,5 +319,34 @@ entity_type = "character"
         );
         let configs = load_entity_configs(tmp.path()).unwrap();
         assert!(configs.contains_key("custom_id"));
+    }
+
+    #[test]
+    fn load_entity_configs_uses_file_stem_as_default_name() {
+        let tmp = TempDir::new().unwrap();
+        write_file(
+            tmp.path(),
+            "entities/innkeeper.toml",
+            r#"entity_type = "character""#,
+        );
+        let configs = load_entity_configs(tmp.path()).unwrap();
+        let config = configs.get("entities/innkeeper").unwrap();
+        assert_eq!(config.name.as_deref(), Some("innkeeper"));
+    }
+
+    #[test]
+    fn load_entity_configs_uses_explicit_name_when_present() {
+        let tmp = TempDir::new().unwrap();
+        write_file(
+            tmp.path(),
+            "entities/innkeeper.toml",
+            r#"
+entity_type = "character"
+name = "The Innkeeper"
+"#,
+        );
+        let configs = load_entity_configs(tmp.path()).unwrap();
+        let config = configs.get("entities/innkeeper").unwrap();
+        assert_eq!(config.name.as_deref(), Some("The Innkeeper"));
     }
 }
