@@ -7,6 +7,7 @@ pub mod queued_ability;
 pub mod resolution;
 pub mod state;
 pub mod tick;
+pub mod timer;
 
 use std::collections::HashMap;
 

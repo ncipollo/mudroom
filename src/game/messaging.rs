@@ -40,8 +40,8 @@ pub struct BattleUpdateMessage {
     pub participants: HashMap<String, Vec<BattleParticipantInfo>>,
     pub phase: BattlePhase,
     pub messages: Vec<BattleMessage>,
-    pub countdown_ticks: u64,
-    pub max_turn_ticks: u64,
+    pub countdown_secs: u64,
+    pub max_turn_secs: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -51,8 +51,8 @@ pub struct BattleStartedMessage {
     pub participants: HashMap<String, Vec<BattleParticipantInfo>>,
     pub phase: BattlePhase,
     pub turn_order: Vec<i64>,
-    pub countdown_ticks: u64,
-    pub max_turn_ticks: u64,
+    pub countdown_secs: u64,
+    pub max_turn_secs: u64,
     pub available_abilities: Vec<Ability>,
 }
 

@@ -8,7 +8,7 @@ use crate::game::entity::Entity;
 use crate::game::messaging::{BattleParticipantInfo, BattleUpdateMessage};
 use crate::game::{GameState, messaging};
 
-use super::loot;
+use super::{loot, timer};
 use super::resolution;
 use super::{
     BattleMessage, BattlePhase, BattleTick, QueuedAbility, entity_innate_battle_abilities,
@@ -91,14 +91,17 @@ async fn handle_tick(
     let player_ids = find_participant_player_ids(game_state, &all_ids).await;
 
     let countdown_ticks = max_engage_ticks.saturating_sub(result.ticks_in_phase);
+    let tick_rate_ms = game_state.mud_config.game_loop.tick_rate_ms;
+    let countdown_secs = timer::ticks_to_secs(countdown_ticks, tick_rate_ms);
+    let max_turn_secs = timer::ticks_to_secs(max_engage_ticks, tick_rate_ms);
     let params = BattleUpdateParams {
         engagement_id,
         factions: result.factions,
         participants: result.participants,
         phase: result.phase,
         messages: all_tick_messages,
-        countdown_ticks,
-        max_turn_ticks: max_engage_ticks,
+        countdown_secs,
+        max_turn_secs,
     };
     let update = build_battle_update(game_state, params).await;
 
@@ -310,8 +313,8 @@ struct BattleUpdateParams {
     participants: HashMap<String, Vec<i64>>,
     phase: BattlePhase,
     messages: Vec<BattleMessage>,
-    countdown_ticks: u64,
-    max_turn_ticks: u64,
+    countdown_secs: u64,
+    max_turn_secs: u64,
 }
 
 async fn build_battle_update(
@@ -362,7 +365,7 @@ async fn build_battle_update(
         participants: participant_infos,
         phase: params.phase,
         messages: params.messages,
-        countdown_ticks: params.countdown_ticks,
-        max_turn_ticks: params.max_turn_ticks,
+        countdown_secs: params.countdown_secs,
+        max_turn_secs: params.max_turn_secs,
     }
 }
