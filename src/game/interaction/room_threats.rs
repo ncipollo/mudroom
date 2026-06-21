@@ -144,8 +144,9 @@ async fn build_battle_started_message(
     let mut turn_order: Vec<i64> = participants.values().flatten().copied().collect();
     turn_order.sort_unstable();
 
-    let tick_rate_ms = game_state.mud_config.game_loop.tick_rate_ms.max(1);
-    let max_turn_secs = max_turn_ticks * tick_rate_ms / 1000;
+    let tick_rate_ms = game_state.mud_config.game_loop.tick_rate_ms;
+    let max_turn_secs =
+        crate::game::engagement::battle::timer::ticks_to_secs(max_turn_ticks, tick_rate_ms);
 
     BattleStartedMessage {
         engagement_id,
