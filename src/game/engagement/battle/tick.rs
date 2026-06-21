@@ -8,7 +8,7 @@ use crate::game::entity::Entity;
 use crate::game::messaging::{BattleParticipantInfo, BattleUpdateMessage};
 use crate::game::{GameState, messaging};
 
-use super::loot;
+use super::{loot, timer};
 use super::resolution;
 use super::{
     BattleMessage, BattlePhase, BattleTick, QueuedAbility, entity_innate_battle_abilities,
@@ -92,8 +92,8 @@ async fn handle_tick(
 
     let countdown_ticks = max_engage_ticks.saturating_sub(result.ticks_in_phase);
     let tick_rate_ms = game_state.mud_config.game_loop.tick_rate_ms;
-    let countdown_secs = super::timer::ticks_to_secs(countdown_ticks, tick_rate_ms);
-    let max_turn_secs = super::timer::ticks_to_secs(max_engage_ticks, tick_rate_ms);
+    let countdown_secs = timer::ticks_to_secs(countdown_ticks, tick_rate_ms);
+    let max_turn_secs = timer::ticks_to_secs(max_engage_ticks, tick_rate_ms);
     let params = BattleUpdateParams {
         engagement_id,
         factions: result.factions,

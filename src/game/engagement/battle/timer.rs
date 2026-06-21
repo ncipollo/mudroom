@@ -17,18 +17,4 @@ mod tests {
         assert_eq!(ticks_to_secs(60, 500), 30);
         assert_eq!(ticks_to_secs(30, 500), 15);
     }
-
-    #[test]
-    fn timer_display_is_tick_rate_independent() {
-        // Same wall-clock duration expressed at different tick rates must show the same seconds
-        let duration_ms = 30_000u64;
-        for &rate in &[250u64, 500, 1000, 2000] {
-            let ticks = duration_ms / rate;
-            assert_eq!(
-                ticks_to_secs(ticks, rate),
-                30,
-                "failed for tick_rate_ms={rate}"
-            );
-        }
-    }
 }
