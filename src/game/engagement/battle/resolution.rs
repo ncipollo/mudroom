@@ -5,64 +5,62 @@ use crate::game::entity::Entity;
 
 use super::BattleMessage;
 
+#[derive(Default)]
+struct ResolutionContext {
+    once_shields: Vec<Effect>,
+}
+
 pub fn resolve_effects(
     target_id: i64,
-    effects: Vec<Effect>,
+    mut effects: Vec<Effect>,
     entities: &mut HashMap<i64, Entity>,
 ) -> Vec<BattleMessage> {
     let Some(entity) = entities.get_mut(&target_id) else {
         return vec![];
     };
-
-    // Shield effects intercept incoming effects before they reach the entity.
-    let (shield_effects, incoming_effects): (Vec<Effect>, Vec<Effect>) = effects
-        .into_iter()
-        .partition(|e| matches!(e.effect_type, EffectType::AttributeShield { .. }));
-
-    let mut once_shields = collect_shield_effects(shield_effects, entity);
-
-    for effect in &incoming_effects {
-        if let (
-            TriggerInfo::Once,
-            EffectType::AttributeUpdate {
-                attribute_id,
-                value,
-            },
-        ) = (&effect.trigger_info, &effect.effect_type)
-        {
-            apply_attribute_update(entity, attribute_id, *value, &mut once_shields);
-        }
+    effects.sort_by_key(|e| e.effect_type.resolution_order());
+    let mut context = ResolutionContext::default();
+    for effect in &effects {
+        resolve_effect(effect, entity, &mut context);
     }
-
     vec![]
 }
 
-/// Splits shield effects by trigger: OverTime shields are stubbed into `active_effects` for
-/// future handling; Once shields are returned for inline absorption this pass.
-fn collect_shield_effects(shield_effects: Vec<Effect>, entity: &mut Entity) -> Vec<Effect> {
-    let mut once_shields = Vec::new();
-    for shield in shield_effects {
-        match shield.trigger_info {
-            TriggerInfo::OverTime { .. } => entity.active_effects.push(shield),
-            TriggerInfo::Once => once_shields.push(shield),
-        }
+fn resolve_effect(effect: &Effect, entity: &mut Entity, context: &mut ResolutionContext) {
+    match &effect.effect_type {
+        EffectType::AttributeShield { .. } => apply_attribute_shield(effect, entity, context),
+        EffectType::AttributeUpdate { .. } => apply_attribute_update(effect, entity, context),
+        EffectType::EntitySpawn { .. } => apply_entity_spawn(effect, entity, context),
     }
-    once_shields
 }
 
-fn apply_attribute_update(
-    entity: &mut Entity,
-    attribute_id: &str,
-    value: i64,
-    once_shields: &mut Vec<Effect>,
-) {
-    let adjusted = absorb_with_shields(once_shields, attribute_id, value);
+fn apply_attribute_shield(effect: &Effect, entity: &mut Entity, context: &mut ResolutionContext) {
+    match effect.trigger_info {
+        TriggerInfo::Once => context.once_shields.push(effect.clone()),
+        TriggerInfo::OverTime { .. } => entity.active_effects.push(effect.clone()),
+    }
+}
+
+fn apply_attribute_update(effect: &Effect, entity: &mut Entity, context: &mut ResolutionContext) {
+    let EffectType::AttributeUpdate {
+        attribute_id,
+        value,
+    } = &effect.effect_type
+    else {
+        return;
+    };
+    if effect.trigger_info != TriggerInfo::Once {
+        return;
+    }
+    let adjusted = absorb_with_shields(&mut context.once_shields, attribute_id, *value);
     if let Some(attr) = entity.attributes.get_mut(attribute_id) {
         attr.current_value = (attr.current_value + adjusted)
             .max(attr.min_value)
             .min(attr.max_value);
     }
 }
+
+fn apply_entity_spawn(_effect: &Effect, _entity: &mut Entity, _context: &mut ResolutionContext) {}
 
 fn absorb_with_shields(once_shields: &mut Vec<Effect>, attribute_id: &str, value: i64) -> i64 {
     if value >= 0 {

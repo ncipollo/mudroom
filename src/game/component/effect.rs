@@ -29,6 +29,16 @@ pub enum EffectType {
     },
 }
 
+impl EffectType {
+    pub fn resolution_order(&self) -> u8 {
+        match self {
+            EffectType::AttributeShield { .. } => 0,
+            EffectType::AttributeUpdate { .. } => 1,
+            EffectType::EntitySpawn { .. } => 2,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct EffectDescription {
     pub start_description: Option<String>,
