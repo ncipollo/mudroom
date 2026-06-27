@@ -62,6 +62,7 @@ pub enum NetworkEvent {
         client_id: String,
         player_id: i64,
         player_name: String,
+        entity_id: i64,
     },
     Message {
         player_id: i64,

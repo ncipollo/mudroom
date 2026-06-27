@@ -185,11 +185,21 @@ fn render_abilities_panel(frame: &mut Frame, battle: &BattleState, area: Rect) {
 fn render_message_log(frame: &mut Frame, app: &App, battle: &BattleState, area: Rect) {
     let panel_height = area.height.saturating_sub(2) as usize;
 
-    let all_lines: Vec<Line> = battle
-        .message_log
-        .iter()
-        .map(|msg| battle_message_to_line(msg))
-        .collect();
+    let msgs = &battle.message_log;
+    let mut all_lines: Vec<Line> = Vec::with_capacity(msgs.len());
+    let mut i = 0;
+    while i < msgs.len() {
+        if matches!(msgs[i], BattleMessage::PendingAttack { .. }) {
+            let start = i;
+            while i < msgs.len() && matches!(msgs[i], BattleMessage::PendingAttack { .. }) {
+                i += 1;
+            }
+            all_lines.extend(render_pending_group(&msgs[start..i], app.current_entity_id));
+        } else {
+            all_lines.push(battle_message_to_line(&msgs[i]));
+            i += 1;
+        }
+    }
 
     let total_lines = all_lines.len();
     let max_offset = total_lines.saturating_sub(panel_height);
@@ -201,6 +211,35 @@ fn render_message_log(frame: &mut Frame, app: &App, battle: &BattleState, area: 
         .wrap(Wrap { trim: true })
         .scroll((scroll_from_top, 0));
     frame.render_widget(log, area);
+}
+
+fn render_pending_group(
+    messages: &[BattleMessage],
+    player_entity_id: Option<i64>,
+) -> Vec<Line<'_>> {
+    if messages.len() <= 1 {
+        return messages.iter().map(battle_message_to_line).collect();
+    }
+
+    let (player_targeted, others): (Vec<_>, Vec<_>) = messages.iter().partition(|msg| {
+        if let BattleMessage::PendingAttack { target_id, .. } = msg {
+            player_entity_id == Some(*target_id)
+        } else {
+            false
+        }
+    });
+
+    let mut lines: Vec<Line<'_>> = others.iter().map(|m| battle_message_to_line(m)).collect();
+
+    if !player_targeted.is_empty() {
+        lines.push(Line::from(Span::styled(
+            "── Targeting you ──",
+            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+        )));
+        lines.extend(player_targeted.iter().map(|m| battle_message_to_line(m)));
+    }
+
+    lines
 }
 
 fn battle_message_to_line(msg: &BattleMessage) -> Line<'_> {
@@ -220,6 +259,12 @@ fn battle_message_to_line(msg: &BattleMessage) -> Line<'_> {
         BattleMessage::EntityDied { .. } => Line::from(Span::styled(
             msg.to_string(),
             Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+        )),
+        BattleMessage::PendingAttack { .. } => Line::from(Span::styled(
+            msg.to_string(),
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::ITALIC),
         )),
         BattleMessage::Meta(_) => Line::from(Span::styled(
             msg.to_string(),

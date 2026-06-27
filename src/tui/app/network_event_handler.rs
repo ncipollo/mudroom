@@ -27,9 +27,11 @@ impl App {
             NetworkEvent::PlayerSelected {
                 player_name,
                 player_id,
+                entity_id,
                 ..
             } => {
                 self.current_player_id = Some(player_id);
+                self.current_entity_id = Some(entity_id);
                 self.streaming_message_index = None;
                 self.messages
                     .push(AppMessage::normal(format!("Playing as: {player_name}")));
