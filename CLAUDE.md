@@ -18,12 +18,14 @@ Always use exact versions for dependencies in `Cargo.toml` (e.g., `"4.5.60"` not
 ## Module Conventions
 Never use `mod.rs`. Always use the modern Rust style: create a top-level file (e.g., `foo.rs`) as the module root, and a matching folder (`foo/`) for any submodules.
 
+Top-level module files (e.g. `engagement.rs`, `game_loop.rs`) must contain only globally-scoped, cross-cutting functions. Logic specific to a sub-domain belongs in the matching submodule (e.g. battle logic → `engagement/battle/`, not `engagement.rs`).
+
 ## Imports
 Always use `use` imports rather than full crate paths at call sites. For example, prefer `use crate::game::engagement;` + `engagement::process(...)` over `crate::game::engagement::process(...)`.
 
 ## Architecture
 
-See [`arch.md`](arch.md) for the full architecture overview. New code must be placed within one of the existing domain modules below — do not create new top-level modules unless explicitly instructed. Quick module map:
+See [`arch.md`](docs/engine/arch.md) for the full architecture overview. New code must be placed within one of the existing domain modules below — do not create new top-level modules unless explicitly instructed. Quick module map:
 
 | Module | Layer | Notes |
 |---|---|---|
@@ -37,7 +39,3 @@ See [`arch.md`](arch.md) for the full architecture overview. New code must be pl
 | `agent/` | Infrastructure | LLM providers + entity AI state |
 | `paths.rs` | Infrastructure | Filesystem path helpers |
 | `cli.rs`, `logging.rs` | Entry / Cross-cutting | — |
-
-## Feature Documentation
-
-When adding or updating feature documentation, use `code-docs/template.md` as the format: a top-level heading, a Mermaid diagram, and a bullet-point summary.
