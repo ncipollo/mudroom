@@ -1,7 +1,6 @@
 use sqlx::SqlitePool;
 
-use crate::game::component::Ability;
-use crate::game::component::ability::AbilityRole;
+use crate::game::component::{Ability, AbilityRole};
 use crate::persistence::error::PersistenceError;
 
 type AbilityRow = (

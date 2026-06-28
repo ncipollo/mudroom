@@ -1,0 +1,10 @@
+name = "Electric Shot"
+description = "A charged burst of electrical energy."
+engagement_types = ["battle"]
+costs = []
+role = "attack"
+
+[[effects]]
+name = "electric_damage"
+trigger_info = { type = "once" }
+effect_type = { type = "attribute_update", attribute_id = "hp", value = -12 }

@@ -1,6 +1,5 @@
-use crate::game::component::Ability;
-use crate::game::component::ability::AbilityRole;
 use crate::game::component::effect::{Effect, EffectDescription, EffectType, TriggerInfo};
+use crate::game::component::{Ability, AbilityRole};
 use crate::game::engagement::EngagementType;
 use crate::game::entity::Entity;
 

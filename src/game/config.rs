@@ -1,3 +1,4 @@
+pub mod ability_config;
 pub mod agent_config;
 pub mod attribute_config;
 pub mod battle_ai_config;

@@ -1,4 +1,4 @@
-use crate::game::component::ability::{Ability, AbilityRole};
+use crate::game::component::{Ability, AbilityRole};
 use crate::game::engagement::battle::{BattleMessage, BattlePhase};
 use crate::network::event::{BattleSnapshot, ParticipantInfo};
 

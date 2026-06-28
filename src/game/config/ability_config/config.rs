@@ -34,6 +34,7 @@ pub struct Modifier {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Ability {
+    #[serde(default)]
     pub id: String,
     pub name: String,
     pub description: Option<String>,

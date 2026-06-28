@@ -1,4 +1,3 @@
-pub mod ability;
 pub mod attribute;
 pub mod attribute_definition;
 pub mod check;
@@ -10,8 +9,7 @@ pub mod interaction;
 pub mod location;
 pub mod resource_definition;
 
-pub use ability::Ability;
-pub use ability::Cost;
+pub use crate::game::config::ability_config::{Ability, AbilityRole, Cost, Modifier, Operator};
 pub use attribute::Attribute;
 pub use attribute_definition::AttributeCategory;
 pub use attribute_definition::AttributeDefinition;
