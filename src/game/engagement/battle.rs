@@ -2,6 +2,7 @@ pub mod abilities;
 pub mod ai;
 pub mod loot;
 pub mod message;
+pub mod participants;
 pub mod phase;
 pub mod queued_ability;
 pub mod resolution;

@@ -11,6 +11,7 @@ use tracing;
 use crate::game::component::interaction::Movement;
 use crate::game::engagement::TurnAction;
 use crate::game::engagement::battle;
+use crate::game::messaging;
 use crate::game::player::Player;
 use crate::game::{GameState, Interaction};
 use crate::persistence::Database;
@@ -54,8 +55,11 @@ async fn dispatch_interaction(
         conv @ (Interaction::StartConversation { .. } | Interaction::EndConversation) => {
             dispatch_conversation(game_state, player, conv).await;
         }
-        Interaction::JoinBattle { engagement_id } | Interaction::LeaveBattle { engagement_id } => {
-            tracing::debug!(engagement_id, "battle interaction");
+        Interaction::JoinBattle { .. } => {
+            dispatch_join_battle(game_state, player).await;
+        }
+        Interaction::LeaveBattle { .. } => {
+            dispatch_leave_battle(game_state, player).await;
         }
     }
 }
@@ -148,4 +152,79 @@ async fn dispatch_conversation(
         }
         _ => {}
     }
+}
+
+async fn dispatch_join_battle(game_state: &Arc<GameState>, player: &Player) {
+    let room_id = {
+        let entities = game_state.active_entities.read().await;
+        entities
+            .get(&player.entity_id)
+            .map(|e| e.location.room_id.clone())
+    };
+    let Some(room_id) = room_id else {
+        return;
+    };
+
+    let Some(engagement_id) = game_state.engagements.find_battle_for_room(&room_id).await else {
+        messaging::message(
+            &game_state.message_tx,
+            player.id,
+            "There is no active battle here.",
+        );
+        return;
+    };
+
+    let faction = {
+        let entities = game_state.active_entities.read().await;
+        entities
+            .get(&player.entity_id)
+            .and_then(|e| e.factions.iter().next().cloned())
+            .unwrap_or_else(|| "player".to_string())
+    };
+
+    battle::participants::add_entity(
+        &game_state.engagements,
+        engagement_id,
+        &faction,
+        player.entity_id,
+    )
+    .await;
+
+    let Some((factions, participants)) =
+        battle::participants::snapshot(&game_state.engagements, engagement_id).await
+    else {
+        return;
+    };
+
+    let max_turn_ticks = (game_state.mud_config.game_loop.max_engage_ms
+        / game_state.mud_config.game_loop.tick_rate_ms)
+        .max(1);
+
+    let started_msg = room_threats::build_battle_started_message(
+        game_state,
+        player,
+        engagement_id,
+        &factions,
+        &participants,
+        max_turn_ticks,
+    )
+    .await;
+
+    messaging::battle_started(&game_state.message_tx, player.id, started_msg);
+    messaging::message(&game_state.message_tx, player.id, "You join the battle!");
+}
+
+async fn dispatch_leave_battle(game_state: &Arc<GameState>, player: &Player) {
+    let Some((engagement_id, surviving)) =
+        battle::participants::remove_entity(&game_state.engagements, player.entity_id).await
+    else {
+        return;
+    };
+
+    if surviving <= 1 {
+        game_state.engagements.conclude_battle(engagement_id).await;
+        game_state.engagements.remove(engagement_id).await;
+    }
+
+    messaging::battle_ended(&game_state.message_tx, player.id, engagement_id);
 }

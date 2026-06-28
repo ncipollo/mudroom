@@ -6,6 +6,7 @@ pub enum Command {
     Help,
     Talk(Option<String>),
     Choose(String),
+    Attack,
     #[allow(dead_code)]
     Enter(String),
     Unknown,
@@ -22,6 +23,7 @@ pub fn parse(input: &str) -> Command {
         "w" | "west" => Command::Move(Direction::West),
         "l" | "look" => Command::Look,
         "h" | "help" => Command::Help,
+        "a" | "attack" => Command::Attack,
         "t" | "talk" | "say" => Command::Talk(None),
         _ => {
             if lower.starts_with("talk ") {

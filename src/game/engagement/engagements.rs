@@ -12,7 +12,7 @@ use crate::game::engagement::TurnAction;
 use crate::game::engagement::battle::{BattleAiContext, BattlePhase, BattleTick};
 
 pub struct Engagements {
-    engagements_by_id: RwLock<HashMap<i64, Engagement>>,
+    pub(in crate::game::engagement) engagements_by_id: RwLock<HashMap<i64, Engagement>>,
     next_id: AtomicI64,
 }
 

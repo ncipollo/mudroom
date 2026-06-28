@@ -118,7 +118,7 @@ async fn start_battle(
     );
 }
 
-async fn build_battle_started_message(
+pub(super) async fn build_battle_started_message(
     game_state: &Arc<GameState>,
     player: &Player,
     engagement_id: i64,
@@ -205,7 +205,7 @@ fn resolve_entity_name(
         .unwrap_or_else(|| format!("Entity {entity_id}"))
 }
 
-fn hp_attribute_id(attribute_config: &crate::game::config::AttributeConfig) -> String {
+pub(super) fn hp_attribute_id(attribute_config: &crate::game::config::AttributeConfig) -> String {
     attribute_config
         .attributes
         .iter()

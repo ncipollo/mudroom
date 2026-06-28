@@ -121,6 +121,13 @@ impl BattleEngagement {
         }
     }
 
+    pub fn add_entity(&mut self, faction: &str, entity_id: i64) {
+        self.participants
+            .entry(faction.to_string())
+            .or_default()
+            .push(entity_id);
+    }
+
     pub fn remove_entity(&mut self, entity_id: i64) {
         for ids in self.participants.values_mut() {
             ids.retain(|&id| id != entity_id);
