@@ -39,7 +39,3 @@ See [`arch.md`](docs/engine/arch.md) for the full architecture overview. New cod
 | `agent/` | Infrastructure | LLM providers + entity AI state |
 | `paths.rs` | Infrastructure | Filesystem path helpers |
 | `cli.rs`, `logging.rs` | Entry / Cross-cutting | — |
-
-## Feature Documentation
-
-When adding or updating feature documentation, use `code-docs/template.md` as the format: a top-level heading, a Mermaid diagram, and a bullet-point summary.
