@@ -1,0 +1,10 @@
+name = "Swing Ax"
+description = "A wild swing with a rusty ax."
+engagement_types = ["battle"]
+costs = []
+role = "attack"
+
+[[effects]]
+name = "ax_damage"
+trigger_info = { type = "once" }
+effect_type = { type = "attribute_update", attribute_id = "hp", value = -15 }
