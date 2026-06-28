@@ -6,7 +6,8 @@ use tokio::sync::RwLock;
 use tokio::sync::broadcast;
 
 use crate::game::config::{
-    AttributeConfig, EntityConfig, FactionConfig, MudConfig, ResourceConfig, load_entity_configs,
+    AttributeConfig, ClassConfig, EntityConfig, FactionConfig, MudConfig, ResourceConfig,
+    load_classes, load_entity_configs,
 };
 use crate::game::engagement::Engagements;
 use crate::game::entity::Entity;
@@ -23,6 +24,7 @@ pub struct GameState {
     pub resource_config: ResourceConfig,
     pub mud_config: MudConfig,
     pub entity_configs: HashMap<String, EntityConfig>,
+    pub classes: HashMap<String, ClassConfig>,
     pub active_entities: RwLock<HashMap<i64, Entity>>,
     pub active_dungeons: RwLock<HashSet<(String, String)>>,
     pub engagements: Engagements,
@@ -83,6 +85,12 @@ impl GameState {
             HashMap::new()
         };
 
+        let classes = if let Some(dir) = config_dir {
+            load_classes(dir).unwrap_or_default()
+        } else {
+            HashMap::new()
+        };
+
         let (message_tx, _) = broadcast::channel::<PlayerMessage>(512);
 
         Ok(Self {
@@ -91,6 +99,7 @@ impl GameState {
             resource_config,
             mud_config,
             entity_configs,
+            classes,
             active_entities: RwLock::new(HashMap::new()),
             active_dungeons: RwLock::new(HashSet::new()),
             engagements: Engagements::new(),
