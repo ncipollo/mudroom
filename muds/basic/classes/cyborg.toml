@@ -1,0 +1,48 @@
+name = "Cyborg"
+description = "A cybernetically enhanced fighter with integrated energy weapons."
+
+[[attributes]]
+definition_id = "hp"
+min_value = 0
+max_value = 90
+current_value = 90
+
+[[attributes]]
+definition_id = "mp"
+min_value = 0
+max_value = 60
+current_value = 60
+
+[[innate_abilities]]
+id = "heat_beam"
+name = "Heat Beam"
+description = "Fires a focused beam of superheated energy that burns through armor."
+engagement_types = ["battle"]
+costs = []
+role = "attack"
+
+[[innate_abilities.effects]]
+name = "heat_damage"
+trigger_info = { type = "once" }
+
+[innate_abilities.effects.effect_type]
+type = "attribute_update"
+attribute_id = "hp"
+value = -15
+
+[[innate_abilities]]
+id = "electric_shot"
+name = "Electric Shot"
+description = "Discharges a bolt of electricity that arcs through the target."
+engagement_types = ["battle"]
+costs = []
+role = "attack"
+
+[[innate_abilities.effects]]
+name = "electric_damage"
+trigger_info = { type = "once" }
+
+[innate_abilities.effects.effect_type]
+type = "attribute_update"
+attribute_id = "hp"
+value = -12

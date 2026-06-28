@@ -2,6 +2,7 @@ pub mod ability_config;
 pub mod agent_config;
 pub mod attribute_config;
 pub mod battle_ai_config;
+pub mod class_config;
 pub mod config_path;
 mod dialog_parser;
 pub mod entity_config;
@@ -18,8 +19,10 @@ pub use ability_config::AbilityReference;
 pub use agent_config::{AgentConfig, AgentProviderConfig};
 pub use attribute_config::AttributeConfig;
 pub use battle_ai_config::{BattleAiConfig, BattleAiType};
+pub use class_config::{ClassConfig, load_classes};
 pub use entity_config::{
-    DialogLine, EntityConfig, EntityTypeConfig, PersonaConfig, PlayerResponse, load_entity_configs,
+    DialogLine, EntityConfig, EntityTypeConfig, PersonaConfig, PlayerResponse, StartingAttribute,
+    load_entity_configs,
 };
 pub use faction_config::FactionConfig;
 pub use game_loop_config::GameLoopConfig;
