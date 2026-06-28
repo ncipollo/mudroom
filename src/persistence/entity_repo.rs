@@ -6,7 +6,7 @@ use crate::game::component::Attribute;
 use crate::game::config::{BattleAiConfig, BattleAiType};
 use crate::game::{Entity, EntityType, Location};
 use crate::persistence::error::PersistenceError;
-use crate::persistence::{faction_relations_repo, faction_repo};
+use crate::persistence::{ability_repo, faction_relations_repo, faction_repo};
 
 type EntityRow = (
     i64,
@@ -108,6 +108,7 @@ pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<Entity>, Pe
     if let Some(row) = row {
         let mut entity = build_entity(row);
         load_faction_data(pool, &mut entity).await?;
+        load_ability_data(pool, &mut entity).await?;
         Ok(Some(entity))
     } else {
         Ok(None)
@@ -131,6 +132,7 @@ pub async fn find_by_location(
     for row in rows {
         let mut entity = build_entity(row);
         load_faction_data(pool, &mut entity).await?;
+        load_ability_data(pool, &mut entity).await?;
         entities.push(entity);
     }
     Ok(entities)
@@ -153,6 +155,7 @@ pub async fn find_config_entities_by_dungeon(
     for row in rows {
         let mut entity = build_entity(row);
         load_faction_data(pool, &mut entity).await?;
+        load_ability_data(pool, &mut entity).await?;
         entities.push(entity);
     }
     Ok(entities)
@@ -239,6 +242,14 @@ async fn load_faction_data(pool: &SqlitePool, entity: &mut Entity) -> Result<(),
     let db_relations = faction_relations_repo::find_by_entity(pool, entity.id).await?;
     if !db_relations.factions.is_empty() {
         entity.faction_relations = db_relations;
+    }
+    Ok(())
+}
+
+async fn load_ability_data(pool: &SqlitePool, entity: &mut Entity) -> Result<(), PersistenceError> {
+    let abilities = ability_repo::find_by_entity(pool, entity.id).await?;
+    if !abilities.is_empty() {
+        entity.innate_abilities = abilities;
     }
     Ok(())
 }
@@ -805,5 +816,37 @@ mod tests {
 
         let found = find_by_id(db.pool(), id).await.unwrap().unwrap();
         assert_eq!(found.battle_ai.ai_type, BattleAiType::None);
+    }
+
+    #[tokio::test]
+    async fn find_by_id_loads_innate_abilities() {
+        use crate::game::component::{Ability, AbilityRole};
+        use crate::game::engagement::EngagementType;
+        use crate::persistence::ability_repo;
+
+        let db = Database::connect_in_memory().await.unwrap();
+        setup(&db).await;
+
+        let entity = Entity::new(0, EntityType::Enemy, test_location());
+        let id = insert(db.pool(), &entity).await.unwrap();
+
+        let ability = Ability {
+            id: "strike".to_string(),
+            name: "Strike".to_string(),
+            description: None,
+            effects: vec![],
+            costs: vec![],
+            modifiers: vec![],
+            engagement_types: vec![EngagementType::Battle],
+            role: AbilityRole::Attack,
+        };
+        ability_repo::upsert(db.pool(), &ability).await.unwrap();
+        ability_repo::set_entity_abilities(db.pool(), id, &["strike"])
+            .await
+            .unwrap();
+
+        let found = find_by_id(db.pool(), id).await.unwrap().unwrap();
+        assert_eq!(found.innate_abilities.len(), 1);
+        assert_eq!(found.innate_abilities[0].id, "strike");
     }
 }
