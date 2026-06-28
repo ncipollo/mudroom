@@ -1,6 +1,6 @@
-use crate::game::component::Ability;
 use crate::game::component::FactionRelations;
 use crate::game::component::effect::Effect;
+use crate::game::config::ability_config::AbilityReference;
 use crate::game::config::battle_ai_config::BattleAiConfig;
 use crate::game::config::config_path;
 use crate::game::config::dialog_parser::parse_dialog_markdown;
@@ -77,7 +77,7 @@ pub struct EntityConfig {
     #[serde(default)]
     pub entity_effects: Vec<Effect>,
     #[serde(default)]
-    pub innate_abilities: Vec<Ability>,
+    pub innate_abilities: Vec<AbilityReference>,
     #[serde(default)]
     pub factions: Vec<String>,
     #[serde(default)]
