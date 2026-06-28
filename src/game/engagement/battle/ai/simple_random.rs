@@ -28,8 +28,8 @@ pub fn plan_defend(entity: &Entity) -> Option<AiAction> {
 mod tests {
     use super::*;
     use crate::game::component::Ability;
+    use crate::game::component::AbilityRole;
     use crate::game::component::Location;
-    use crate::game::component::ability::AbilityRole;
     use crate::game::component::effect::{Effect, EffectDescription, EffectType, TriggerInfo};
     use crate::game::engagement::EngagementType;
     use crate::game::entity::EntityType;

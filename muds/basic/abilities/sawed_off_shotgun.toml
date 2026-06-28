@@ -1,0 +1,11 @@
+id = "sawed_off_shotgun"
+name = "Sawed-Off Shotgun"
+description = "A devastating close-range blast."
+engagement_types = ["battle"]
+costs = []
+role = "attack"
+
+[[effects]]
+name = "shotgun_blast"
+trigger_info = { type = "once" }
+effect_type = { type = "attribute_update", attribute_id = "hp", value = -20 }

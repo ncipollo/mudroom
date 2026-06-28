@@ -10,7 +10,7 @@ pub struct QueuedAbility {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::component::ability::AbilityRole;
+    use crate::game::component::AbilityRole;
     use crate::game::component::effect::{Effect, EffectDescription, EffectType, TriggerInfo};
     use crate::game::engagement::EngagementType;
 

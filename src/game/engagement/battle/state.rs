@@ -237,7 +237,7 @@ impl BattleEngagement {
 
 #[cfg(test)]
 mod tests {
-    use crate::game::component::ability::AbilityRole;
+    use crate::game::component::AbilityRole;
     use crate::game::component::effect::{Effect, EffectDescription, EffectType, TriggerInfo};
     use crate::game::component::{Ability, Attribute, Cost};
     use crate::game::engagement::EngagementType;

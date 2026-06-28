@@ -98,9 +98,9 @@ fn absorb_with_shields(once_shields: &mut Vec<Effect>, attribute_id: &str, value
 mod tests {
     use super::*;
     use crate::game::component::Ability;
+    use crate::game::component::AbilityRole;
     use crate::game::component::Attribute;
     use crate::game::component::Location;
-    use crate::game::component::ability::AbilityRole;
     use crate::game::component::effect::{Effect, EffectDescription, EffectType, TriggerInfo};
     use crate::game::engagement::EngagementType;
     use crate::game::entity::{Entity, EntityType};
