@@ -1,4 +1,3 @@
-id = "heat_beam"
 name = "Heat Beam"
 description = "A focused beam of intense thermal energy."
 engagement_types = ["battle"]

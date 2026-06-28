@@ -1,4 +1,3 @@
-id = "electric_shot"
 name = "Electric Shot"
 description = "A charged burst of electrical energy."
 engagement_types = ["battle"]

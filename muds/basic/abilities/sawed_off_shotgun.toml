@@ -1,4 +1,3 @@
-id = "sawed_off_shotgun"
 name = "Sawed-Off Shotgun"
 description = "A devastating close-range blast."
 engagement_types = ["battle"]

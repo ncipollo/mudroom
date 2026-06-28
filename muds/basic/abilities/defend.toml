@@ -1,4 +1,3 @@
-id = "defend"
 name = "Defend"
 description = "Brace for impact, absorbing incoming damage."
 engagement_types = ["battle"]

@@ -21,8 +21,11 @@ pub fn load_abilities(config_dir: &Path) -> Result<HashMap<String, Ability>, Box
         .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("toml"))
     {
         let path = entry.path();
-        let ability = load_ability(path)?;
-        abilities.insert(ability.id.clone(), ability);
+        let mut ability = load_ability(path)?;
+        let rel = path.strip_prefix(&abilities_dir)?.with_extension("");
+        let id = rel.to_string_lossy().to_string();
+        ability.id = id.clone();
+        abilities.insert(id, ability);
     }
     Ok(abilities)
 }
@@ -55,7 +58,6 @@ mod tests {
             tmp.path(),
             "abilities/basic_attack.toml",
             r#"
-id = "basic_attack"
 name = "Basic Attack"
 engagement_types = ["battle"]
 costs = []
@@ -70,6 +72,7 @@ effect_type = { type = "attribute_update", attribute_id = "hp", value = -8 }
         let abilities = load_abilities(tmp.path()).unwrap();
         assert_eq!(abilities.len(), 1);
         assert!(abilities.contains_key("basic_attack"));
+        assert_eq!(abilities["basic_attack"].id, "basic_attack");
         assert_eq!(abilities["basic_attack"].name, "Basic Attack");
     }
 }

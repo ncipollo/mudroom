@@ -1,4 +1,3 @@
-id = "basic_attack"
 name = "Basic Attack"
 description = "A straightforward strike."
 engagement_types = ["battle"]
