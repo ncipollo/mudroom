@@ -78,6 +78,7 @@ pub async fn sse_handler(
     let guard = SseCleanupGuard {
         client_id: query.client_id,
         connections: state.connections.clone(),
+        game_state: state.game_state.clone(),
     };
     let stream = GuardedStream {
         inner,
