@@ -5,6 +5,13 @@ use crate::game::entity::Entity;
 
 use super::{BattleMessage, BattlePhase, BattleTick, QueuedAbility};
 
+struct PhaseOutput {
+    messages: Vec<BattleMessage>,
+    innate_entity_ids: Vec<i64>,
+    resolution_queue: Vec<QueuedAbility>,
+    pending_actions: Vec<QueuedAbility>,
+}
+
 pub struct BattleEngagement {
     pub factions: Vec<String>,
     pub participants: HashMap<String, Vec<i64>>,
@@ -129,24 +136,39 @@ impl BattleEngagement {
             .count()
     }
 
-    /// Advances the turn phase state machine one tick. Manages phase transitions
-    /// (InnateEffects → Planning → Response → Resolution → InnateEffects) and collects queued
-    /// abilities into the resolution queue when Resolution is reached. Returns a `BattleTick`
-    /// snapshot for the caller to resolve effects and broadcast updates.
     pub fn tick(&mut self, engagement_id: i64, max_engage_ticks: u64) -> BattleTick {
         let all_participant_ids = self.all_entity_ids();
-        let mut messages = Vec::new();
-        let mut innate_entity_ids = Vec::new();
-        let mut resolution_queue = Vec::new();
+        let output = self.advance_phase(max_engage_ticks, &all_participant_ids);
+        BattleTick {
+            engagement_id,
+            all_participant_ids,
+            messages: output.messages,
+            innate_entity_ids: output.innate_entity_ids,
+            resolution_queue: output.resolution_queue,
+            pending_actions: output.pending_actions,
+            phase: self.turn_phase.clone(),
+            factions: self.factions.clone(),
+            participants: self.participants.clone(),
+            ticks_in_phase: self.ticks_in_phase,
+        }
+    }
 
+    /// Drives the phase state machine one step, returning messages and queued work produced by
+    /// the transition. Advances `self.turn_phase` and resets `self.ticks_in_phase` as needed.
+    fn advance_phase(&mut self, max_engage_ticks: u64, all_ids: &[i64]) -> PhaseOutput {
+        let mut out = PhaseOutput {
+            messages: Vec::new(),
+            innate_entity_ids: Vec::new(),
+            resolution_queue: Vec::new(),
+            pending_actions: Vec::new(),
+        };
         match self.turn_phase.clone() {
             BattlePhase::InnateEffects => {
-                innate_entity_ids = all_participant_ids.clone();
-                let faction = self.planning_faction().to_string();
+                out.innate_entity_ids = all_ids.to_vec();
                 let next = BattlePhase::Planning {
-                    faction: faction.clone(),
+                    faction: self.planning_faction().to_string(),
                 };
-                messages.push(BattleMessage::PhaseChange {
+                out.messages.push(BattleMessage::PhaseChange {
                     phase: next.clone(),
                 });
                 self.turn_phase = next;
@@ -154,17 +176,16 @@ impl BattleEngagement {
             }
             BattlePhase::Planning { faction } => {
                 self.ticks_in_phase += 1;
-                let planning_ids = self.planning_ids();
-                let all_submitted = planning_ids
+                let all_submitted = self
+                    .planning_ids()
                     .iter()
                     .all(|id| self.action_queue.contains_key(id));
                 if all_submitted || self.ticks_in_phase >= max_engage_ticks {
-                    let next = BattlePhase::Response {
-                        faction: faction.clone(),
-                    };
-                    messages.push(BattleMessage::PhaseChange {
+                    let next = BattlePhase::Response { faction };
+                    out.messages.push(BattleMessage::PhaseChange {
                         phase: next.clone(),
                     });
+                    out.pending_actions = self.action_queue.values().flatten().cloned().collect();
                     self.turn_phase = next;
                     self.ticks_in_phase = 0;
                 }
@@ -177,7 +198,7 @@ impl BattleEngagement {
                         .iter()
                         .all(|id| self.action_queue.contains_key(id));
                 if all_submitted || self.ticks_in_phase >= max_engage_ticks {
-                    messages.push(BattleMessage::PhaseChange {
+                    out.messages.push(BattleMessage::PhaseChange {
                         phase: BattlePhase::Resolution,
                     });
                     self.turn_phase = BattlePhase::Resolution;
@@ -185,7 +206,7 @@ impl BattleEngagement {
                 }
             }
             BattlePhase::Resolution => {
-                resolution_queue = self
+                out.resolution_queue = self
                     .action_queue
                     .drain()
                     .flat_map(|(_, abilities)| abilities)
@@ -195,7 +216,7 @@ impl BattleEngagement {
                     self.planning_faction_index =
                         (self.planning_faction_index + 1) % self.factions.len();
                 }
-                messages.push(BattleMessage::PhaseChange {
+                out.messages.push(BattleMessage::PhaseChange {
                     phase: BattlePhase::InnateEffects,
                 });
                 self.turn_phase = BattlePhase::InnateEffects;
@@ -203,18 +224,7 @@ impl BattleEngagement {
             }
             BattlePhase::Concluded => {}
         }
-
-        BattleTick {
-            engagement_id,
-            all_participant_ids,
-            messages,
-            innate_entity_ids,
-            resolution_queue,
-            phase: self.turn_phase.clone(),
-            factions: self.factions.clone(),
-            participants: self.participants.clone(),
-            ticks_in_phase: self.ticks_in_phase,
-        }
+        out
     }
 }
 
@@ -401,6 +411,48 @@ mod tests {
         let tick = eng.tick(1, 30);
         assert_eq!(eng.turn_phase, BattlePhase::Concluded);
         assert!(tick.messages.is_empty());
+    }
+
+    #[test]
+    fn tick_planning_to_response_includes_pending_actions() {
+        let mut eng = make_engagement();
+        eng.tick(1, 30); // InnateEffects → Planning{player}
+        let ability = Ability {
+            id: "slash".to_string(),
+            name: "Slash".to_string(),
+            description: None,
+            effects: vec![],
+            engagement_types: vec![EngagementType::Battle],
+            costs: vec![],
+            modifiers: vec![],
+            role: AbilityRole::Attack,
+        };
+        let attrs = HashMap::new();
+        eng.queue_ability(1, ability.clone(), 2, &attrs);
+        let tick = eng.tick(1, 1); // timeout → Response{player}
+        assert_eq!(
+            eng.turn_phase,
+            BattlePhase::Response {
+                faction: "player".into()
+            }
+        );
+        assert_eq!(tick.pending_actions.len(), 1);
+        assert_eq!(tick.pending_actions[0].caster_id, 1);
+        assert_eq!(tick.pending_actions[0].target_id, 2);
+    }
+
+    #[test]
+    fn tick_planning_to_response_empty_pending_actions_when_no_queued() {
+        let mut eng = make_engagement();
+        eng.tick(1, 1); // InnateEffects → Planning
+        let tick = eng.tick(1, 1); // timeout → Response
+        assert_eq!(
+            eng.turn_phase,
+            BattlePhase::Response {
+                faction: "player".into()
+            }
+        );
+        assert!(tick.pending_actions.is_empty());
     }
 
     #[test]

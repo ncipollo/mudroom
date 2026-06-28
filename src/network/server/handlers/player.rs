@@ -147,6 +147,7 @@ async fn notify_player_selected(state: &AppState, client_id: &str, player: &Play
                 client_id: client_id.to_string(),
                 player_id: player.id,
                 player_name: player.name.clone(),
+                entity_id: player.entity_id,
             })
             .await;
     }

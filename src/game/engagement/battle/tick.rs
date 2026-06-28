@@ -80,9 +80,16 @@ async fn handle_tick(
         })
         .collect();
 
+    let pending_attack_messages: Vec<BattleMessage> = result
+        .pending_actions
+        .iter()
+        .map(|qa| pending_attack_message(qa, &entity_names))
+        .collect();
+
     let all_tick_messages: Vec<BattleMessage> = result
         .messages
         .iter()
+        .chain(pending_attack_messages.iter())
         .chain(cast_messages.iter())
         .chain(death_messages.iter())
         .cloned()
@@ -246,6 +253,24 @@ fn ability_cast_message(qa: &QueuedAbility, entity_names: &HashMap<i64, String>)
             .cloned()
             .unwrap_or_else(|| "Unknown".to_string()),
         ability_name: qa.ability.name.clone(),
+    }
+}
+
+fn pending_attack_message(
+    qa: &QueuedAbility,
+    entity_names: &HashMap<i64, String>,
+) -> BattleMessage {
+    BattleMessage::PendingAttack {
+        caster_name: entity_names
+            .get(&qa.caster_id)
+            .cloned()
+            .unwrap_or_else(|| "Unknown".to_string()),
+        ability_name: qa.ability.name.clone(),
+        target_name: entity_names
+            .get(&qa.target_id)
+            .cloned()
+            .unwrap_or_else(|| "Unknown".to_string()),
+        target_id: qa.target_id,
     }
 }
 
