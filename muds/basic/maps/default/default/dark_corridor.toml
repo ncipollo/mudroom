@@ -1,4 +1,4 @@
-entities = ["entities/zombie"]
+entities = ["entities/zombie", "entities/madman"]
 
 [description]
 standard = "A dark, damp corridor. The stench of decay hangs in the air. Something shambles in the shadows."

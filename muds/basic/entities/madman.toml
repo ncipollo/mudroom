@@ -1,0 +1,24 @@
+entity_type = "enemy"
+factions = ["enemy"]
+
+name = "Madman"
+description = "A wild-eyed figure, muttering to himself and clutching a rusted ax. Dangerous and unpredictable."
+innate_abilities = ["swing_ax", "scream_nonsense", "defend"]
+
+[battle_ai]
+ai_type = "simple_random"
+
+[[attributes]]
+definition_id = "hp"
+min_value = 0
+max_value = 65
+current_value = 65
+
+[[attributes]]
+definition_id = "speed"
+min_value = 1
+max_value = 10
+current_value = 4
+
+[faction_relations.factions]
+player = "hostile"
