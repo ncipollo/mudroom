@@ -14,6 +14,7 @@ pub mod mud_config;
 mod persona_parser;
 pub mod resource_config;
 
+pub use ability_config::AbilityReference;
 pub use agent_config::{AgentConfig, AgentProviderConfig};
 pub use attribute_config::AttributeConfig;
 pub use battle_ai_config::{BattleAiConfig, BattleAiType};

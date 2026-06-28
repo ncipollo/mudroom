@@ -33,6 +33,9 @@ pub struct Modifier {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AbilityReference(pub String);
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Ability {
     #[serde(default)]
     pub id: String,

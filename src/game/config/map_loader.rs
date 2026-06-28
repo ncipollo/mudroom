@@ -1,3 +1,4 @@
+mod ability_cache;
 mod definition_sync;
 mod entity_sync;
 mod universe_sync;
@@ -26,7 +27,8 @@ pub async fn sync_universe_config(
     load_resources_into_db(pool, resource_config).await?;
     if let Some(config_dir) = config_path {
         let entity_configs = load_entity_configs(config_dir)?;
-        load_entities_into_db(pool, &universe, &entity_configs).await?;
+        let ability_cache = ability_cache::build_ability_cache(config_dir)?;
+        load_entities_into_db(pool, &universe, &entity_configs, &ability_cache).await?;
     }
     Ok(())
 }
