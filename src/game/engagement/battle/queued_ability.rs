@@ -35,6 +35,7 @@ mod tests {
             costs: vec![],
             modifiers: vec![],
             role: AbilityRole::Attack,
+            targets: vec![],
         }
     }
 

@@ -3,6 +3,7 @@ description = "A straightforward strike."
 engagement_types = ["battle"]
 costs = []
 role = "attack"
+targets = ["opponent"]
 
 [[effects]]
 name = "physical_damage"

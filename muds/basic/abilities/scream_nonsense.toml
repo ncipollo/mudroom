@@ -3,4 +3,5 @@ description = "The madman shrieks incoherently, unnerving everyone nearby."
 engagement_types = ["battle"]
 costs = []
 role = "attack"
+targets = ["opponent"]
 effects = []

@@ -78,12 +78,12 @@ fn handle_ability_selected(app: &mut App) {
     if battle.focus != BattleFocus::Abilities {
         return;
     }
-    let ability_id = battle
+    let selected = battle
         .filtered_abilities()
         .get(battle.selected_ability_index)
-        .map(|a| a.id.clone());
-    if let Some(ability_id) = ability_id {
-        battle.open_target_dialog(ability_id);
+        .map(|a| (a.id.clone(), a.targets.clone()));
+    if let Some((ability_id, targets)) = selected {
+        battle.open_target_dialog(ability_id, targets);
     }
 }
 

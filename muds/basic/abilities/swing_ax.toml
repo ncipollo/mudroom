@@ -3,6 +3,7 @@ description = "A wild swing with a rusty ax."
 engagement_types = ["battle"]
 costs = []
 role = "attack"
+targets = ["opponent"]
 
 [[effects]]
 name = "ax_damage"
