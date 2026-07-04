@@ -63,11 +63,11 @@ async fn cleanup_player_battle(game_state: &GameState, client_id: &str) {
     };
 
     if let Some((engagement_id, surviving)) =
-        battle::participants::remove_entity(&game_state.engagements, entity_id).await
+        battle::participants::remove_entity(&game_state.engagements.battles, entity_id).await
         && surviving <= 1
     {
-        game_state.engagements.conclude_battle(engagement_id).await;
-        game_state.engagements.remove(engagement_id).await;
+        game_state.engagements.battles.conclude(engagement_id).await;
+        game_state.engagements.battles.remove(engagement_id).await;
     }
 
     game_state.active_entities.write().await.remove(&entity_id);

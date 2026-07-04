@@ -26,20 +26,30 @@ struct BattleTickOutcome {
 /// This is the single entry point for battle processing; no battle-specific logic escapes
 /// into the engagement orchestration layer.
 pub async fn process_ticks(game_state: &Arc<GameState>, max_engage_ticks: u64) {
-    let battle_results = game_state.engagements.tick_battles(max_engage_ticks).await;
+    let battle_results = game_state
+        .engagements
+        .battles
+        .tick_all(max_engage_ticks)
+        .await;
     for result in battle_results {
         let outcome = handle_tick(game_state, result, max_engage_ticks).await;
         let surviving = game_state
             .engagements
-            .update_battle_participants(outcome.engagement_id, &outcome.dead_entity_ids)
+            .battles
+            .update_participants(outcome.engagement_id, &outcome.dead_entity_ids)
             .await;
         if surviving <= 1 {
             handle_battle_ended(game_state, &outcome).await;
             game_state
                 .engagements
-                .conclude_battle(outcome.engagement_id)
+                .battles
+                .conclude(outcome.engagement_id)
                 .await;
-            game_state.engagements.remove(outcome.engagement_id).await;
+            game_state
+                .engagements
+                .battles
+                .remove(outcome.engagement_id)
+                .await;
         }
     }
 }

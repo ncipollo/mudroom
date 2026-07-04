@@ -6,7 +6,11 @@ pub mod resolved_action;
 pub mod turn_action;
 pub mod turn_order;
 
-pub use battle::{BattleEngagement, BattleMessage, BattlePhase, QueuedAbility};
+pub use battle::{
+    BattleAiContext, BattleEngagement, BattleMessage, BattlePhase, BattleTick, Battles,
+    QueuedAbility,
+};
+pub use conversation::Conversations;
 pub use engagement_type::EngagementType;
 pub use processing::process;
 pub use resolved_action::ResolvedAction;
@@ -15,9 +19,6 @@ pub use turn_order::TurnOrder;
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicI64, Ordering};
-
-use tokio::sync::RwLock;
-use tracing;
 
 pub struct Engagement {
     pub id: i64,
@@ -83,99 +84,50 @@ impl Engagement {
     }
 }
 
+/// Holds all active engagements split by type. `battles` and `conversations` each own their
+/// engagement maps; `Engagements` itself is a thin holder that allocates shared IDs.
 pub struct Engagements {
-    pub(in crate::game::engagement) engagements_by_id: RwLock<HashMap<i64, Engagement>>,
+    pub battles: Battles,
+    pub conversations: Conversations,
     next_id: AtomicI64,
 }
 
 impl Engagements {
     pub fn new() -> Self {
         Self {
-            engagements_by_id: RwLock::new(HashMap::new()),
+            battles: Battles::new(),
+            conversations: Conversations::new(),
             next_id: AtomicI64::new(1),
         }
     }
 
-    pub(in crate::game::engagement) fn alloc_id(&self) -> i64 {
+    fn alloc_id(&self) -> i64 {
         self.next_id.fetch_add(1, Ordering::Relaxed)
     }
 
-    /// Create and add a new engagement. Returns the new engagement's id.
-    pub async fn add(&self, engagement_type: EngagementType, entity_ids: Vec<i64>) -> i64 {
+    pub async fn add_battle(
+        &self,
+        room_id: String,
+        factions: Vec<String>,
+        participants: HashMap<String, Vec<i64>>,
+    ) -> i64 {
         let id = self.alloc_id();
-        let engagement = Engagement::new(id, engagement_type, entity_ids);
-        self.engagements_by_id.write().await.insert(id, engagement);
+        self.battles.add(id, room_id, factions, participants).await;
         id
     }
 
-    pub async fn remove(&self, engagement_id: i64) {
-        self.engagements_by_id.write().await.remove(&engagement_id);
-    }
-
-    /// Find the engagement containing the given entity and submit a turn action.
-    /// Entities may submit actions off-turn; they are stored per-entity and resolved in order.
-    /// Returns true if the entity is part of an engagement.
-    pub async fn submit_action_for_entity(&self, entity_id: i64, action: TurnAction) -> bool {
-        let mut map = self.engagements_by_id.write().await;
-        for engagement in map.values_mut() {
-            if engagement.entity_ids.contains(&entity_id) {
-                return engagement.submit_action(entity_id, action);
-            }
-        }
-        false
-    }
-
-    /// Process one game tick for all engagements. Resolves or times out the current turn
-    /// for each engagement where applicable. Returns the list of resolved actions.
-    pub async fn process_tick(&self, max_engage_ticks: u64) -> Vec<ResolvedAction> {
-        let mut resolved = Vec::new();
-        let mut map = self.engagements_by_id.write().await;
-        for engagement in map.values_mut() {
-            if let Some(action) = tick_engagement(engagement, max_engage_ticks) {
-                resolved.push(action);
-            }
-        }
-        resolved
+    pub async fn add_conversation(&self, player_entity_id: i64, npc_entity_id: i64) -> i64 {
+        let id = self.alloc_id();
+        self.conversations
+            .add(id, player_entity_id, npc_entity_id)
+            .await;
+        id
     }
 }
 
 impl Default for Engagements {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-fn tick_engagement(engagement: &mut Engagement, max_engage_ticks: u64) -> Option<ResolvedAction> {
-    if !engagement.should_advance(max_engage_ticks) {
-        engagement.ticks_on_current_turn += 1;
-        return None;
-    }
-    let id = engagement.current_entity()?;
-    let action = engagement.pending_actions.get(&id).cloned();
-    log_tick_action(engagement.id, id, &action);
-    let resolved = build_resolved_action(engagement, id, action);
-    engagement.advance_turn();
-    Some(resolved)
-}
-
-fn log_tick_action(engagement_id: i64, entity_id: i64, action: &Option<TurnAction>) {
-    let resolved = action.is_some();
-    tracing::debug!(
-        "tick engagement={engagement_id} entity={entity_id} resolved={resolved} action={action:?}"
-    );
-}
-
-fn build_resolved_action(
-    engagement: &Engagement,
-    entity_id: i64,
-    action: Option<TurnAction>,
-) -> ResolvedAction {
-    ResolvedAction {
-        engagement_id: engagement.id,
-        engagement_type: engagement.engagement_type.clone(),
-        entity_ids: engagement.entity_ids.clone(),
-        entity_id,
-        action,
     }
 }
 
@@ -290,108 +242,140 @@ mod tests {
         assert_eq!(eng.current_entity(), Some(20));
     }
 
+    fn test_battle_participants() -> (Vec<String>, HashMap<String, Vec<i64>>) {
+        let mut participants = HashMap::new();
+        participants.insert("player".to_string(), vec![1]);
+        participants.insert("enemy".to_string(), vec![2]);
+        (
+            vec!["player".to_string(), "enemy".to_string()],
+            participants,
+        )
+    }
+
     #[tokio::test]
-    async fn add_returns_sequential_ids() {
+    async fn add_battle_and_add_conversation_return_distinct_ids() {
         let engagements = Engagements::new();
-        let id1 = engagements.add(EngagementType::Battle, vec![1, 2]).await;
-        let id2 = engagements
-            .add(EngagementType::Conversation, vec![3, 4])
+        let (factions, participants) = test_battle_participants();
+        let id1 = engagements
+            .add_battle("room1".to_string(), factions, participants)
             .await;
+        let id2 = engagements.add_conversation(3, 4).await;
         assert_ne!(id1, id2);
     }
 
     #[tokio::test]
-    async fn remove_drops_engagement() {
+    async fn add_battle_sets_room_id_and_type() {
         let engagements = Engagements::new();
-        let id = engagements.add(EngagementType::Battle, vec![1, 2]).await;
-        engagements.remove(id).await;
-        let map = engagements.engagements_by_id.read().await;
+        let (factions, participants) = test_battle_participants();
+        let id = engagements
+            .add_battle("room1".to_string(), factions, participants)
+            .await;
+        let map = engagements.battles.map.read().await;
+        let eng = map.get(&id).unwrap();
+        assert_eq!(eng.room_id, Some("room1".to_string()));
+        assert_eq!(eng.engagement_type, EngagementType::Battle);
+    }
+
+    #[tokio::test]
+    async fn find_battle_for_room_returns_id_when_present() {
+        let engagements = Engagements::new();
+        let (factions, participants) = test_battle_participants();
+        let id = engagements
+            .add_battle("room1".to_string(), factions, participants)
+            .await;
+        assert_eq!(engagements.battles.find_for_room("room1").await, Some(id));
+    }
+
+    #[tokio::test]
+    async fn find_battle_for_room_returns_none_for_different_room() {
+        let engagements = Engagements::new();
+        let (factions, participants) = test_battle_participants();
+        engagements
+            .add_battle("room1".to_string(), factions, participants)
+            .await;
+        assert_eq!(engagements.battles.find_for_room("room2").await, None);
+    }
+
+    #[tokio::test]
+    async fn find_battle_for_room_returns_none_for_conversation() {
+        let engagements = Engagements::new();
+        engagements.add_conversation(1, 2).await;
+        assert_eq!(engagements.battles.find_for_room("room1").await, None);
+    }
+
+    #[tokio::test]
+    async fn tick_battles_advances_battle_phase() {
+        let engagements = Engagements::new();
+        let (factions, participants) = test_battle_participants();
+        engagements
+            .add_battle("room1".to_string(), factions, participants)
+            .await;
+        let results = engagements.battles.tick_all(30).await;
+        assert_eq!(results.len(), 1);
+        assert_eq!(
+            results[0].phase,
+            BattlePhase::Planning {
+                faction: "player".into()
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn update_battle_participants_removes_dead_and_returns_count() {
+        let engagements = Engagements::new();
+        let (factions, participants) = test_battle_participants();
+        let id = engagements
+            .add_battle("room1".to_string(), factions, participants)
+            .await;
+        let surviving = engagements.battles.update_participants(id, &[1]).await;
+        assert_eq!(surviving, 1);
+    }
+
+    #[tokio::test]
+    async fn conclude_battle_sets_concluded_phase() {
+        let engagements = Engagements::new();
+        let (factions, participants) = test_battle_participants();
+        let id = engagements
+            .add_battle("room1".to_string(), factions, participants)
+            .await;
+        engagements.battles.conclude(id).await;
+        let map = engagements.battles.map.read().await;
+        let eng = map.get(&id).unwrap();
+        assert_eq!(
+            eng.battle.as_ref().unwrap().turn_phase,
+            BattlePhase::Concluded
+        );
+    }
+
+    #[tokio::test]
+    async fn add_conversation_sets_type_and_entity_ids() {
+        let engagements = Engagements::new();
+        let id = engagements.add_conversation(10, 20).await;
+        let map = engagements.conversations.map.read().await;
+        let eng = map.get(&id).unwrap();
+        assert_eq!(eng.engagement_type, EngagementType::Conversation);
+        assert!(eng.entity_ids.contains(&10));
+        assert!(eng.entity_ids.contains(&20));
+    }
+
+    #[tokio::test]
+    async fn battles_remove_drops_engagement() {
+        let engagements = Engagements::new();
+        let (factions, participants) = test_battle_participants();
+        let id = engagements
+            .add_battle("room1".to_string(), factions, participants)
+            .await;
+        engagements.battles.remove(id).await;
+        let map = engagements.battles.map.read().await;
         assert!(!map.contains_key(&id));
     }
 
     #[tokio::test]
-    async fn submit_action_for_current_entity_succeeds() {
+    async fn conversations_remove_drops_engagement() {
         let engagements = Engagements::new();
-        engagements.add(EngagementType::Battle, vec![10, 20]).await;
-        let accepted = engagements
-            .submit_action_for_entity(
-                10,
-                TurnAction::SendMessage {
-                    content: "attack".to_string(),
-                },
-            )
-            .await;
-        assert!(accepted);
-    }
-
-    #[tokio::test]
-    async fn submit_action_for_off_turn_entity_succeeds() {
-        let engagements = Engagements::new();
-        engagements.add(EngagementType::Battle, vec![10, 20]).await;
-        let accepted = engagements
-            .submit_action_for_entity(
-                20,
-                TurnAction::SendMessage {
-                    content: "attack".to_string(),
-                },
-            )
-            .await;
-        assert!(accepted);
-    }
-
-    #[tokio::test]
-    async fn submit_action_for_unknown_entity_fails() {
-        let engagements = Engagements::new();
-        engagements.add(EngagementType::Battle, vec![10, 20]).await;
-        let accepted = engagements
-            .submit_action_for_entity(
-                99,
-                TurnAction::SendMessage {
-                    content: "attack".to_string(),
-                },
-            )
-            .await;
-        assert!(!accepted);
-    }
-
-    #[tokio::test]
-    async fn process_tick_advances_turn_after_action_submitted() {
-        let engagements = Engagements::new();
-        engagements.add(EngagementType::Battle, vec![10, 20]).await;
-        engagements
-            .submit_action_for_entity(
-                10,
-                TurnAction::Respond {
-                    content: "ok".to_string(),
-                },
-            )
-            .await;
-        engagements.process_tick(30).await;
-        let map = engagements.engagements_by_id.read().await;
-        let eng = map.values().next().unwrap();
-        assert_eq!(eng.current_entity(), Some(20));
-    }
-
-    #[tokio::test]
-    async fn process_tick_increments_ticks_when_no_action() {
-        let engagements = Engagements::new();
-        engagements.add(EngagementType::Battle, vec![10, 20]).await;
-        engagements.process_tick(30).await;
-        let map = engagements.engagements_by_id.read().await;
-        let eng = map.values().next().unwrap();
-        assert_eq!(eng.ticks_on_current_turn, 1);
-        assert_eq!(eng.current_entity(), Some(10));
-    }
-
-    #[tokio::test]
-    async fn process_tick_advances_on_timeout() {
-        let engagements = Engagements::new();
-        engagements.add(EngagementType::Battle, vec![10, 20]).await;
-        for _ in 0..=3 {
-            engagements.process_tick(3).await;
-        }
-        let map = engagements.engagements_by_id.read().await;
-        let eng = map.values().next().unwrap();
-        assert_eq!(eng.current_entity(), Some(20));
+        let id = engagements.add_conversation(10, 20).await;
+        engagements.conversations.remove(id).await;
+        let map = engagements.conversations.map.read().await;
+        assert!(!map.contains_key(&id));
     }
 }

@@ -1,17 +1,18 @@
 use std::collections::HashMap;
 
 use crate::game::engagement::EngagementType;
-use crate::game::engagement::Engagements;
+
+use super::collection::Battles;
 
 /// Add an entity to an existing battle engagement under the given faction.
 /// Returns false if the engagement does not exist or has no battle.
 pub async fn add_entity(
-    engagements: &Engagements,
+    battles: &Battles,
     engagement_id: i64,
     faction: &str,
     entity_id: i64,
 ) -> bool {
-    let mut map = engagements.engagements_by_id.write().await;
+    let mut map = battles.map.write().await;
     let Some(engagement) = map.get_mut(&engagement_id) else {
         return false;
     };
@@ -27,8 +28,8 @@ pub async fn add_entity(
 
 /// Remove an entity from whichever battle it currently belongs to.
 /// Returns `Some((engagement_id, surviving_faction_count))` or `None` if not in any battle.
-pub async fn remove_entity(engagements: &Engagements, entity_id: i64) -> Option<(i64, usize)> {
-    let mut map = engagements.engagements_by_id.write().await;
+pub async fn remove_entity(battles: &Battles, entity_id: i64) -> Option<(i64, usize)> {
+    let mut map = battles.map.write().await;
     for engagement in map.values_mut() {
         if engagement.engagement_type != EngagementType::Battle {
             continue;
@@ -48,10 +49,10 @@ pub async fn remove_entity(engagements: &Engagements, entity_id: i64) -> Option<
 
 /// Return the factions and participant map for a battle engagement, or `None`.
 pub async fn snapshot(
-    engagements: &Engagements,
+    battles: &Battles,
     engagement_id: i64,
 ) -> Option<(Vec<String>, HashMap<String, Vec<i64>>)> {
-    let map = engagements.engagements_by_id.read().await;
+    let map = battles.map.read().await;
     let engagement = map.get(&engagement_id)?;
     let battle = engagement.battle.as_ref()?;
     Some((battle.factions.clone(), battle.participants.clone()))
