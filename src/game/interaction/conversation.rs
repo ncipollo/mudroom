@@ -25,7 +25,8 @@ enum TalkCandidate {
 pub async fn end_player_conversation(game_state: &Arc<GameState>, player: &Player) {
     let Some((engagement_id, entity_ids)) = game_state
         .engagements
-        .find_conversation_for_entity(player.entity_id)
+        .conversations
+        .find_for_entity(player.entity_id)
         .await
     else {
         return;
@@ -37,7 +38,11 @@ pub async fn end_player_conversation(game_state: &Arc<GameState>, player: &Playe
     {
         remove_npc_conversation_state(game_state, npc_entity_id, engagement_id).await;
     }
-    game_state.engagements.remove(engagement_id).await;
+    game_state
+        .engagements
+        .conversations
+        .remove(engagement_id)
+        .await;
     messaging::conversation_ended(&game_state.message_tx, player.id);
 }
 
@@ -66,7 +71,8 @@ pub async fn process(
 ) {
     if game_state
         .engagements
-        .is_entity_in_conversation(player.entity_id)
+        .conversations
+        .is_entity_in(player.entity_id)
         .await
     {
         messaging::message(

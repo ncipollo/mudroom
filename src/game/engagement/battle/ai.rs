@@ -21,7 +21,7 @@ pub struct BattleAiContext {
 }
 
 pub async fn run_battle_ai(game_state: &Arc<GameState>) {
-    let contexts = game_state.engagements.get_battle_ai_contexts().await;
+    let contexts = game_state.engagements.battles.get_ai_contexts().await;
     for ctx in contexts {
         run_ai_for_context(game_state, &ctx).await;
     }
@@ -35,7 +35,8 @@ async fn run_ai_for_context(game_state: &Arc<GameState>, ctx: &BattleAiContext) 
     for (entity_id, ability, target_id, attrs) in actions {
         game_state
             .engagements
-            .queue_battle_ability(entity_id, ability, target_id, &attrs)
+            .battles
+            .queue_ability(entity_id, ability, target_id, &attrs)
             .await;
     }
 }

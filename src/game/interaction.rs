@@ -93,6 +93,7 @@ async fn dispatch_engagement_action(
         other => {
             let accepted = game_state
                 .engagements
+                .conversations
                 .submit_action_for_entity(player.entity_id, other)
                 .await;
             tracing::debug!(
@@ -129,7 +130,8 @@ async fn dispatch_queue_ability(
     };
     let accepted = game_state
         .engagements
-        .queue_battle_ability(player.entity_id, ability, target_id, &attrs)
+        .battles
+        .queue_ability(player.entity_id, ability, target_id, &attrs)
         .await;
     tracing::debug!(
         entity_id = player.entity_id,
@@ -165,7 +167,7 @@ async fn dispatch_join_battle(game_state: &Arc<GameState>, player: &Player) {
         return;
     };
 
-    let Some(engagement_id) = game_state.engagements.find_battle_for_room(&room_id).await else {
+    let Some(engagement_id) = game_state.engagements.battles.find_for_room(&room_id).await else {
         messaging::message(
             &game_state.message_tx,
             player.id,
@@ -183,7 +185,7 @@ async fn dispatch_join_battle(game_state: &Arc<GameState>, player: &Player) {
     };
 
     battle::participants::add_entity(
-        &game_state.engagements,
+        &game_state.engagements.battles,
         engagement_id,
         &faction,
         player.entity_id,
@@ -191,7 +193,7 @@ async fn dispatch_join_battle(game_state: &Arc<GameState>, player: &Player) {
     .await;
 
     let Some((factions, participants)) =
-        battle::participants::snapshot(&game_state.engagements, engagement_id).await
+        battle::participants::snapshot(&game_state.engagements.battles, engagement_id).await
     else {
         return;
     };
@@ -216,14 +218,15 @@ async fn dispatch_join_battle(game_state: &Arc<GameState>, player: &Player) {
 
 async fn dispatch_leave_battle(game_state: &Arc<GameState>, player: &Player) {
     let Some((engagement_id, surviving)) =
-        battle::participants::remove_entity(&game_state.engagements, player.entity_id).await
+        battle::participants::remove_entity(&game_state.engagements.battles, player.entity_id)
+            .await
     else {
         return;
     };
 
     if surviving <= 1 {
-        game_state.engagements.conclude_battle(engagement_id).await;
-        game_state.engagements.remove(engagement_id).await;
+        game_state.engagements.battles.conclude(engagement_id).await;
+        game_state.engagements.battles.remove(engagement_id).await;
     }
 
     messaging::battle_ended(&game_state.message_tx, player.id, engagement_id);

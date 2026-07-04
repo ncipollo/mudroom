@@ -18,6 +18,10 @@
 /// Returns `true` if the engagement ended this tick so the caller can call
 /// `engagements.remove()` without this module reaching back into `Engagements` directly.
 mod agent_turn;
+pub mod collection;
+pub mod factory;
+
+pub use collection::Conversations;
 
 use std::sync::Arc;
 

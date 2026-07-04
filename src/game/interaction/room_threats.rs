@@ -24,7 +24,8 @@ enum RoomThreat {
 pub async fn check_room_hostility(game_state: &Arc<GameState>, player: &Player, room_id: &str) {
     if game_state
         .engagements
-        .find_battle_for_room(room_id)
+        .battles
+        .find_for_room(room_id)
         .await
         .is_some()
     {
