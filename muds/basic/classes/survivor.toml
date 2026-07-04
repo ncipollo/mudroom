@@ -13,35 +13,4 @@ min_value = 0
 max_value = 20
 current_value = 20
 
-[[innate_abilities]]
-id = "basic_attack"
-name = "Basic Attack"
-engagement_types = ["battle"]
-costs = []
-role = "attack"
-
-[[innate_abilities.effects]]
-name = "physical_damage"
-trigger_info = { type = "once" }
-
-[innate_abilities.effects.effect_type]
-type = "attribute_update"
-attribute_id = "hp"
-value = -8
-
-[[innate_abilities]]
-id = "sawed_off_shotgun"
-name = "Sawed-Off Shotgun"
-description = "A rusted sawed-off shotgun — unreliable, but devastating at close range."
-engagement_types = ["battle"]
-costs = []
-role = "attack"
-
-[[innate_abilities.effects]]
-name = "shotgun_blast"
-trigger_info = { type = "once" }
-
-[innate_abilities.effects.effect_type]
-type = "attribute_update"
-attribute_id = "hp"
-value = -20
+innate_abilities = ["basic_attack", "sawed_off_shotgun"]

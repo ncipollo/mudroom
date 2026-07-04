@@ -6,9 +6,10 @@ use sqlx::SqlitePool;
 use tokio::sync::RwLock;
 use tokio::sync::broadcast;
 
+use crate::game::component::Ability;
 use crate::game::config::{
     AttributeConfig, ClassConfig, EntityConfig, FactionConfig, MudConfig, ResourceConfig,
-    load_classes, load_entity_configs,
+    load_abilities, load_classes, load_entity_configs,
 };
 use crate::game::engagement::Engagements;
 use crate::game::entity::Entity;
@@ -32,6 +33,7 @@ pub struct GameState {
     pub faction_config: FactionConfig,
     pub resource_config: ResourceConfig,
     pub mud_config: MudConfig,
+    pub abilities: HashMap<String, Ability>,
     pub entity_configs: HashMap<String, EntityConfig>,
     pub classes: HashMap<String, ClassConfig>,
     pub active_entities: RwLock<HashMap<i64, Entity>>,
@@ -101,6 +103,12 @@ impl GameState {
             HashMap::new()
         };
 
+        let abilities = if let Some(dir) = config_dir {
+            load_abilities(dir).unwrap_or_default()
+        } else {
+            HashMap::new()
+        };
+
         let (message_tx, _) = broadcast::channel::<PlayerMessage>(512);
 
         Ok(Self {
@@ -110,6 +118,7 @@ impl GameState {
             faction_config,
             resource_config,
             mud_config,
+            abilities,
             entity_configs,
             classes,
             active_entities: RwLock::new(HashMap::new()),
