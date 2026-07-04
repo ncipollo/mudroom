@@ -1,4 +1,6 @@
-use crate::game::component::effect::{Effect, EffectDescription, EffectType, TriggerInfo};
+use crate::game::component::effect::{
+    Effect, EffectDescription, EffectScope, EffectType, TriggerInfo,
+};
 use crate::game::component::{Ability, AbilityRole};
 use crate::game::engagement::EngagementType;
 use crate::game::entity::Entity;
@@ -51,6 +53,7 @@ pub fn default_defend_ability() -> Ability {
             },
             trigger_info: TriggerInfo::Once,
             description: EffectDescription::default(),
+            scope: EffectScope::default(),
         }],
         engagement_types: vec![EngagementType::Battle],
         costs: vec![],
@@ -72,6 +75,7 @@ pub fn default_attack_ability() -> Ability {
             },
             trigger_info: TriggerInfo::Once,
             description: EffectDescription::default(),
+            scope: EffectScope::default(),
         }],
         engagement_types: vec![EngagementType::Battle],
         costs: vec![],

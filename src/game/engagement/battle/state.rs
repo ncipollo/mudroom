@@ -7,7 +7,6 @@ use super::{BattleMessage, BattlePhase, BattleTick, QueuedAbility};
 
 struct PhaseOutput {
     messages: Vec<BattleMessage>,
-    innate_entity_ids: Vec<i64>,
     resolution_queue: Vec<QueuedAbility>,
     pending_actions: Vec<QueuedAbility>,
 }
@@ -18,6 +17,7 @@ pub struct BattleEngagement {
     pub turn_phase: BattlePhase,
     action_queue: HashMap<i64, Vec<QueuedAbility>>,
     ticks_in_phase: u64,
+    turn_count: u64,
     pending_costs: HashMap<i64, Vec<(String, i64)>>,
     planning_faction_index: usize,
 }
@@ -30,6 +30,7 @@ impl BattleEngagement {
             turn_phase: BattlePhase::InnateEffects,
             action_queue: HashMap::new(),
             ticks_in_phase: 0,
+            turn_count: 0,
             pending_costs: HashMap::new(),
             planning_faction_index: 0,
         }
@@ -150,7 +151,7 @@ impl BattleEngagement {
             engagement_id,
             all_participant_ids,
             messages: output.messages,
-            innate_entity_ids: output.innate_entity_ids,
+            turn_count: self.turn_count,
             resolution_queue: output.resolution_queue,
             pending_actions: output.pending_actions,
             phase: self.turn_phase.clone(),
@@ -162,16 +163,15 @@ impl BattleEngagement {
 
     /// Drives the phase state machine one step, returning messages and queued work produced by
     /// the transition. Advances `self.turn_phase` and resets `self.ticks_in_phase` as needed.
-    fn advance_phase(&mut self, max_engage_ticks: u64, all_ids: &[i64]) -> PhaseOutput {
+    fn advance_phase(&mut self, max_engage_ticks: u64, _all_ids: &[i64]) -> PhaseOutput {
         let mut out = PhaseOutput {
             messages: Vec::new(),
-            innate_entity_ids: Vec::new(),
             resolution_queue: Vec::new(),
             pending_actions: Vec::new(),
         };
         match self.turn_phase.clone() {
             BattlePhase::InnateEffects => {
-                out.innate_entity_ids = all_ids.to_vec();
+                self.turn_count += 1;
                 let next = BattlePhase::Planning {
                     faction: self.planning_faction().to_string(),
                 };
@@ -238,7 +238,9 @@ impl BattleEngagement {
 #[cfg(test)]
 mod tests {
     use crate::game::component::AbilityRole;
-    use crate::game::component::effect::{Effect, EffectDescription, EffectType, TriggerInfo};
+    use crate::game::component::effect::{
+        Effect, EffectDescription, EffectScope, EffectType, TriggerInfo,
+    };
     use crate::game::component::{Ability, Attribute, Cost};
     use crate::game::engagement::EngagementType;
     use crate::game::engagement::battle::{BattleMessage, BattlePhase};
@@ -314,13 +316,27 @@ mod tests {
                 faction: "player".into()
             }
         );
-        assert!(!tick.innate_entity_ids.is_empty());
+        assert_eq!(tick.turn_count, 1);
         assert!(tick.messages.iter().any(|m| matches!(
             m,
             BattleMessage::PhaseChange {
                 phase: BattlePhase::Planning { .. }
             }
         )));
+    }
+
+    #[test]
+    fn turn_count_increments_each_innate_effects_phase() {
+        let mut eng = make_engagement();
+        assert_eq!(eng.turn_count, 0);
+        eng.tick(1, 1); // InnateEffects → Planning (turn_count becomes 1)
+        assert_eq!(eng.turn_count, 1);
+        eng.tick(1, 1); // Planning → Response
+        eng.tick(1, 1); // Response → Resolution
+        eng.tick(1, 1); // Resolution → InnateEffects (still 1, InnateEffects hasn't fired yet)
+        assert_eq!(eng.turn_count, 1);
+        eng.tick(1, 1); // InnateEffects fires again → Planning (turn_count becomes 2)
+        assert_eq!(eng.turn_count, 2);
     }
 
     #[test]
@@ -477,6 +493,7 @@ mod tests {
                 },
                 trigger_info: TriggerInfo::Once,
                 description: EffectDescription::default(),
+                scope: EffectScope::default(),
             }],
             engagement_types: vec![EngagementType::Battle],
             costs: vec![Cost::Resource {

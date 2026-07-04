@@ -53,7 +53,7 @@ pub struct Ability {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::component::effect::{EffectDescription, EffectType, TriggerInfo};
+    use crate::game::component::effect::{EffectDescription, EffectScope, EffectType, TriggerInfo};
 
     fn attack_effect() -> Effect {
         Effect {
@@ -64,6 +64,7 @@ mod tests {
             },
             trigger_info: TriggerInfo::Once,
             description: EffectDescription::default(),
+            scope: EffectScope::default(),
         }
     }
 
@@ -169,6 +170,7 @@ mod tests {
                 },
                 trigger_info: TriggerInfo::Once,
                 description: EffectDescription::default(),
+                scope: EffectScope::default(),
             }],
             engagement_types: vec![EngagementType::Battle],
             costs: vec![],

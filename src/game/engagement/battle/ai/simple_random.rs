@@ -30,7 +30,9 @@ mod tests {
     use crate::game::component::Ability;
     use crate::game::component::AbilityRole;
     use crate::game::component::Location;
-    use crate::game::component::effect::{Effect, EffectDescription, EffectType, TriggerInfo};
+    use crate::game::component::effect::{
+        Effect, EffectDescription, EffectScope, EffectType, TriggerInfo,
+    };
     use crate::game::engagement::EngagementType;
     use crate::game::entity::EntityType;
 
@@ -55,6 +57,7 @@ mod tests {
                 },
                 trigger_info: TriggerInfo::Once,
                 description: EffectDescription::default(),
+                scope: EffectScope::default(),
             }],
             engagement_types: vec![EngagementType::Battle],
             costs: vec![],

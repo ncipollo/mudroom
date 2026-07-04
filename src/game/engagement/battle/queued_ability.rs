@@ -11,7 +11,9 @@ pub struct QueuedAbility {
 mod tests {
     use super::*;
     use crate::game::component::AbilityRole;
-    use crate::game::component::effect::{Effect, EffectDescription, EffectType, TriggerInfo};
+    use crate::game::component::effect::{
+        Effect, EffectDescription, EffectScope, EffectType, TriggerInfo,
+    };
     use crate::game::engagement::EngagementType;
 
     fn test_ability() -> Ability {
@@ -27,6 +29,7 @@ mod tests {
                 },
                 trigger_info: TriggerInfo::Once,
                 description: EffectDescription::default(),
+                scope: EffectScope::default(),
             }],
             engagement_types: vec![EngagementType::Battle],
             costs: vec![],

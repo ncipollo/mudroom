@@ -29,7 +29,7 @@ pub struct BattleTick {
     pub engagement_id: i64,
     pub all_participant_ids: Vec<i64>,
     pub messages: Vec<BattleMessage>,
-    pub innate_entity_ids: Vec<i64>,
+    pub turn_count: u64,
     pub resolution_queue: Vec<QueuedAbility>,
     pub pending_actions: Vec<QueuedAbility>,
     pub phase: BattlePhase,
