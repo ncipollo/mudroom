@@ -28,6 +28,18 @@ pub struct PlayerListResponse {
     pub players: Vec<PlayerInfo>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClassInfo {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClassListResponse {
+    pub classes: Vec<ClassInfo>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ParticipantInfo {
     pub id: i64,

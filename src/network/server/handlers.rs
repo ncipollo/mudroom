@@ -1,6 +1,8 @@
 pub mod player;
 
-pub use player::{player_create_handler, player_list_handler, player_select_handler};
+pub use player::{
+    player_classes_handler, player_create_handler, player_list_handler, player_select_handler,
+};
 
 use serde::Deserialize;
 

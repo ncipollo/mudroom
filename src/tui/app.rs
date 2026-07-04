@@ -5,7 +5,7 @@ mod network_event_handler;
 pub use battle_state::{BattleFocus, BattleState};
 pub use conversation_state::ConversationState;
 
-use crate::network::event::PlayerInfo;
+use crate::network::event::{ClassInfo, PlayerInfo};
 
 #[derive(Debug, Clone)]
 pub struct AppMessage {
@@ -45,11 +45,19 @@ pub struct ConnectionState {
 }
 
 #[derive(Debug, Clone, Default)]
+pub struct ClassSelectState {
+    pub classes: Vec<ClassInfo>,
+    pub selected_index: usize,
+    pub active: bool,
+}
+
+#[derive(Debug, Clone, Default)]
 pub struct PlayerSelectState {
     pub players: Vec<PlayerInfo>,
     pub selected_index: usize,
     pub creating_player: bool,
     pub player_name_input: String,
+    pub class_select: ClassSelectState,
 }
 
 pub struct App {
@@ -148,6 +156,38 @@ impl App {
     pub fn cancel_create(&mut self) {
         self.player_select.creating_player = false;
         self.player_select.player_name_input.clear();
+    }
+
+    pub fn start_class_select(&mut self, classes: Vec<ClassInfo>) {
+        self.player_select.class_select.classes = classes;
+        self.player_select.class_select.selected_index = 0;
+        self.player_select.class_select.active = true;
+        self.player_select.creating_player = false;
+    }
+
+    pub fn cancel_class_select(&mut self) {
+        self.player_select.class_select.active = false;
+        self.player_select.creating_player = true;
+    }
+
+    pub fn class_select_next(&mut self) {
+        let total = self.player_select.class_select.classes.len();
+        if total > 0 {
+            self.player_select.class_select.selected_index =
+                (self.player_select.class_select.selected_index + 1) % total;
+        }
+    }
+
+    pub fn class_select_prev(&mut self) {
+        let total = self.player_select.class_select.classes.len();
+        if total > 0 {
+            self.player_select.class_select.selected_index =
+                if self.player_select.class_select.selected_index == 0 {
+                    total - 1
+                } else {
+                    self.player_select.class_select.selected_index - 1
+                };
+        }
     }
 }
 
