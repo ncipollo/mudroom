@@ -1,3 +1,4 @@
+pub mod activations;
 pub mod attributes;
 pub mod effects;
 pub mod interactions;
@@ -20,6 +21,7 @@ pub async fn run(game_state: Arc<GameState>, db: Database) {
     loop {
         ticker.tick().await;
 
+        activations::process(&game_state, &db).await;
         interactions::process(&game_state, &db, tick).await;
         engagement::process(&game_state, tick).await;
         effects::process(&game_state, tick).await;

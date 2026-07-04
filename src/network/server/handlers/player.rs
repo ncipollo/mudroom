@@ -6,7 +6,6 @@ use axum::http::StatusCode;
 use tracing::info;
 
 use crate::game::component::Attribute;
-use crate::game::interaction::room_threats;
 use crate::game::{Entity, EntityType, Location, Player};
 use crate::network::event::{NetworkEvent, PlayerInfo, PlayerListResponse};
 use crate::network::server::state::{AppState, PlayerCreateBody, PlayerListBody, PlayerSelectBody};
@@ -94,10 +93,8 @@ async fn activate_player(
         .ok_or(StatusCode::NOT_FOUND)?;
     entity.name = player.name.clone();
 
-    let room_id = entity.location.room_id.clone();
     register_player_in_game_state(state, client_id, player, entity).await;
     notify_player_selected(state, client_id, player).await;
-    room_threats::check_room_hostility(&state.game_state, player, &room_id).await;
     Ok(())
 }
 
@@ -105,24 +102,12 @@ async fn register_player_in_game_state(
     state: &AppState,
     client_id: &str,
     player: &Player,
-    entity: crate::game::Entity,
+    entity: Entity,
 ) {
-    let pool = state.db.pool();
     state
         .game_state
-        .active_entities
-        .write()
-        .await
-        .insert(entity.id, entity);
-    state
-        .game_state
-        .active_players
-        .write()
-        .await
-        .insert(client_id.to_string(), player.clone());
-    if let Err(e) = state.game_state.sync_active_entities(pool).await {
-        tracing::error!(error = %e, "Failed to sync active entities on player select");
-    }
+        .push_pending_activation(entity, player.clone(), client_id.to_string())
+        .await;
 }
 
 fn default_player_attributes() -> std::collections::HashMap<String, Attribute> {
