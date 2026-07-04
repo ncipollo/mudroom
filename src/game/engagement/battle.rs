@@ -1,5 +1,6 @@
 pub mod abilities;
 pub mod ai;
+pub mod engagement_ext;
 pub mod loot;
 pub mod message;
 pub mod participants;

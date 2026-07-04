@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::game::engagement::EngagementType;
-use crate::game::engagement::engagements::Engagements;
+use crate::game::engagement::Engagements;
 
 /// Add an entity to an existing battle engagement under the given faction.
 /// Returns false if the engagement does not exist or has no battle.
