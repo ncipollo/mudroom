@@ -1,6 +1,6 @@
 use serde_json::json;
 
-use crate::network::event::{PlayerInfo, PlayerListResponse};
+use crate::network::event::{ClassInfo, ClassListResponse, PlayerInfo, PlayerListResponse};
 
 pub async fn list_players(
     url: &str,
@@ -34,6 +34,17 @@ pub async fn create_player(
         .json::<PlayerInfo>()
         .await?;
     Ok(resp)
+}
+
+pub async fn list_classes(url: &str) -> Result<Vec<ClassInfo>, Box<dyn std::error::Error>> {
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(format!("{url}/players/classes"))
+        .send()
+        .await?
+        .json::<ClassListResponse>()
+        .await?;
+    Ok(resp.classes)
 }
 
 pub async fn select_player(

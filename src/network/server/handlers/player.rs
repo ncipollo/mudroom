@@ -9,9 +9,26 @@ use tracing::info;
 use crate::game::component::{Ability, Attribute};
 use crate::game::config::class_config::ClassConfig;
 use crate::game::{Entity, EntityType, Location, Player};
-use crate::network::event::{NetworkEvent, PlayerInfo, PlayerListResponse};
+use crate::network::event::{
+    ClassInfo, ClassListResponse, NetworkEvent, PlayerInfo, PlayerListResponse,
+};
 use crate::network::server::state::{AppState, PlayerCreateBody, PlayerListBody, PlayerSelectBody};
 use crate::persistence::{ability_repo, entity_repo, player_repo};
+
+pub async fn player_classes_handler(State(state): State<Arc<AppState>>) -> Json<ClassListResponse> {
+    info!("GET /players/classes");
+    let classes = state
+        .game_state
+        .classes
+        .iter()
+        .map(|(id, c)| ClassInfo {
+            id: id.clone(),
+            name: c.name.clone(),
+            description: c.description.clone(),
+        })
+        .collect();
+    Json(ClassListResponse { classes })
+}
 
 pub async fn player_list_handler(
     State(state): State<Arc<AppState>>,
