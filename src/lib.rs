@@ -36,7 +36,7 @@ pub async fn run_server(
     if reload_maps || game::should_auto_load(db.pool()).await? {
         load_maps_into_db(&db, config_path_buf.as_deref(), reload_maps, &game_state).await?;
     }
-    serve_and_wait(server_session, game_state, db, config_path_buf).await
+    serve_and_wait(server_session, game_state, db).await
 }
 
 async fn init_server_session(
@@ -100,11 +100,9 @@ async fn serve_and_wait(
     server_session: network::session::ServerSession,
     game_state: game::GameState,
     db: persistence::Database,
-    config_path_buf: Option<std::path::PathBuf>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let session_name = server_session.name.clone();
-    let addr =
-        network::server::start(server_session, game_state, db.clone(), config_path_buf).await?;
+    let addr = network::server::start(server_session, game_state, db.clone()).await?;
     network::discovery::start_discovery(addr.port(), session_name);
     tracing::info!("Server listening on {addr}");
     tokio::signal::ctrl_c().await?;

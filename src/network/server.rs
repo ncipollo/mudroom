@@ -6,7 +6,6 @@ mod state;
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use tokio::net::TcpListener;
@@ -21,7 +20,6 @@ pub async fn start(
     server_session: ServerSession,
     game_state: GameState,
     db: Database,
-    config_path: Option<PathBuf>,
 ) -> Result<SocketAddr, Box<dyn std::error::Error>> {
     let connections: Arc<RwLock<HashMap<String, ConnectedClient>>> =
         Arc::new(RwLock::new(HashMap::new()));
@@ -31,7 +29,6 @@ pub async fn start(
         game_state: Arc::new(game_state),
         db,
         connections: connections.clone(),
-        config_path,
     });
 
     message_relay::spawn(

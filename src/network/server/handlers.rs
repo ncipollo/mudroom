@@ -47,7 +47,8 @@ use super::state::{
     AppState, ConnectedClient, GuardedStream, PingBody, SessionEndBody, SessionStartBody,
     SseCleanupGuard, SseQuery,
 };
-use crate::game;
+use std::sync::atomic::Ordering;
+
 use crate::network::event::{NetworkEvent, ServerInfoResponse, SessionStartResponse};
 
 pub async fn server_info_handler(State(state): State<Arc<AppState>>) -> Json<ServerInfoResponse> {
@@ -128,27 +129,11 @@ pub async fn session_end_handler(
     "ok"
 }
 
-pub async fn maps_reload_handler(
-    State(state): State<Arc<AppState>>,
-) -> Result<&'static str, StatusCode> {
-    do_reload_maps(&state).await?;
-    info!("Maps reloaded");
-    Ok("ok")
-}
-
-async fn do_reload_maps(state: &AppState) -> Result<(), StatusCode> {
+pub async fn maps_reload_handler(State(state): State<Arc<AppState>>) -> &'static str {
     info!("POST /maps/reload");
-    game::sync_universe_config(
-        state.db.pool(),
-        state.config_path.as_deref(),
-        &state.game_state.faction_config,
-        &state.game_state.resource_config,
-    )
-    .await
-    .map_err(|e| log_internal_error(e, "Failed to reload maps"))
-}
-
-fn log_internal_error(e: impl std::fmt::Display, msg: &str) -> StatusCode {
-    tracing::error!("{msg}: {e}");
-    StatusCode::INTERNAL_SERVER_ERROR
+    state
+        .game_state
+        .reload_pending
+        .store(true, Ordering::Release);
+    "ok"
 }
