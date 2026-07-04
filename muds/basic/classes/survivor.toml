@@ -1,5 +1,6 @@
 name = "Survivor"
 description = "A scrappy melee brawler who clawed their way through the wasteland."
+innate_abilities = ["basic_attack", "sawed_off_shotgun", "defend"]
 
 [[attributes]]
 definition_id = "hp"
@@ -12,5 +13,3 @@ definition_id = "mp"
 min_value = 0
 max_value = 20
 current_value = 20
-
-innate_abilities = ["basic_attack", "sawed_off_shotgun"]

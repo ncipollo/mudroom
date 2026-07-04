@@ -1,5 +1,6 @@
 name = "Cyborg"
 description = "A cybernetically enhanced fighter with integrated energy weapons."
+innate_abilities = ["heat_beam", "electric_shot", "defend"]
 
 [[attributes]]
 definition_id = "hp"
@@ -12,5 +13,3 @@ definition_id = "mp"
 min_value = 0
 max_value = 60
 current_value = 60
-
-innate_abilities = ["heat_beam", "electric_shot"]
