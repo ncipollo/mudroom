@@ -29,7 +29,7 @@ pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
                         app.connection.server_url.clone(),
                         app.connection.client_id.clone(),
                     )
-                    && let Ok(info) = create_player(&url, &client_id, &name).await
+                    && let Ok(info) = create_player(&url, &client_id, &name, None).await
                 {
                     let player_id = info.id;
                     app.player_select.players.push(info);

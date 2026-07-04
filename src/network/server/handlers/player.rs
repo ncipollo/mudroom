@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use axum::Json;
@@ -5,11 +6,12 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use tracing::info;
 
-use crate::game::component::Attribute;
+use crate::game::component::{Ability, Attribute};
+use crate::game::config::class_config::ClassConfig;
 use crate::game::{Entity, EntityType, Location, Player};
 use crate::network::event::{NetworkEvent, PlayerInfo, PlayerListResponse};
 use crate::network::server::state::{AppState, PlayerCreateBody, PlayerListBody, PlayerSelectBody};
-use crate::persistence::{entity_repo, player_repo};
+use crate::persistence::{ability_repo, entity_repo, player_repo};
 
 pub async fn player_list_handler(
     State(state): State<Arc<AppState>>,
@@ -45,10 +47,12 @@ pub async fn player_create_handler(
     };
     let mut entity = Entity::new(0, EntityType::Player, location);
     entity.name = body.name.clone();
-    entity.attributes = default_player_attributes();
+    let (attributes, innate_abilities) = resolve_class_data(&state, &body)?;
+    entity.attributes = attributes;
     let entity_id = entity_repo::insert(pool, &entity)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    apply_class_abilities(pool, entity_id, &innate_abilities).await?;
     let player_id = player_repo::insert(pool, &body.client_id, &body.name, entity_id)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -110,8 +114,62 @@ async fn register_player_in_game_state(
         .await;
 }
 
-fn default_player_attributes() -> std::collections::HashMap<String, Attribute> {
-    let mut attrs = std::collections::HashMap::new();
+fn resolve_class_data(
+    state: &AppState,
+    body: &PlayerCreateBody,
+) -> Result<(HashMap<String, Attribute>, Vec<Ability>), StatusCode> {
+    if let Some(class_id) = &body.class_id {
+        let class = state
+            .game_state
+            .classes
+            .get(class_id)
+            .ok_or(StatusCode::BAD_REQUEST)?;
+        Ok((class_attributes(class), class.innate_abilities.clone()))
+    } else {
+        Ok((default_player_attributes(), vec![]))
+    }
+}
+
+fn class_attributes(class: &ClassConfig) -> HashMap<String, Attribute> {
+    class
+        .attributes
+        .iter()
+        .map(|sa| {
+            (
+                sa.definition_id.clone(),
+                Attribute::new(
+                    sa.definition_id.clone(),
+                    sa.min_value,
+                    sa.max_value,
+                    sa.current_value,
+                ),
+            )
+        })
+        .collect()
+}
+
+async fn apply_class_abilities(
+    pool: &sqlx::SqlitePool,
+    entity_id: i64,
+    abilities: &[Ability],
+) -> Result<(), StatusCode> {
+    if abilities.is_empty() {
+        return Ok(());
+    }
+    for ability in abilities {
+        ability_repo::upsert(pool, ability)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    }
+    let ids: Vec<&str> = abilities.iter().map(|a| a.id.as_str()).collect();
+    ability_repo::set_entity_abilities(pool, entity_id, &ids)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(())
+}
+
+fn default_player_attributes() -> HashMap<String, Attribute> {
+    let mut attrs = HashMap::new();
     attrs.insert(
         "hp".to_string(),
         Attribute::new("hp".to_string(), 0, 100, 100),
