@@ -141,7 +141,19 @@ fn resolve_class_data(
             .classes
             .get(class_id)
             .ok_or(StatusCode::BAD_REQUEST)?;
-        Ok((class_attributes(class), class.innate_abilities.clone()))
+        let abilities = class
+            .innate_abilities
+            .iter()
+            .map(|r| {
+                state
+                    .game_state
+                    .abilities
+                    .get(&r.0)
+                    .cloned()
+                    .ok_or(StatusCode::BAD_REQUEST)
+            })
+            .collect::<Result<Vec<Ability>, StatusCode>>()?;
+        Ok((class_attributes(class), abilities))
     } else {
         Ok((default_player_attributes(), vec![]))
     }

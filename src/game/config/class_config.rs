@@ -1,4 +1,4 @@
-use crate::game::config::ability_config::Ability;
+use crate::game::config::ability_config::AbilityReference;
 use crate::game::config::entity_config::StartingAttribute;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -14,7 +14,7 @@ pub struct ClassConfig {
     #[serde(default)]
     pub attributes: Vec<StartingAttribute>,
     #[serde(default)]
-    pub innate_abilities: Vec<Ability>,
+    pub innate_abilities: Vec<AbilityReference>,
 }
 
 pub fn load_classes(config_dir: &Path) -> Result<HashMap<String, ClassConfig>, Box<dyn Error>> {
@@ -97,28 +97,13 @@ name = "Custom"
         let toml = r#"
 name = "Survivor"
 description = "A scrappy melee brawler."
+innate_abilities = ["basic_attack"]
 
 [[attributes]]
 definition_id = "hp"
 min_value = 0
 max_value = 120
 current_value = 120
-
-[[innate_abilities]]
-id = "basic_attack"
-name = "Basic Attack"
-engagement_types = ["battle"]
-costs = []
-role = "attack"
-
-[[innate_abilities.effects]]
-name = "physical_damage"
-trigger_info = { type = "once" }
-
-[innate_abilities.effects.effect_type]
-type = "attribute_update"
-attribute_id = "hp"
-value = -8
 "#;
         let config: ClassConfig = toml::from_str(toml).unwrap();
         assert_eq!(config.name, "Survivor");
@@ -126,7 +111,6 @@ value = -8
         assert_eq!(config.attributes[0].definition_id, "hp");
         assert_eq!(config.attributes[0].max_value, 120);
         assert_eq!(config.innate_abilities.len(), 1);
-        assert_eq!(config.innate_abilities[0].id, "basic_attack");
-        assert_eq!(config.innate_abilities[0].effects.len(), 1);
+        assert_eq!(config.innate_abilities[0].0, "basic_attack");
     }
 }

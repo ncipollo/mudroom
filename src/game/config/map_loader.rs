@@ -3,6 +3,7 @@ mod definition_sync;
 mod entity_sync;
 mod universe_sync;
 
+pub use ability_cache::build_ability_cache as load_abilities;
 pub use definition_sync::{load_factions_into_db, load_resources_into_db};
 pub use entity_sync::load_entities_into_db;
 pub use universe_sync::{load_map_into_db, should_auto_load};
