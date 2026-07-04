@@ -136,7 +136,9 @@ fn ability_role_from_str(s: &str) -> AbilityRole {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::component::effect::{Effect, EffectDescription, EffectType, TriggerInfo};
+    use crate::game::component::effect::{
+        Effect, EffectDescription, EffectScope, EffectType, TriggerInfo,
+    };
     use crate::game::engagement::EngagementType;
     use crate::game::{Description, Dungeon, Entity, EntityType, Location, Room, World};
     use crate::persistence::database::Database;
@@ -173,6 +175,7 @@ mod tests {
                 },
                 trigger_info: TriggerInfo::Once,
                 description: EffectDescription::default(),
+                scope: EffectScope::default(),
             }],
             costs: vec![],
             modifiers: vec![],

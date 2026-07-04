@@ -101,7 +101,9 @@ mod tests {
     use crate::game::component::AbilityRole;
     use crate::game::component::Attribute;
     use crate::game::component::Location;
-    use crate::game::component::effect::{Effect, EffectDescription, EffectType, TriggerInfo};
+    use crate::game::component::effect::{
+        Effect, EffectDescription, EffectScope, EffectType, TriggerInfo,
+    };
     use crate::game::engagement::EngagementType;
     use crate::game::entity::{Entity, EntityType};
 
@@ -126,6 +128,7 @@ mod tests {
             },
             trigger_info: TriggerInfo::Once,
             description: EffectDescription::default(),
+            scope: EffectScope::default(),
         }
     }
 
@@ -138,6 +141,7 @@ mod tests {
             },
             trigger_info: trigger,
             description: EffectDescription::default(),
+            scope: EffectScope::default(),
         }
     }
 

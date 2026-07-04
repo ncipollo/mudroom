@@ -55,6 +55,7 @@ pub async fn find_by_entity(
                     effect_type,
                     trigger_info,
                     description,
+                    scope: Default::default(),
                 })
             },
         )
@@ -107,6 +108,7 @@ mod tests {
                 start_description: Some("You feel healed.".to_string()),
                 end_description: None,
             },
+            scope: Default::default(),
         }
     }
 
