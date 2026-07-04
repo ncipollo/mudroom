@@ -1,4 +1,4 @@
-use crate::game::component::{Ability, AbilityRole};
+use crate::game::component::{Ability, AbilityRole, AbilityTargetType};
 use crate::game::engagement::battle::{BattleMessage, BattlePhase};
 use crate::network::event::{BattleSnapshot, ParticipantInfo};
 
@@ -110,18 +110,54 @@ impl BattleState {
         };
     }
 
-    pub fn open_target_dialog(&mut self, ability_id: String) {
-        let targets: Vec<ParticipantInfo> = self
-            .snapshot
-            .participants
-            .values()
-            .flat_map(|infos| infos.iter().cloned())
-            .collect();
+    pub fn open_target_dialog(&mut self, ability_id: String, target_types: Vec<AbilityTargetType>) {
+        let targets = self.filter_targets(&target_types);
         self.dialog = Some(TargetDialog {
             pending_ability_id: ability_id,
             selected_index: 0,
             targets,
         });
+    }
+
+    fn filter_targets(&self, target_types: &[AbilityTargetType]) -> Vec<ParticipantInfo> {
+        if target_types.is_empty() {
+            return self
+                .snapshot
+                .participants
+                .values()
+                .flat_map(|infos| infos.iter().cloned())
+                .collect();
+        }
+        let player_faction = match self.snapshot.factions.first() {
+            Some(f) => f,
+            None => {
+                return self
+                    .snapshot
+                    .participants
+                    .values()
+                    .flat_map(|infos| infos.iter().cloned())
+                    .collect();
+            }
+        };
+        let mut targets: Vec<ParticipantInfo> = Vec::new();
+        for target_type in target_types {
+            match target_type {
+                AbilityTargetType::SelfTarget | AbilityTargetType::Allies => {
+                    if let Some(infos) = self.snapshot.participants.get(player_faction) {
+                        targets.extend(infos.iter().cloned());
+                    }
+                }
+                AbilityTargetType::Opponent => {
+                    for (faction, infos) in &self.snapshot.participants {
+                        if faction != player_faction {
+                            targets.extend(infos.iter().cloned());
+                        }
+                    }
+                }
+            }
+        }
+        targets.dedup_by_key(|p| p.id);
+        targets
     }
 
     pub fn close_target_dialog(&mut self) {

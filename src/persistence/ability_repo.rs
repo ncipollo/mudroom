@@ -1,12 +1,13 @@
 use sqlx::SqlitePool;
 
-use crate::game::component::{Ability, AbilityRole};
+use crate::game::component::{Ability, AbilityRole, AbilityTargetType};
 use crate::persistence::error::PersistenceError;
 
 type AbilityRow = (
     String,
     String,
     Option<String>,
+    String,
     String,
     String,
     String,
@@ -20,11 +21,12 @@ pub async fn upsert(pool: &SqlitePool, ability: &Ability) -> Result<(), Persiste
     let modifiers_json = serde_json::to_string(&ability.modifiers).unwrap_or_default();
     let engagement_types_json =
         serde_json::to_string(&ability.engagement_types).unwrap_or_default();
+    let targets_json = serde_json::to_string(&ability.targets).unwrap_or_default();
     let role_str = ability_role_to_str(&ability.role);
     sqlx::query(
         "INSERT OR REPLACE INTO abilities \
-         (id, name, description, effects_json, costs_json, modifiers_json, engagement_types_json, role) \
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+         (id, name, description, effects_json, costs_json, modifiers_json, engagement_types_json, role, targets_json) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&ability.id)
     .bind(&ability.name)
@@ -34,6 +36,7 @@ pub async fn upsert(pool: &SqlitePool, ability: &Ability) -> Result<(), Persiste
     .bind(&modifiers_json)
     .bind(&engagement_types_json)
     .bind(role_str)
+    .bind(&targets_json)
     .execute(pool)
     .await?;
     Ok(())
@@ -45,7 +48,7 @@ pub async fn find_by_entity(
 ) -> Result<Vec<Ability>, PersistenceError> {
     let rows: Vec<AbilityRow> = sqlx::query_as(
         "SELECT a.id, a.name, a.description, a.effects_json, a.costs_json, \
-             a.modifiers_json, a.engagement_types_json, a.role \
+             a.modifiers_json, a.engagement_types_json, a.role, a.targets_json \
              FROM abilities a \
              JOIN entity_abilities ea ON a.id = ea.ability_id \
              WHERE ea.entity_id = ?",
@@ -66,6 +69,7 @@ pub async fn find_by_entity(
                 modifiers_json,
                 et_json,
                 role_str,
+                targets_json,
             )| {
                 let effects = serde_json::from_str(&effects_json).unwrap_or_else(|e| {
                     tracing::warn!("Failed to deserialize effects for ability {id}: {e}");
@@ -83,6 +87,11 @@ pub async fn find_by_entity(
                     tracing::warn!("Failed to deserialize engagement_types for ability {id}: {e}");
                     vec![]
                 });
+                let targets: Vec<AbilityTargetType> = serde_json::from_str(&targets_json)
+                    .unwrap_or_else(|e| {
+                        tracing::warn!("Failed to deserialize targets for ability {id}: {e}");
+                        vec![]
+                    });
                 Ability {
                     id,
                     name,
@@ -92,6 +101,7 @@ pub async fn find_by_entity(
                     modifiers,
                     engagement_types,
                     role: ability_role_from_str(&role_str),
+                    targets,
                 }
             },
         )
@@ -181,6 +191,7 @@ mod tests {
             modifiers: vec![],
             engagement_types: vec![EngagementType::Battle],
             role: AbilityRole::Attack,
+            targets: vec![AbilityTargetType::Opponent],
         }
     }
 
@@ -194,6 +205,7 @@ mod tests {
             modifiers: vec![],
             engagement_types: vec![EngagementType::Battle],
             role: AbilityRole::Defend,
+            targets: vec![AbilityTargetType::SelfTarget],
         }
     }
 

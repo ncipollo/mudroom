@@ -63,6 +63,7 @@ mod tests {
             costs: vec![],
             modifiers: vec![],
             role,
+            targets: vec![],
         }
     }
 

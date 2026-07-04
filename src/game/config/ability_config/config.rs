@@ -4,6 +4,16 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "snake_case")]
+pub enum AbilityTargetType {
+    #[default]
+    Opponent,
+    Allies,
+    #[serde(rename = "self")]
+    SelfTarget,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "snake_case")]
 pub enum AbilityRole {
     #[default]
     Attack,
@@ -48,6 +58,8 @@ pub struct Ability {
     pub modifiers: Vec<Modifier>,
     #[serde(default)]
     pub role: AbilityRole,
+    #[serde(default)]
+    pub targets: Vec<AbilityTargetType>,
 }
 
 #[cfg(test)]
@@ -121,6 +133,7 @@ mod tests {
             }],
             modifiers: vec![],
             role: AbilityRole::Attack,
+            targets: vec![],
         };
         let json = serde_json::to_string(&ability).unwrap();
         let restored: Ability = serde_json::from_str(&json).unwrap();
@@ -150,6 +163,7 @@ mod tests {
                 },
             ],
             role: AbilityRole::Attack,
+            targets: vec![],
         };
         let json = serde_json::to_string(&ability).unwrap();
         let restored: Ability = serde_json::from_str(&json).unwrap();
@@ -176,6 +190,7 @@ mod tests {
             costs: vec![],
             modifiers: vec![],
             role: AbilityRole::Attack,
+            targets: vec![],
         };
         let json = serde_json::to_string(&ability).unwrap();
         let restored: Ability = serde_json::from_str(&json).unwrap();
@@ -194,5 +209,55 @@ mod tests {
         }"#;
         let ability: Ability = serde_json::from_str(json).unwrap();
         assert!(ability.modifiers.is_empty());
+    }
+
+    #[test]
+    fn ability_target_type_serde_round_trip() {
+        assert_eq!(
+            serde_json::to_string(&AbilityTargetType::Opponent).unwrap(),
+            r#""opponent""#
+        );
+        assert_eq!(
+            serde_json::to_string(&AbilityTargetType::Allies).unwrap(),
+            r#""allies""#
+        );
+        assert_eq!(
+            serde_json::to_string(&AbilityTargetType::SelfTarget).unwrap(),
+            r#""self""#
+        );
+        let restored: AbilityTargetType = serde_json::from_str(r#""self""#).unwrap();
+        assert_eq!(restored, AbilityTargetType::SelfTarget);
+    }
+
+    #[test]
+    fn ability_with_targets_serde_round_trip() {
+        let ability = Ability {
+            id: "attack".to_string(),
+            name: "Attack".to_string(),
+            description: None,
+            effects: vec![attack_effect()],
+            engagement_types: vec![],
+            costs: vec![],
+            modifiers: vec![],
+            role: AbilityRole::Attack,
+            targets: vec![AbilityTargetType::Opponent],
+        };
+        let json = serde_json::to_string(&ability).unwrap();
+        let restored: Ability = serde_json::from_str(&json).unwrap();
+        assert_eq!(ability, restored);
+    }
+
+    #[test]
+    fn ability_missing_targets_field_deserializes() {
+        let json = r#"{
+            "id": "attack",
+            "name": "Attack",
+            "description": null,
+            "effects": [],
+            "engagement_types": [],
+            "costs": []
+        }"#;
+        let ability: Ability = serde_json::from_str(json).unwrap();
+        assert!(ability.targets.is_empty());
     }
 }

@@ -9,7 +9,9 @@ pub mod interaction;
 pub mod location;
 pub mod resource_definition;
 
-pub use crate::game::config::ability_config::{Ability, AbilityRole, Cost, Modifier, Operator};
+pub use crate::game::config::ability_config::{
+    Ability, AbilityRole, AbilityTargetType, Cost, Modifier, Operator,
+};
 pub use attribute::Attribute;
 pub use attribute_definition::AttributeCategory;
 pub use attribute_definition::AttributeDefinition;

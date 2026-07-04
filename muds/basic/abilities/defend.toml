@@ -3,6 +3,7 @@ description = "Brace for impact, absorbing incoming damage."
 engagement_types = ["battle"]
 costs = []
 role = "defend"
+targets = ["self"]
 
 [[effects]]
 name = "damage_reduction"

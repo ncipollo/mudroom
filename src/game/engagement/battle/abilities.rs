@@ -1,7 +1,7 @@
 use crate::game::component::effect::{
     Effect, EffectDescription, EffectScope, EffectType, TriggerInfo,
 };
-use crate::game::component::{Ability, AbilityRole};
+use crate::game::component::{Ability, AbilityRole, AbilityTargetType};
 use crate::game::engagement::EngagementType;
 use crate::game::entity::Entity;
 
@@ -59,6 +59,7 @@ pub fn default_defend_ability() -> Ability {
         costs: vec![],
         modifiers: vec![],
         role: AbilityRole::Defend,
+        targets: vec![AbilityTargetType::SelfTarget],
     }
 }
 
@@ -81,6 +82,7 @@ pub fn default_attack_ability() -> Ability {
         costs: vec![],
         modifiers: vec![],
         role: AbilityRole::Attack,
+        targets: vec![AbilityTargetType::Opponent],
     }
 }
 
@@ -110,6 +112,7 @@ mod tests {
             costs: vec![],
             modifiers: vec![],
             role,
+            targets: vec![],
         }
     }
 

@@ -3,6 +3,7 @@ description = "A focused beam of intense thermal energy."
 engagement_types = ["battle"]
 costs = []
 role = "attack"
+targets = ["opponent"]
 
 [[effects]]
 name = "thermal_damage"

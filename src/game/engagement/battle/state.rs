@@ -449,6 +449,7 @@ mod tests {
             costs: vec![],
             modifiers: vec![],
             role: AbilityRole::Attack,
+            targets: vec![],
         };
         let attrs = HashMap::new();
         eng.queue_ability(1, ability.clone(), 2, &attrs);
@@ -502,6 +503,7 @@ mod tests {
             }],
             modifiers: vec![],
             role: AbilityRole::Attack,
+            targets: vec![],
         };
         let attrs: HashMap<String, Attribute> = HashMap::new(); // no mp
         assert!(!eng.queue_ability(1, ability, 2, &attrs));

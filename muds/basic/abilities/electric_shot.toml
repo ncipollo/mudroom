@@ -3,6 +3,7 @@ description = "A charged burst of electrical energy."
 engagement_types = ["battle"]
 costs = []
 role = "attack"
+targets = ["opponent"]
 
 [[effects]]
 name = "electric_damage"
