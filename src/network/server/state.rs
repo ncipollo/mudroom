@@ -116,6 +116,8 @@ pub struct PlayerListBody {
 pub struct PlayerCreateBody {
     pub client_id: String,
     pub name: String,
+    #[serde(default)]
+    pub class_id: Option<String>,
 }
 
 #[derive(Deserialize)]

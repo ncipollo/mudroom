@@ -22,9 +22,10 @@ pub async fn create_player(
     url: &str,
     client_id: &str,
     name: &str,
+    class_id: Option<&str>,
 ) -> Result<PlayerInfo, Box<dyn std::error::Error>> {
     let client = reqwest::Client::new();
-    let body = json!({ "client_id": client_id, "name": name });
+    let body = json!({ "client_id": client_id, "name": name, "class_id": class_id });
     let resp = client
         .post(format!("{url}/players/create"))
         .json(&body)
