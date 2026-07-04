@@ -17,6 +17,12 @@ use crate::game::messaging::PlayerMessage;
 use crate::game::player::Player;
 use crate::persistence::PersistenceError;
 
+pub struct PendingActivation {
+    pub entity: Entity,
+    pub player: Player,
+    pub client_id: String,
+}
+
 mod entity_sync;
 
 pub struct GameState {
@@ -33,6 +39,7 @@ pub struct GameState {
     pub engagements: Engagements,
     pub mailboxes: Mailboxes,
     pub active_players: RwLock<HashMap<String, Player>>,
+    pub pending_activations: RwLock<Vec<PendingActivation>>,
     pub message_tx: broadcast::Sender<PlayerMessage>,
 }
 
@@ -110,12 +117,29 @@ impl GameState {
             engagements: Engagements::new(),
             mailboxes: Mailboxes::new(),
             active_players: RwLock::new(HashMap::new()),
+            pending_activations: RwLock::new(Vec::new()),
             message_tx,
         })
     }
 
     pub async fn sync_active_entities(&self, pool: &SqlitePool) -> Result<(), PersistenceError> {
         entity_sync::sync(self, pool).await
+    }
+
+    pub async fn push_pending_activation(&self, entity: Entity, player: Player, client_id: String) {
+        self.pending_activations
+            .write()
+            .await
+            .push(PendingActivation {
+                entity,
+                player,
+                client_id,
+            });
+    }
+
+    pub async fn drain_pending_activations(&self) -> Vec<PendingActivation> {
+        let mut pending = self.pending_activations.write().await;
+        std::mem::take(&mut *pending)
     }
 }
 
