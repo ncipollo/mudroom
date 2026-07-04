@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicBool;
 
 use sqlx::SqlitePool;
 use tokio::sync::RwLock;
@@ -19,6 +20,8 @@ use crate::persistence::PersistenceError;
 mod entity_sync;
 
 pub struct GameState {
+    pub config_path: Option<PathBuf>,
+    pub reload_pending: AtomicBool,
     pub attribute_config: AttributeConfig,
     pub faction_config: FactionConfig,
     pub resource_config: ResourceConfig,
@@ -94,6 +97,8 @@ impl GameState {
         let (message_tx, _) = broadcast::channel::<PlayerMessage>(512);
 
         Ok(Self {
+            config_path: config_dir.map(Path::to_path_buf),
+            reload_pending: AtomicBool::new(false),
             attribute_config,
             faction_config,
             resource_config,
