@@ -38,4 +38,12 @@ See [`arch.md`](docs/engine/arch.md) for the full architecture overview. New cod
 | `persistence/` | Infrastructure | SQLite repos (sqlx) |
 | `agent/` | Infrastructure | LLM providers + entity AI state |
 | `paths.rs` | Infrastructure | Filesystem path helpers |
-| `cli.rs`, `logging.rs` | Entry / Cross-cutting | — |
+| `cli.rs` | Entry | clap struct/enum definitions; declares `cli/` submodules; re-exports `router()` |
+| `cli/router.rs` | Entry | `CliRouter` struct + `router()` free function; dispatches on top-level commands |
+| `cli/server.rs` | Entry | Server command handler and all startup helpers |
+| `cli/client.rs` | Entry | Client command handler |
+| `cli/players.rs` | Entry | Players subcommand handlers |
+| `logging.rs` | Cross-cutting | — |
+
+### CLI organization principle
+`cli.rs` holds only clap type definitions. Each top-level command gets its own file under `cli/` (one file per command). The router (`cli/router.rs`) owns dispatch only — no business logic. Entry point in `main.rs` calls `cli::router().route(cli).await`.
