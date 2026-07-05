@@ -1,4 +1,13 @@
+pub mod client;
+pub mod completions;
+pub mod players;
+pub mod router;
+pub mod server;
+
+pub use router::router;
+
 use clap::{Parser, Subcommand};
+use clap_complete::Shell;
 
 #[derive(Parser, Debug)]
 #[command(name = "mudroom", about = "mudroom application")]
@@ -35,6 +44,11 @@ pub enum Commands {
         #[command(subcommand)]
         command: PlayersCommands,
     },
+    /// Generate shell completions
+    Completions {
+        /// Target shell
+        shell: Shell,
+    },
 }
 
 #[derive(Subcommand, Debug, PartialEq)]
@@ -49,6 +63,16 @@ pub enum PlayersCommands {
     Rm {
         /// Player name to remove
         player: String,
+        /// Server name — identifies which database to use (matches server --name)
+        #[arg(long)]
+        name: Option<String>,
+    },
+    /// Reset a player's attributes and abilities to a class baseline
+    Reset {
+        /// Player name to reset
+        player: String,
+        /// Class ID to apply
+        class: String,
         /// Server name — identifies which database to use (matches server --name)
         #[arg(long)]
         name: Option<String>,
@@ -141,6 +165,38 @@ mod tests {
                 name: None,
                 config: Some("muds/basic".to_string()),
                 reload_maps: false,
+            })
+        );
+    }
+
+    #[test]
+    fn players_reset_subcommand_parses() {
+        let cli = parse(&["mudroom", "players", "reset", "Alice", "warrior"]);
+        assert_eq!(
+            cli.command,
+            Some(Commands::Players {
+                command: PlayersCommands::Reset {
+                    player: "Alice".to_string(),
+                    class: "warrior".to_string(),
+                    name: None,
+                },
+            })
+        );
+    }
+
+    #[test]
+    fn players_reset_subcommand_with_name_parses() {
+        let cli = parse(&[
+            "mudroom", "players", "reset", "Alice", "warrior", "--name", "myserver",
+        ]);
+        assert_eq!(
+            cli.command,
+            Some(Commands::Players {
+                command: PlayersCommands::Reset {
+                    player: "Alice".to_string(),
+                    class: "warrior".to_string(),
+                    name: Some("myserver".to_string()),
+                },
             })
         );
     }
