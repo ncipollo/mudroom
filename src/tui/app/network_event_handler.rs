@@ -137,6 +137,7 @@ impl App {
         battle.snapshot.phase = snapshot.phase;
         battle.snapshot.countdown_secs = snapshot.countdown_secs;
         battle.snapshot.max_turn_secs = snapshot.max_turn_secs;
+        battle.snapshot.available_abilities = snapshot.available_abilities;
         battle.message_log.extend(messages);
     }
 }

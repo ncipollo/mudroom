@@ -83,8 +83,12 @@ pub fn pick_random<T>(items: &[T]) -> Option<&T> {
 mod tests {
     use std::collections::HashMap;
 
-    use crate::game::component::Location;
+    use crate::game::component::effect::{
+        Effect, EffectDescription, EffectScope, EffectType, TriggerInfo,
+    };
+    use crate::game::component::{Ability, AbilityRole, AbilityTargetType, Location};
     use crate::game::config::BattleAiConfig;
+    use crate::game::engagement::EngagementType;
     use crate::game::entity::{Entity, EntityType};
 
     use super::*;
@@ -97,9 +101,36 @@ mod tests {
         }
     }
 
+    fn make_ability(id: &str, role: AbilityRole, target: AbilityTargetType) -> Ability {
+        Ability {
+            id: id.to_string(),
+            name: id.to_string(),
+            description: None,
+            effects: vec![Effect {
+                name: "dmg".to_string(),
+                effect_type: EffectType::AttributeUpdate {
+                    attribute_id: "hp".to_string(),
+                    value: -5,
+                },
+                trigger_info: TriggerInfo::Once,
+                description: EffectDescription::default(),
+                scope: EffectScope::default(),
+            }],
+            engagement_types: vec![EngagementType::Battle],
+            costs: vec![],
+            modifiers: vec![],
+            role,
+            targets: vec![target],
+        }
+    }
+
     fn make_entity(id: i64, ai_type: BattleAiType) -> Entity {
         let mut e = Entity::new(id, EntityType::Enemy, test_location());
         e.battle_ai = BattleAiConfig { ai_type };
+        e.innate_abilities = vec![
+            make_ability("attack", AbilityRole::Attack, AbilityTargetType::Opponent),
+            make_ability("defend", AbilityRole::Defend, AbilityTargetType::SelfTarget),
+        ];
         e
     }
 

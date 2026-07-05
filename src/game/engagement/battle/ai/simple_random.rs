@@ -1,7 +1,6 @@
 use crate::game::engagement::battle::abilities::{
     battle_attack_abilities, battle_defend_abilities,
 };
-use crate::game::engagement::battle::{default_attack_ability, default_defend_ability};
 use crate::game::entity::Entity;
 
 use super::AiAction;
@@ -10,17 +9,13 @@ use super::pick_random;
 pub fn plan_attack(entity: &Entity, targets: &[i64]) -> Option<AiAction> {
     let &target_id = pick_random(targets)?;
     let attacks = battle_attack_abilities(entity);
-    let ability = pick_random(&attacks)
-        .cloned()
-        .unwrap_or_else(default_attack_ability);
+    let ability = pick_random(&attacks).cloned()?;
     Some((entity.id, ability, target_id, entity.attributes.clone()))
 }
 
 pub fn plan_defend(entity: &Entity) -> Option<AiAction> {
     let defends = battle_defend_abilities(entity);
-    let ability = pick_random(&defends)
-        .cloned()
-        .unwrap_or_else(default_defend_ability);
+    let ability = pick_random(&defends).cloned()?;
     Some((entity.id, ability, entity.id, entity.attributes.clone()))
 }
 
@@ -83,12 +78,10 @@ mod tests {
     }
 
     #[test]
-    fn plan_attack_falls_back_to_default_when_no_attack_abilities() {
+    fn plan_attack_returns_none_when_no_attack_abilities() {
         let entity = make_enemy(1);
         let targets = vec![2_i64];
-        let (_, ability, target, _) = plan_attack(&entity, &targets).unwrap();
-        assert_eq!(ability.id, "attack");
-        assert_eq!(target, 2);
+        assert!(plan_attack(&entity, &targets).is_none());
     }
 
     #[test]
@@ -108,16 +101,8 @@ mod tests {
     }
 
     #[test]
-    fn plan_defend_falls_back_to_default_when_no_defend_abilities() {
+    fn plan_defend_returns_none_when_no_defend_abilities() {
         let entity = make_enemy(1);
-        let (_, ability, target, _) = plan_defend(&entity).unwrap();
-        assert_eq!(ability.id, "defend");
-        assert_eq!(target, 1);
-    }
-
-    #[test]
-    fn plan_defend_always_returns_some() {
-        let entity = make_enemy(42);
-        assert!(plan_defend(&entity).is_some());
+        assert!(plan_defend(&entity).is_none());
     }
 }

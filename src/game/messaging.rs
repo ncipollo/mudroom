@@ -42,6 +42,7 @@ pub struct BattleUpdateMessage {
     pub messages: Vec<BattleMessage>,
     pub countdown_secs: u64,
     pub max_turn_secs: u64,
+    pub available_abilities: Vec<Ability>,
 }
 
 #[derive(Debug, Clone)]

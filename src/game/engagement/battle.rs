@@ -14,9 +14,7 @@ pub mod timer;
 
 use std::collections::HashMap;
 
-pub use abilities::{
-    default_attack_ability, default_defend_ability, entity_innate_battle_abilities,
-};
+pub use abilities::entity_innate_battle_abilities;
 pub use ai::{BattleAiContext, run_battle_ai};
 pub use collection::Battles;
 pub use message::BattleMessage;

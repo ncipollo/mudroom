@@ -113,7 +113,7 @@ fn battle_update_snapshot(data: BattleUpdateMessage) -> BattleSnapshot {
         turn_order: vec![],
         countdown_secs: data.countdown_secs,
         max_turn_secs: data.max_turn_secs,
-        available_abilities: vec![],
+        available_abilities: data.available_abilities,
     }
 }
 
