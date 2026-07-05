@@ -30,6 +30,29 @@ pub enum Commands {
         #[arg(long)]
         reload_maps: bool,
     },
+    /// Player administration commands
+    Players {
+        #[command(subcommand)]
+        command: PlayersCommands,
+    },
+}
+
+#[derive(Subcommand, Debug, PartialEq)]
+pub enum PlayersCommands {
+    /// List all players in the server database
+    List {
+        /// Server name — identifies which database to use (matches server --name)
+        #[arg(long)]
+        name: Option<String>,
+    },
+    /// Remove a player by name from the server database
+    Rm {
+        /// Player name to remove
+        player: String,
+        /// Server name — identifies which database to use (matches server --name)
+        #[arg(long)]
+        name: Option<String>,
+    },
 }
 
 #[cfg(test)]

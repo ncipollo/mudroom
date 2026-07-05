@@ -69,6 +69,39 @@ pub async fn find_by_entity_id(
     }))
 }
 
+pub async fn find_all(pool: &SqlitePool) -> Result<Vec<Player>, PersistenceError> {
+    let rows: Vec<(i64, String, String, i64)> =
+        sqlx::query_as("SELECT id, client_id, name, entity_id FROM players")
+            .fetch_all(pool)
+            .await?;
+    Ok(rows
+        .into_iter()
+        .map(|(id, client_id, name, entity_id)| Player {
+            id,
+            client_id,
+            name,
+            entity_id,
+        })
+        .collect())
+}
+
+pub async fn find_by_name(
+    pool: &SqlitePool,
+    name: &str,
+) -> Result<Option<Player>, PersistenceError> {
+    let row: Option<(i64, String, String, i64)> =
+        sqlx::query_as("SELECT id, client_id, name, entity_id FROM players WHERE name = ?")
+            .bind(name)
+            .fetch_optional(pool)
+            .await?;
+    Ok(row.map(|(id, client_id, name, entity_id)| Player {
+        id,
+        client_id,
+        name,
+        entity_id,
+    }))
+}
+
 pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), PersistenceError> {
     sqlx::query("DELETE FROM players WHERE id = ?")
         .bind(id)
@@ -164,6 +197,46 @@ mod tests {
     async fn find_by_entity_id_returns_none_for_missing() {
         let db = Database::connect_in_memory().await.unwrap();
         let found = find_by_entity_id(db.pool(), 999).await.unwrap();
+        assert!(found.is_none());
+    }
+
+    #[tokio::test]
+    async fn find_all_returns_all_players() {
+        let db = Database::connect_in_memory().await.unwrap();
+        let entity_id = setup(&db).await;
+        insert(db.pool(), "client1", "Alice", entity_id)
+            .await
+            .unwrap();
+
+        let players = find_all(db.pool()).await.unwrap();
+        assert_eq!(players.len(), 1);
+        assert_eq!(players[0].name, "Alice");
+    }
+
+    #[tokio::test]
+    async fn find_all_returns_empty_when_no_players() {
+        let db = Database::connect_in_memory().await.unwrap();
+        let players = find_all(db.pool()).await.unwrap();
+        assert!(players.is_empty());
+    }
+
+    #[tokio::test]
+    async fn find_by_name_returns_player() {
+        let db = Database::connect_in_memory().await.unwrap();
+        let entity_id = setup(&db).await;
+        insert(db.pool(), "client1", "Alice", entity_id)
+            .await
+            .unwrap();
+
+        let found = find_by_name(db.pool(), "Alice").await.unwrap().unwrap();
+        assert_eq!(found.name, "Alice");
+        assert_eq!(found.client_id, "client1");
+    }
+
+    #[tokio::test]
+    async fn find_by_name_returns_none_for_missing() {
+        let db = Database::connect_in_memory().await.unwrap();
+        let found = find_by_name(db.pool(), "Nobody").await.unwrap();
         assert!(found.is_none());
     }
 
