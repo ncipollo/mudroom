@@ -3,6 +3,7 @@ factions = ["enemy"]
 
 name = "Zombie"
 description = "A shambling corpse, visbily decayed. Eyes completely white, no pupil to speak of."
+innate_abilities = ["basic_attack", "defend"]
 
 [battle_ai]
 ai_type = "simple_random"

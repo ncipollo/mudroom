@@ -10,7 +10,9 @@ use crate::game::messaging::{BattleParticipantInfo, BattleUpdateMessage};
 use crate::game::{GameState, messaging};
 
 use super::resolution;
-use super::{BattleMessage, BattlePhase, BattleTick, QueuedAbility};
+use super::{
+    BattleMessage, BattlePhase, BattleTick, QueuedAbility, entity_innate_battle_abilities,
+};
 use super::{loot, timer};
 
 struct BattleTickOutcome {
@@ -109,7 +111,7 @@ async fn handle_tick(
         .cloned()
         .collect();
 
-    let player_ids = find_participant_player_ids(game_state, &all_ids).await;
+    let player_pairs = find_participant_player_ids(game_state, &all_ids).await;
 
     let countdown_ticks = max_engage_ticks.saturating_sub(result.ticks_in_phase);
     let tick_rate_ms = game_state.mud_config.game_loop.tick_rate_ms;
@@ -126,15 +128,24 @@ async fn handle_tick(
     };
     let update = build_battle_update(game_state, params).await;
 
-    for &pid in &player_ids {
-        messaging::battle_update(&game_state.message_tx, pid, update.clone());
+    {
+        let entities = game_state.active_entities.read().await;
+        for &(pid, entity_id) in &player_pairs {
+            let available_abilities = entities
+                .get(&entity_id)
+                .map(entity_innate_battle_abilities)
+                .unwrap_or_default();
+            let mut player_update = update.clone();
+            player_update.available_abilities = available_abilities;
+            messaging::battle_update(&game_state.message_tx, pid, player_update);
+        }
     }
 
     BattleTickOutcome {
         engagement_id,
         all_participant_ids: all_ids,
         dead_entity_ids: dead_ids,
-        player_ids,
+        player_ids: player_pairs.into_iter().map(|(pid, _)| pid).collect(),
     }
 }
 
@@ -342,12 +353,15 @@ async fn clear_active_effects(game_state: &Arc<GameState>, entity_ids: &[i64]) {
     }
 }
 
-async fn find_participant_player_ids(game_state: &Arc<GameState>, entity_ids: &[i64]) -> Vec<i64> {
+async fn find_participant_player_ids(
+    game_state: &Arc<GameState>,
+    entity_ids: &[i64],
+) -> Vec<(i64, i64)> {
     let players = game_state.active_players.read().await;
     players
         .values()
         .filter(|p| entity_ids.contains(&p.entity_id))
-        .map(|p| p.id)
+        .map(|p| (p.id, p.entity_id))
         .collect()
 }
 
@@ -403,5 +417,6 @@ async fn build_battle_update(
         messages: params.messages,
         countdown_secs: params.countdown_secs,
         max_turn_secs: params.max_turn_secs,
+        available_abilities: vec![],
     }
 }

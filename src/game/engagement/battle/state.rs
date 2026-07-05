@@ -63,6 +63,20 @@ impl BattleEngagement {
             .collect()
     }
 
+    pub fn unacted_planning_ids(&self) -> Vec<i64> {
+        self.planning_ids()
+            .into_iter()
+            .filter(|id| !self.action_queue.contains_key(id))
+            .collect()
+    }
+
+    pub fn unacted_responding_ids(&self) -> Vec<i64> {
+        self.responding_ids()
+            .into_iter()
+            .filter(|id| !self.action_queue.contains_key(id))
+            .collect()
+    }
+
     /// Queue an ability for the caster targeting the given entity. Validates and tracks resource
     /// costs for potential refund. Returns false if the caster lacks sufficient resources.
     pub fn queue_ability(

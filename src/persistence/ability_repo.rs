@@ -24,9 +24,18 @@ pub async fn upsert(pool: &SqlitePool, ability: &Ability) -> Result<(), Persiste
     let targets_json = serde_json::to_string(&ability.targets).unwrap_or_default();
     let role_str = ability_role_to_str(&ability.role);
     sqlx::query(
-        "INSERT OR REPLACE INTO abilities \
+        "INSERT INTO abilities \
          (id, name, description, effects_json, costs_json, modifiers_json, engagement_types_json, role, targets_json) \
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) \
+         ON CONFLICT(id) DO UPDATE SET \
+             name = excluded.name, \
+             description = excluded.description, \
+             effects_json = excluded.effects_json, \
+             costs_json = excluded.costs_json, \
+             modifiers_json = excluded.modifiers_json, \
+             engagement_types_json = excluded.engagement_types_json, \
+             role = excluded.role, \
+             targets_json = excluded.targets_json",
     )
     .bind(&ability.id)
     .bind(&ability.name)

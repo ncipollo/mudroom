@@ -120,9 +120,7 @@ async fn dispatch_queue_ability(
             .innate_abilities
             .iter()
             .find(|a| a.id == ability_id)
-            .cloned()
-            .or_else(|| (ability_id == "attack").then(battle::default_attack_ability))
-            .or_else(|| (ability_id == "defend").then(battle::default_defend_ability));
+            .cloned();
         (ability, entity.attributes.clone())
     };
     let Some(ability) = ability_opt else {

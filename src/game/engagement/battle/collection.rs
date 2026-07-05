@@ -97,8 +97,8 @@ impl Battles {
                         Some(BattleAiContext {
                             engagement_id: e.id,
                             phase: battle.turn_phase.clone(),
-                            planning_ids: battle.planning_ids(),
-                            responding_ids: battle.responding_ids(),
+                            planning_ids: battle.unacted_planning_ids(),
+                            responding_ids: battle.unacted_responding_ids(),
                         })
                     }
                     _ => None,
