@@ -93,15 +93,36 @@ pub async fn sse_handler(
 pub async fn session_start_handler(
     State(state): State<Arc<AppState>>,
     Json(body): Json<SessionStartBody>,
-) -> Json<SessionStartResponse> {
+) -> Result<Json<SessionStartResponse>, (StatusCode, String)> {
     let client_id = body
         .client_id
         .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+
+    let machine_id = client_id
+        .split(':')
+        .next()
+        .unwrap_or(&client_id)
+        .to_string();
+    let limit = state.game_state.mud_config.max_clients_per_machine;
+    let count = state
+        .connections
+        .read()
+        .await
+        .keys()
+        .filter(|k| k.starts_with(&machine_id))
+        .count();
+    if count >= limit {
+        return Err((
+            StatusCode::TOO_MANY_REQUESTS,
+            format!("Connection limit reached for this machine (max {limit})"),
+        ));
+    }
+
     info!(client_id = %client_id, "POST /session/start");
-    Json(SessionStartResponse {
+    Ok(Json(SessionStartResponse {
         client_id,
         server_id: state.server_session.id.clone(),
-    })
+    }))
 }
 
 pub async fn ping_handler(

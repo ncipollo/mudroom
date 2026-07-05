@@ -15,6 +15,11 @@ use crate::network::event::{
 use crate::network::server::state::{AppState, PlayerCreateBody, PlayerListBody, PlayerSelectBody};
 use crate::persistence::{ability_repo, entity_repo, player_repo};
 
+/// Extracts the stable machine UUID from a connection key of the form `uuid:pid`.
+fn machine_id(client_id: &str) -> &str {
+    client_id.split(':').next().unwrap_or(client_id)
+}
+
 pub async fn player_classes_handler(State(state): State<Arc<AppState>>) -> Json<ClassListResponse> {
     info!("GET /players/classes");
     let classes = state
@@ -35,7 +40,7 @@ pub async fn player_list_handler(
     Json(body): Json<PlayerListBody>,
 ) -> Result<Json<PlayerListResponse>, StatusCode> {
     info!(client_id = %body.client_id, "POST /players/list");
-    let players = player_repo::find_by_client_id(state.db.pool(), &body.client_id)
+    let players = player_repo::find_by_client_id(state.db.pool(), machine_id(&body.client_id))
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let player_infos = players
@@ -70,7 +75,7 @@ pub async fn player_create_handler(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     apply_class_abilities(pool, entity_id, &innate_abilities).await?;
-    let player_id = player_repo::insert(pool, &body.client_id, &body.name, entity_id)
+    let player_id = player_repo::insert(pool, machine_id(&body.client_id), &body.name, entity_id)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(PlayerInfo {
@@ -90,7 +95,7 @@ pub async fn player_select_handler(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .ok_or(StatusCode::NOT_FOUND)?;
 
-    if player.client_id != body.client_id {
+    if player.client_id != machine_id(&body.client_id) {
         return Err(StatusCode::FORBIDDEN);
     }
 
