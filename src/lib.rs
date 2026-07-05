@@ -7,7 +7,7 @@ pub mod paths;
 pub mod persistence;
 pub mod tui;
 
-use cli::{Cli, Commands};
+use cli::{Cli, Commands, PlayersCommands};
 
 #[derive(Default)]
 pub struct ServerConfig {}
@@ -20,8 +20,43 @@ pub async fn run_cli(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             reload_maps,
         }) => run_server(name, config, reload_maps, ServerConfig::default()).await,
         Some(Commands::Client { url, debug }) => run_client(url, debug).await,
+        Some(Commands::Players { command }) => run_players(command).await,
         None => run_client(None, false).await,
     }
+}
+
+async fn run_players(command: PlayersCommands) -> Result<(), Box<dyn std::error::Error>> {
+    use persistence::{entity_repo, player_repo};
+    paths::create_session_base_dirs().await?;
+    match command {
+        PlayersCommands::List { name } => {
+            let db = open_players_db(name).await?;
+            let players = player_repo::find_all(db.pool()).await?;
+            for p in players {
+                println!("{}\t{}\t{}", p.id, p.client_id, p.name);
+            }
+        }
+        PlayersCommands::Rm { player, name } => {
+            let db = open_players_db(name).await?;
+            let p = player_repo::find_by_name(db.pool(), &player)
+                .await?
+                .ok_or_else(|| format!("player '{player}' not found"))?;
+            entity_repo::delete(db.pool(), p.entity_id).await?;
+            println!("Player '{player}' removed.");
+        }
+    }
+    Ok(())
+}
+
+async fn open_players_db(
+    name: Option<String>,
+) -> Result<persistence::Database, Box<dyn std::error::Error>> {
+    let server_key = match name {
+        Some(n) => n,
+        None => paths::find_last_server_key()?
+            .ok_or("no server found — start the server at least once first")?,
+    };
+    Ok(persistence::Database::connect(&server_key).await?)
 }
 
 pub async fn run_server(

@@ -47,6 +47,32 @@ pub async fn create_session_base_dirs() -> StateResult<()> {
     Ok(())
 }
 
+pub fn find_last_server_key() -> StateResult<Option<String>> {
+    let dir = session_dir()?.join("server");
+    if !dir.exists() {
+        return Ok(None);
+    }
+    let mut latest: Option<(std::time::SystemTime, String)> = None;
+    for entry in std::fs::read_dir(&dir)?.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("json") {
+            continue;
+        }
+        let stem = match path.file_stem().and_then(|s| s.to_str()).map(String::from) {
+            Some(s) => s,
+            None => continue,
+        };
+        if let Ok(modified) = path.metadata().and_then(|m| m.modified()) {
+            match &latest {
+                None => latest = Some((modified, stem)),
+                Some((t, _)) if modified > *t => latest = Some((modified, stem)),
+                _ => {}
+            }
+        }
+    }
+    Ok(latest.map(|(_, key)| key))
+}
+
 pub fn find_config_dir() -> Option<PathBuf> {
     let cwd = std::env::current_dir().ok()?;
 
