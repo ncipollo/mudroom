@@ -7,7 +7,9 @@ mod screens;
 pub use app::App;
 
 use tokio::sync::mpsc;
+use uuid::Uuid;
 
+use crate::network::session::ConnectionKey;
 use crate::{network, paths};
 
 pub async fn run_client(
@@ -16,8 +18,9 @@ pub async fn run_client(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let (net_tx, net_rx) = mpsc::channel(64);
 
-    // Track session info for cleanup on exit.
-    let mut client_session_info: Option<(network::session::ClientSession, String)> = None;
+    // Track session info for cleanup on exit: (session, server_url, connection_key).
+    let mut client_session_info: Option<(network::session::ClientSession, String, ConnectionKey)> =
+        None;
 
     if let Some(ref server_url) = url {
         paths::create_session_base_dirs().await?;
@@ -26,46 +29,47 @@ pub async fn run_client(
         let server_info = network::client::get_server_info(server_url).await?;
         let server_id = server_info.server_id;
 
-        // Check for a previously saved session for this server.
-        let saved = network::session::ClientSession::load(&server_id)
+        // Reuse the saved machine UUID, or generate a fresh one.
+        let saved_uuid = network::session::ClientSession::load(&server_id)
             .await
             .ok()
-            .flatten();
-        let saved_client_id = saved.map(|s| s.id);
-
-        // Single start_session call — reuse saved id or get a fresh one.
-        let final_resp = network::client::start_session(server_url, saved_client_id).await?;
-
+            .flatten()
+            .map(|s| s.id);
+        let machine_uuid = saved_uuid.unwrap_or_else(|| Uuid::new_v4().to_string());
         let client_session = network::session::ClientSession {
-            id: final_resp.client_id.clone(),
+            id: machine_uuid,
             name: None,
         };
+
+        // Per-process connection key: uuid:pid — unique across concurrent clients.
+        let connection_key = client_session.connection_key();
+        network::client::start_session(server_url, connection_key.to_string()).await?;
         client_session.save(&server_id).await?;
 
         // Spawn SSE listener.
         let sse_url = server_url.clone();
-        let sse_client_id = client_session.id.clone();
+        let sse_key = connection_key.to_string();
         let sse_tx = net_tx.clone();
         tokio::spawn(async move {
-            network::client::connect_sse(sse_url, sse_client_id, sse_tx)
+            network::client::connect_sse(sse_url, sse_key, sse_tx)
                 .await
                 .ok();
         });
 
         // Spawn periodic ping loop.
         let ping_url = server_url.clone();
-        let ping_client_id = client_session.id.clone();
+        let ping_key = connection_key.to_string();
         tokio::spawn(async move {
-            network::client::run_ping_loop(ping_url, ping_client_id)
+            network::client::run_ping_loop(ping_url, ping_key)
                 .await
                 .ok();
         });
 
-        client_session_info = Some((client_session, server_url.clone()));
+        client_session_info = Some((client_session, server_url.clone(), connection_key));
     }
 
-    let mut app = if let Some((ref client_session, ref server_url)) = client_session_info {
-        App::with_player_select(server_url.clone(), client_session.id.clone(), debug)
+    let mut app = if let Some((_, ref server_url, ref connection_key)) = client_session_info {
+        App::with_player_select(server_url.clone(), connection_key.to_string(), debug)
     } else {
         App::new(debug)
     };
@@ -75,8 +79,8 @@ pub async fn run_client(
     let result = event::run(&mut terminal, &mut app, net_rx).await;
 
     // Send EndSession on exit.
-    if let Some((client_session, server_url)) = client_session_info {
-        network::client::end_session(&server_url, &client_session.id)
+    if let Some((_, server_url, connection_key)) = client_session_info {
+        network::client::end_session(&server_url, &connection_key.to_string())
             .await
             .ok();
     }

@@ -26,12 +26,18 @@ impl SpawnConfig {
     }
 }
 
+fn default_max_clients_per_machine() -> usize {
+    2
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MudConfig {
     pub game_loop: GameLoopConfig,
     pub spawn: SpawnConfig,
     #[serde(default = "AgentConfig::default_config")]
     pub agent: AgentConfig,
+    #[serde(default = "default_max_clients_per_machine")]
+    pub max_clients_per_machine: usize,
 }
 
 impl MudConfig {
@@ -46,6 +52,7 @@ impl MudConfig {
             game_loop: GameLoopConfig::default_config(),
             spawn: SpawnConfig::default_config(),
             agent: AgentConfig::default_config(),
+            max_clients_per_machine: default_max_clients_per_machine(),
         }
     }
 }
@@ -67,6 +74,7 @@ mod tests {
         assert_eq!(config.spawn.world_id, "default");
         assert_eq!(config.spawn.dungeon_id, "default");
         assert_eq!(config.spawn.room_id, "default");
+        assert_eq!(config.max_clients_per_machine, 2);
     }
 
     #[test]

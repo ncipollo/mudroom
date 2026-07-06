@@ -1,3 +1,5 @@
+max_clients_per_machine = 2
+
 [game_loop]
 tick_rate_ms = 500
 max_engage_ms = 60_000
