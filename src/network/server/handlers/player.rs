@@ -13,11 +13,13 @@ use crate::network::event::{
     ClassInfo, ClassListResponse, NetworkEvent, PlayerInfo, PlayerListResponse,
 };
 use crate::network::server::state::{AppState, PlayerCreateBody, PlayerListBody, PlayerSelectBody};
+use crate::network::session::ConnectionKey;
 use crate::persistence::{ability_repo, entity_repo, player_repo};
 
-/// Extracts the stable machine UUID from a connection key of the form `uuid:pid`.
-fn machine_id(client_id: &str) -> &str {
-    client_id.split(':').next().unwrap_or(client_id)
+fn machine_id(client_id: &str) -> String {
+    ConnectionKey::parse(client_id)
+        .map(|k| k.machine_id)
+        .unwrap_or_else(|| client_id.to_string())
 }
 
 pub async fn player_classes_handler(State(state): State<Arc<AppState>>) -> Json<ClassListResponse> {
@@ -40,7 +42,7 @@ pub async fn player_list_handler(
     Json(body): Json<PlayerListBody>,
 ) -> Result<Json<PlayerListResponse>, StatusCode> {
     info!(client_id = %body.client_id, "POST /players/list");
-    let players = player_repo::find_by_client_id(state.db.pool(), machine_id(&body.client_id))
+    let players = player_repo::find_by_client_id(state.db.pool(), &machine_id(&body.client_id))
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let player_infos = players
@@ -75,7 +77,7 @@ pub async fn player_create_handler(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     apply_class_abilities(pool, entity_id, &innate_abilities).await?;
-    let player_id = player_repo::insert(pool, machine_id(&body.client_id), &body.name, entity_id)
+    let player_id = player_repo::insert(pool, &machine_id(&body.client_id), &body.name, entity_id)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(PlayerInfo {

@@ -9,6 +9,7 @@ pub use app::App;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
+use crate::network::session::ConnectionKey;
 use crate::{network, paths};
 
 pub async fn run_client(
@@ -18,7 +19,8 @@ pub async fn run_client(
     let (net_tx, net_rx) = mpsc::channel(64);
 
     // Track session info for cleanup on exit: (session, server_url, connection_key).
-    let mut client_session_info: Option<(network::session::ClientSession, String, String)> = None;
+    let mut client_session_info: Option<(network::session::ClientSession, String, ConnectionKey)> =
+        None;
 
     if let Some(ref server_url) = url {
         paths::create_session_base_dirs().await?;
@@ -41,12 +43,12 @@ pub async fn run_client(
 
         // Per-process connection key: uuid:pid — unique across concurrent clients.
         let connection_key = client_session.connection_key();
-        network::client::start_session(server_url, connection_key.clone()).await?;
+        network::client::start_session(server_url, connection_key.to_string()).await?;
         client_session.save(&server_id).await?;
 
         // Spawn SSE listener.
         let sse_url = server_url.clone();
-        let sse_key = connection_key.clone();
+        let sse_key = connection_key.to_string();
         let sse_tx = net_tx.clone();
         tokio::spawn(async move {
             network::client::connect_sse(sse_url, sse_key, sse_tx)
@@ -56,7 +58,7 @@ pub async fn run_client(
 
         // Spawn periodic ping loop.
         let ping_url = server_url.clone();
-        let ping_key = connection_key.clone();
+        let ping_key = connection_key.to_string();
         tokio::spawn(async move {
             network::client::run_ping_loop(ping_url, ping_key)
                 .await
@@ -67,7 +69,7 @@ pub async fn run_client(
     }
 
     let mut app = if let Some((_, ref server_url, ref connection_key)) = client_session_info {
-        App::with_player_select(server_url.clone(), connection_key.clone(), debug)
+        App::with_player_select(server_url.clone(), connection_key.to_string(), debug)
     } else {
         App::new(debug)
     };
@@ -78,7 +80,7 @@ pub async fn run_client(
 
     // Send EndSession on exit.
     if let Some((_, server_url, connection_key)) = client_session_info {
-        network::client::end_session(&server_url, &connection_key)
+        network::client::end_session(&server_url, &connection_key.to_string())
             .await
             .ok();
     }

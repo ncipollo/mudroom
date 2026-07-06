@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use super::connection_key::ConnectionKey;
 use super::error::SessionError;
 use crate::paths;
 
@@ -10,8 +11,8 @@ pub struct ClientSession {
 }
 
 impl ClientSession {
-    pub fn connection_key(&self) -> String {
-        format!("{}:{}", self.id, std::process::id())
+    pub fn connection_key(&self) -> ConnectionKey {
+        ConnectionKey::new(&self.id)
     }
 
     pub async fn load(server_id: &str) -> Result<Option<Self>, SessionError> {
