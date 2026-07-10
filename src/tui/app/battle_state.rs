@@ -9,6 +9,12 @@ pub enum BattleFocus {
 }
 
 #[derive(Debug, Clone)]
+pub struct QueuedAbilityInfo {
+    pub ability_id: String,
+    pub target_id: i64,
+}
+
+#[derive(Debug, Clone)]
 pub struct TargetDialog {
     pub pending_ability_id: String,
     pub selected_index: usize,
@@ -25,7 +31,7 @@ pub struct BattleState {
     pub entity_scroll: usize,
     pub focus: BattleFocus,
     pub dialog: Option<TargetDialog>,
-    pub has_queued_defend: bool,
+    pub queued_ability: Option<QueuedAbilityInfo>,
 }
 
 impl BattleState {
@@ -39,7 +45,7 @@ impl BattleState {
             entity_scroll: 0,
             focus: BattleFocus::Abilities,
             dialog: None,
-            has_queued_defend: false,
+            queued_ability: None,
         }
     }
 

@@ -15,7 +15,7 @@ pub struct BattleEngagement {
     pub factions: Vec<String>,
     pub participants: HashMap<String, Vec<i64>>,
     pub turn_phase: BattlePhase,
-    action_queue: HashMap<i64, Vec<QueuedAbility>>,
+    action_queue: HashMap<i64, QueuedAbility>,
     ticks_in_phase: u64,
     turn_count: u64,
     pending_costs: HashMap<i64, Vec<(String, i64)>>,
@@ -107,20 +107,18 @@ impl BattleEngagement {
                 (resource_id.clone(), *amount)
             })
             .collect();
+        self.pending_costs.remove(&caster_id);
         if !tracked.is_empty() {
-            self.pending_costs
-                .entry(caster_id)
-                .or_default()
-                .extend(tracked);
+            self.pending_costs.insert(caster_id, tracked);
         }
-        self.action_queue
-            .entry(caster_id)
-            .or_default()
-            .push(QueuedAbility {
+        self.action_queue.insert(
+            caster_id,
+            QueuedAbility {
                 caster_id,
                 ability,
                 target_id,
-            });
+            },
+        );
         true
     }
 
@@ -206,7 +204,7 @@ impl BattleEngagement {
                     out.messages.push(BattleMessage::PhaseChange {
                         phase: next.clone(),
                     });
-                    out.pending_actions = self.action_queue.values().flatten().cloned().collect();
+                    out.pending_actions = self.action_queue.values().cloned().collect();
                     self.turn_phase = next;
                     self.ticks_in_phase = 0;
                 }
@@ -230,7 +228,7 @@ impl BattleEngagement {
                 out.resolution_queue = self
                     .action_queue
                     .drain()
-                    .flat_map(|(_, abilities)| abilities)
+                    .map(|(_, ability)| ability)
                     .collect();
                 self.pending_costs.clear();
                 if !self.factions.is_empty() {

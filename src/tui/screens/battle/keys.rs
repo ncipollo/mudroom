@@ -1,9 +1,8 @@
 use crossterm::event::{KeyCode, KeyModifiers};
 
-use crate::game::engagement::battle::BattlePhase;
 use crate::game::{Interaction, TurnAction};
 use crate::network::client::send_interaction;
-use crate::tui::app::{App, BattleFocus, GameMode};
+use crate::tui::app::{App, BattleFocus, GameMode, QueuedAbilityInfo};
 
 pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
     if app.battle.as_ref().is_some_and(|b| b.dialog.is_some()) {
@@ -108,15 +107,18 @@ async fn handle_dialog_confirm(app: &mut App) {
     let client_id = client_id.to_owned();
     if let Some(target_id) = target_id {
         let action = Interaction::EngagementAction(TurnAction::QueueAbility {
-            ability_id,
+            ability_id: ability_id.clone(),
             target_id,
         });
         let _ = send_interaction(&url, &client_id, &action).await;
+        if let Some(battle) = &mut app.battle {
+            battle.queued_ability = Some(QueuedAbilityInfo {
+                ability_id,
+                target_id,
+            });
+        }
     }
     if let Some(battle) = &mut app.battle {
-        if matches!(&battle.snapshot.phase, BattlePhase::Response { .. }) {
-            battle.has_queued_defend = true;
-        }
         battle.close_target_dialog();
     }
 }
