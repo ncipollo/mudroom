@@ -1,5 +1,6 @@
 pub mod conversation;
 pub mod help;
+pub mod lifecycle;
 pub mod look;
 pub mod movement;
 pub mod room_threats;
@@ -63,6 +64,9 @@ async fn dispatch_interaction(
         }
         Interaction::CheckRoomThreats { room_id } => {
             room_threats::check_room_hostility(game_state, player, &room_id).await;
+        }
+        Interaction::PlayerDisconnected => {
+            lifecycle::player_disconnected(game_state, player).await;
         }
     }
 }
