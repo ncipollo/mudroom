@@ -127,6 +127,10 @@ fn render_abilities_panel(frame: &mut Frame, battle: &BattleState, area: Rect) {
     };
 
     let filtered = battle.filtered_abilities();
+    let queued_id = battle
+        .queued_ability
+        .as_ref()
+        .map(|q| q.ability_id.as_str());
     let items: Vec<ListItem> = filtered
         .iter()
         .enumerate()
@@ -143,10 +147,15 @@ fn render_abilities_panel(frame: &mut Frame, battle: &BattleState, area: Rect) {
                 })
                 .collect::<Vec<_>>()
                 .join(", ");
-            let label = if cost_str.is_empty() {
+            let base_label = if cost_str.is_empty() {
                 ability.name.clone()
             } else {
                 format!("{} ({})", ability.name, cost_str)
+            };
+            let label = if queued_id == Some(ability.id.as_str()) {
+                format!("\u{25cf} {base_label}")
+            } else {
+                base_label
             };
             if i == battle.selected_ability_index && is_focused {
                 ListItem::new(label).style(
@@ -161,10 +170,10 @@ fn render_abilities_panel(frame: &mut Frame, battle: &BattleState, area: Rect) {
         .collect();
 
     let title = match battle.ability_role_label() {
-        Some("Defend") if battle.has_queued_defend => Line::from(vec![
-            Span::raw("Abilities [Defend] "),
+        Some(label) if battle.queued_ability.is_some() => Line::from(vec![
+            Span::raw(format!("Abilities [{label}] ")),
             Span::styled(
-                "\u{25cf} Defending",
+                "\u{25cf} Queued",
                 Style::default()
                     .fg(Color::Cyan)
                     .add_modifier(Modifier::BOLD),

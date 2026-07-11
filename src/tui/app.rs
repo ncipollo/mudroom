@@ -2,7 +2,7 @@ mod battle_state;
 mod conversation_state;
 mod network_event_handler;
 
-pub use battle_state::{BattleFocus, BattleState};
+pub use battle_state::{BattleFocus, BattleState, QueuedAbilityInfo};
 pub use conversation_state::ConversationState;
 
 use crate::network::event::{ClassInfo, PlayerInfo};
