@@ -61,6 +61,9 @@ async fn dispatch_interaction(
         Interaction::LeaveBattle { .. } => {
             dispatch_leave_battle(game_state, player).await;
         }
+        Interaction::CheckRoomThreats { room_id } => {
+            room_threats::check_room_hostility(game_state, player, &room_id).await;
+        }
     }
 }
 
