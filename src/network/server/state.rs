@@ -5,7 +5,7 @@ use std::task::{Context, Poll};
 use std::time::Instant;
 
 use crate::game::GameState;
-use crate::game::engagement::battle;
+use crate::game::component::Interaction;
 use crate::network::event::NetworkEvent;
 use crate::network::session::ServerSession;
 use crate::persistence::Database;
@@ -44,31 +44,19 @@ impl Drop for SseCleanupGuard {
         let game_state = self.game_state.clone();
         tokio::spawn(async move {
             connections.write().await.remove(&client_id);
-            info!(client_id = %client_id, "SSE disconnected — session ended");
-            cleanup_player_battle(&game_state, &client_id).await;
-            game_state.active_players.write().await.remove(&client_id);
+            info!(client_id = %client_id, "SSE disconnected — queuing cleanup");
+            let entity_id = {
+                let players = game_state.active_players.read().await;
+                players.get(&client_id).map(|p| p.entity_id)
+            };
+            if let Some(entity_id) = entity_id {
+                game_state
+                    .mailboxes
+                    .push(entity_id, Interaction::PlayerDisconnected)
+                    .await;
+            }
         });
     }
-}
-
-async fn cleanup_player_battle(game_state: &GameState, client_id: &str) {
-    let entity_id = {
-        let players = game_state.active_players.read().await;
-        let Some(player) = players.get(client_id) else {
-            return;
-        };
-        player.entity_id
-    };
-
-    if let Some((engagement_id, surviving)) =
-        battle::participants::remove_entity(&game_state.engagements.battles, entity_id).await
-        && surviving <= 1
-    {
-        game_state.engagements.battles.conclude(engagement_id).await;
-        game_state.engagements.battles.remove(engagement_id).await;
-    }
-
-    game_state.active_entities.write().await.remove(&entity_id);
 }
 
 // Stream wrapper that keeps the guard alive until the stream is dropped.
