@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use crate::game::GameState;
+use crate::game::Interaction;
 use crate::game::game_state::PendingActivation;
-use crate::game::interaction::room_threats;
 use crate::persistence::Database;
 
 pub async fn process(game_state: &Arc<GameState>, db: &Database) {
@@ -35,5 +35,11 @@ async fn apply_activation(
         tracing::error!(error = %e, "Failed to sync active entities on player activation");
     }
 
-    room_threats::check_room_hostility(game_state, &activation.player, &room_id).await;
+    game_state
+        .mailboxes
+        .push(
+            activation.player.entity_id,
+            Interaction::CheckRoomThreats { room_id },
+        )
+        .await;
 }
