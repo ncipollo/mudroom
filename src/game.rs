@@ -8,6 +8,7 @@ pub mod interaction;
 pub mod mailbox;
 pub mod map;
 pub mod messaging;
+pub mod narration;
 pub mod player;
 
 pub use component::Ability;

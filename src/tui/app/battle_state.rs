@@ -81,6 +81,7 @@ impl BattleState {
                 modifiers: vec![],
                 role: AbilityRole::Attack,
                 targets: vec![],
+                action_text: None,
             }]
         } else {
             abilities

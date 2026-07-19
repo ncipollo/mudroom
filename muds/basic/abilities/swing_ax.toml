@@ -1,5 +1,6 @@
 name = "Swing Ax"
 description = "A wild swing with a rusty ax."
+action_text = "{{entity}} swings ax at {{target}} for {{effect}}"
 engagement_types = ["battle"]
 costs = []
 role = "attack"

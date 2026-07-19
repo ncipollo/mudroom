@@ -63,6 +63,7 @@ mod tests {
             modifiers: vec![],
             role,
             targets: vec![],
+            action_text: None,
         }
     }
 

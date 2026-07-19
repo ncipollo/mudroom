@@ -285,7 +285,7 @@ fn battle_message_to_line(msg: &BattleMessage) -> Line<'_> {
         BattleMessage::Meta(_) => Line::from(Span::styled(
             msg.to_string(),
             Style::default()
-                .fg(Color::DarkGray)
+                .fg(Color::White)
                 .add_modifier(Modifier::ITALIC),
         )),
     }
