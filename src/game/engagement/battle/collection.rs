@@ -87,6 +87,19 @@ impl Battles {
         false
     }
 
+    pub async fn skip_phase(&self, entity_id: i64) {
+        let mut map = self.map.write().await;
+        for engagement in map.values_mut() {
+            if engagement.engagement_type == EngagementType::Battle
+                && engagement.entity_ids.contains(&entity_id)
+                && let Some(battle) = &mut engagement.battle
+            {
+                battle.skip_phase(entity_id);
+                return;
+            }
+        }
+    }
+
     pub async fn get_ai_contexts(&self) -> Vec<BattleAiContext> {
         let map = self.map.read().await;
         map.values()

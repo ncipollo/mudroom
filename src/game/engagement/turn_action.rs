@@ -8,6 +8,7 @@ pub enum TurnAction {
     SendMessage { content: String },
     Respond { content: String },
     QueueAbility { ability_id: String, target_id: i64 },
+    SkipPhase,
 }
 
 #[cfg(test)]

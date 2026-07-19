@@ -3,20 +3,36 @@ use crate::game::engagement::battle::abilities::{
 };
 use crate::game::entity::Entity;
 
-use super::AiAction;
+use super::decision::AiDecision;
 use super::pick_random;
 
-pub fn plan_attack(entity: &Entity, targets: &[i64]) -> Option<AiAction> {
-    let &target_id = pick_random(targets)?;
+pub fn plan_attack(entity: &Entity, targets: &[i64]) -> AiDecision {
+    let Some(&target_id) = pick_random(targets) else {
+        return AiDecision::Skip(entity.id);
+    };
     let attacks = battle_attack_abilities(entity);
-    let ability = pick_random(&attacks).cloned()?;
-    Some((entity.id, ability, target_id, entity.attributes.clone()))
+    match pick_random(&attacks).cloned() {
+        Some(ability) => AiDecision::Action(Box::new((
+            entity.id,
+            ability,
+            target_id,
+            entity.attributes.clone(),
+        ))),
+        None => AiDecision::Skip(entity.id),
+    }
 }
 
-pub fn plan_defend(entity: &Entity) -> Option<AiAction> {
+pub fn plan_defend(entity: &Entity) -> AiDecision {
     let defends = battle_defend_abilities(entity);
-    let ability = pick_random(&defends).cloned()?;
-    Some((entity.id, ability, entity.id, entity.attributes.clone()))
+    match pick_random(&defends).cloned() {
+        Some(ability) => AiDecision::Action(Box::new((
+            entity.id,
+            ability,
+            entity.id,
+            entity.attributes.clone(),
+        ))),
+        None => AiDecision::Skip(entity.id),
+    }
 }
 
 #[cfg(test)]
@@ -67,42 +83,41 @@ mod tests {
     }
 
     #[test]
-    fn plan_attack_returns_attack_with_target() {
+    fn plan_attack_returns_action_with_target() {
         let mut entity = make_enemy(1);
         entity.innate_abilities = vec![make_ability("slash", AbilityRole::Attack)];
         let targets = vec![2_i64];
-        let (eid, ability, target, _) = plan_attack(&entity, &targets).unwrap();
-        assert_eq!(eid, 1);
-        assert_eq!(ability.id, "slash");
-        assert_eq!(target, 2);
+        let decision = plan_attack(&entity, &targets);
+        assert!(matches!(decision, AiDecision::Action(b) if b.0 == 1 && b.2 == 2));
     }
 
     #[test]
-    fn plan_attack_returns_none_when_no_attack_abilities() {
+    fn plan_attack_skips_when_no_attack_abilities() {
         let entity = make_enemy(1);
         let targets = vec![2_i64];
-        assert!(plan_attack(&entity, &targets).is_none());
+        assert!(matches!(
+            plan_attack(&entity, &targets),
+            AiDecision::Skip(1)
+        ));
     }
 
     #[test]
-    fn plan_attack_returns_none_when_no_targets() {
+    fn plan_attack_skips_when_no_targets() {
         let entity = make_enemy(1);
-        assert!(plan_attack(&entity, &[]).is_none());
+        assert!(matches!(plan_attack(&entity, &[]), AiDecision::Skip(1)));
     }
 
     #[test]
-    fn plan_defend_returns_defend_targeting_self() {
+    fn plan_defend_returns_action_targeting_self() {
         let mut entity = make_enemy(1);
         entity.innate_abilities = vec![make_ability("shield", AbilityRole::Defend)];
-        let (eid, ability, target, _) = plan_defend(&entity).unwrap();
-        assert_eq!(eid, 1);
-        assert_eq!(ability.id, "shield");
-        assert_eq!(target, 1);
+        let decision = plan_defend(&entity);
+        assert!(matches!(decision, AiDecision::Action(b) if b.0 == 1 && b.2 == 1));
     }
 
     #[test]
-    fn plan_defend_returns_none_when_no_defend_abilities() {
+    fn plan_defend_skips_when_no_defend_abilities() {
         let entity = make_enemy(1);
-        assert!(plan_defend(&entity).is_none());
+        assert!(matches!(plan_defend(&entity), AiDecision::Skip(1)));
     }
 }

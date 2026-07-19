@@ -49,24 +49,41 @@ impl BattleState {
         }
     }
 
-    pub fn filtered_abilities(&self) -> Vec<&Ability> {
+    pub fn filtered_abilities(&self) -> Vec<Ability> {
         if !self.is_player_turn() {
             return vec![];
         }
-        match &self.snapshot.phase {
+        let abilities: Vec<Ability> = match &self.snapshot.phase {
             BattlePhase::Planning { .. } => self
                 .snapshot
                 .available_abilities
                 .iter()
                 .filter(|a| a.role == AbilityRole::Attack)
+                .cloned()
                 .collect(),
             BattlePhase::Response { .. } => self
                 .snapshot
                 .available_abilities
                 .iter()
                 .filter(|a| a.role == AbilityRole::Defend)
+                .cloned()
                 .collect(),
             _ => vec![],
+        };
+        if abilities.is_empty() {
+            vec![Ability {
+                id: "skip".to_string(),
+                name: "Skip".to_string(),
+                description: None,
+                effects: vec![],
+                engagement_types: vec![],
+                costs: vec![],
+                modifiers: vec![],
+                role: AbilityRole::Attack,
+                targets: vec![],
+            }]
+        } else {
+            abilities
         }
     }
 

@@ -18,7 +18,7 @@ pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
                 battle.toggle_focus();
             }
         }
-        (_, KeyCode::Enter) => handle_ability_selected(app),
+        (_, KeyCode::Enter) => handle_ability_selected(app).await,
         (_, KeyCode::Esc) => handle_leave_battle(app).await,
         (_, KeyCode::PageUp) => handle_page_up(app),
         (_, KeyCode::PageDown) => handle_page_down(app),
@@ -67,21 +67,41 @@ fn handle_navigate_down(app: &mut App) {
     }
 }
 
-fn handle_ability_selected(app: &mut App) {
-    let Some(battle) = &mut app.battle else {
+async fn handle_ability_selected(app: &mut App) {
+    let selected = {
+        let Some(battle) = &mut app.battle else {
+            return;
+        };
+        if !battle.is_player_turn() {
+            return;
+        }
+        if battle.focus != BattleFocus::Abilities {
+            return;
+        }
+        battle
+            .filtered_abilities()
+            .get(battle.selected_ability_index)
+            .map(|a| (a.id.clone(), a.targets.clone()))
+    };
+    let Some((ability_id, targets)) = selected else {
         return;
     };
-    if !battle.is_player_turn() {
-        return;
-    }
-    if battle.focus != BattleFocus::Abilities {
-        return;
-    }
-    let selected = battle
-        .filtered_abilities()
-        .get(battle.selected_ability_index)
-        .map(|a| (a.id.clone(), a.targets.clone()));
-    if let Some((ability_id, targets)) = selected {
+    if ability_id == "skip" {
+        let Some(url) = app.connection.server_url.as_deref() else {
+            return;
+        };
+        let url = url.to_owned();
+        let Some(client_id) = app.connection.client_id.as_deref() else {
+            return;
+        };
+        let client_id = client_id.to_owned();
+        let _ = send_interaction(
+            &url,
+            &client_id,
+            &Interaction::EngagementAction(TurnAction::SkipPhase),
+        )
+        .await;
+    } else if let Some(battle) = &mut app.battle {
         battle.open_target_dialog(ability_id, targets);
     }
 }
