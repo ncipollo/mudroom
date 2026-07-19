@@ -13,6 +13,7 @@ type AbilityRow = (
     String,
     String,
     String,
+    Option<String>,
 );
 
 pub async fn upsert(pool: &SqlitePool, ability: &Ability) -> Result<(), PersistenceError> {
@@ -25,8 +26,8 @@ pub async fn upsert(pool: &SqlitePool, ability: &Ability) -> Result<(), Persiste
     let role_str = ability_role_to_str(&ability.role);
     sqlx::query(
         "INSERT INTO abilities \
-         (id, name, description, effects_json, costs_json, modifiers_json, engagement_types_json, role, targets_json) \
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) \
+         (id, name, description, effects_json, costs_json, modifiers_json, engagement_types_json, role, targets_json, action_text) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) \
          ON CONFLICT(id) DO UPDATE SET \
              name = excluded.name, \
              description = excluded.description, \
@@ -35,7 +36,8 @@ pub async fn upsert(pool: &SqlitePool, ability: &Ability) -> Result<(), Persiste
              modifiers_json = excluded.modifiers_json, \
              engagement_types_json = excluded.engagement_types_json, \
              role = excluded.role, \
-             targets_json = excluded.targets_json",
+             targets_json = excluded.targets_json, \
+             action_text = excluded.action_text",
     )
     .bind(&ability.id)
     .bind(&ability.name)
@@ -46,6 +48,7 @@ pub async fn upsert(pool: &SqlitePool, ability: &Ability) -> Result<(), Persiste
     .bind(&engagement_types_json)
     .bind(role_str)
     .bind(&targets_json)
+    .bind(&ability.action_text)
     .execute(pool)
     .await?;
     Ok(())
@@ -57,7 +60,7 @@ pub async fn find_by_entity(
 ) -> Result<Vec<Ability>, PersistenceError> {
     let rows: Vec<AbilityRow> = sqlx::query_as(
         "SELECT a.id, a.name, a.description, a.effects_json, a.costs_json, \
-             a.modifiers_json, a.engagement_types_json, a.role, a.targets_json \
+             a.modifiers_json, a.engagement_types_json, a.role, a.targets_json, a.action_text \
              FROM abilities a \
              JOIN entity_abilities ea ON a.id = ea.ability_id \
              WHERE ea.entity_id = ?",
@@ -79,6 +82,7 @@ pub async fn find_by_entity(
                 et_json,
                 role_str,
                 targets_json,
+                action_text,
             )| {
                 let effects = serde_json::from_str(&effects_json).unwrap_or_else(|e| {
                     tracing::warn!("Failed to deserialize effects for ability {id}: {e}");
@@ -111,6 +115,7 @@ pub async fn find_by_entity(
                     engagement_types,
                     role: ability_role_from_str(&role_str),
                     targets,
+                    action_text,
                 }
             },
         )
@@ -201,6 +206,7 @@ mod tests {
             engagement_types: vec![EngagementType::Battle],
             role: AbilityRole::Attack,
             targets: vec![AbilityTargetType::Opponent],
+            action_text: None,
         }
     }
 
@@ -215,6 +221,7 @@ mod tests {
             engagement_types: vec![EngagementType::Battle],
             role: AbilityRole::Defend,
             targets: vec![AbilityTargetType::SelfTarget],
+            action_text: None,
         }
     }
 

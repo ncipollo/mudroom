@@ -840,6 +840,7 @@ mod tests {
             engagement_types: vec![EngagementType::Battle],
             role: AbilityRole::Attack,
             targets: vec![],
+            action_text: None,
         };
         ability_repo::upsert(db.pool(), &ability).await.unwrap();
         ability_repo::set_entity_abilities(db.pool(), id, &["strike"])

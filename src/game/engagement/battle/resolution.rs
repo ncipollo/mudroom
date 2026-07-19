@@ -156,6 +156,7 @@ mod tests {
             modifiers: vec![],
             role: AbilityRole::Attack,
             targets: vec![],
+            action_text: None,
         }
     }
 

@@ -60,6 +60,8 @@ pub struct Ability {
     pub role: AbilityRole,
     #[serde(default)]
     pub targets: Vec<AbilityTargetType>,
+    #[serde(default)]
+    pub action_text: Option<String>,
 }
 
 #[cfg(test)]
@@ -134,6 +136,7 @@ mod tests {
             modifiers: vec![],
             role: AbilityRole::Attack,
             targets: vec![],
+            action_text: None,
         };
         let json = serde_json::to_string(&ability).unwrap();
         let restored: Ability = serde_json::from_str(&json).unwrap();
@@ -164,6 +167,7 @@ mod tests {
             ],
             role: AbilityRole::Attack,
             targets: vec![],
+            action_text: None,
         };
         let json = serde_json::to_string(&ability).unwrap();
         let restored: Ability = serde_json::from_str(&json).unwrap();
@@ -191,6 +195,7 @@ mod tests {
             modifiers: vec![],
             role: AbilityRole::Attack,
             targets: vec![],
+            action_text: None,
         };
         let json = serde_json::to_string(&ability).unwrap();
         let restored: Ability = serde_json::from_str(&json).unwrap();
@@ -241,6 +246,7 @@ mod tests {
             modifiers: vec![],
             role: AbilityRole::Attack,
             targets: vec![AbilityTargetType::Opponent],
+            action_text: None,
         };
         let json = serde_json::to_string(&ability).unwrap();
         let restored: Ability = serde_json::from_str(&json).unwrap();
@@ -259,5 +265,38 @@ mod tests {
         }"#;
         let ability: Ability = serde_json::from_str(json).unwrap();
         assert!(ability.targets.is_empty());
+    }
+
+    #[test]
+    fn ability_with_action_text_serde_round_trip() {
+        let ability = Ability {
+            id: "swing_ax".to_string(),
+            name: "Swing Ax".to_string(),
+            description: None,
+            effects: vec![attack_effect()],
+            engagement_types: vec![EngagementType::Battle],
+            costs: vec![],
+            modifiers: vec![],
+            role: AbilityRole::Attack,
+            targets: vec![AbilityTargetType::Opponent],
+            action_text: Some("{{entity}} swings ax at {{target}} for {{effect}}".to_string()),
+        };
+        let json = serde_json::to_string(&ability).unwrap();
+        let restored: Ability = serde_json::from_str(&json).unwrap();
+        assert_eq!(ability, restored);
+    }
+
+    #[test]
+    fn ability_missing_action_text_deserializes_as_none() {
+        let json = r#"{
+            "id": "attack",
+            "name": "Attack",
+            "description": null,
+            "effects": [],
+            "engagement_types": [],
+            "costs": []
+        }"#;
+        let ability: Ability = serde_json::from_str(json).unwrap();
+        assert!(ability.action_text.is_none());
     }
 }
