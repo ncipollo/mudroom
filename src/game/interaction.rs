@@ -97,6 +97,13 @@ async fn dispatch_engagement_action(
         } => {
             dispatch_queue_ability(game_state, player, &ability_id, target_id).await;
         }
+        TurnAction::SkipPhase => {
+            game_state
+                .engagements
+                .battles
+                .skip_phase(player.entity_id)
+                .await;
+        }
         other => {
             let accepted = game_state
                 .engagements

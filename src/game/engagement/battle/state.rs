@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::game::component::{Ability, Attribute, Cost};
 use crate::game::entity::Entity;
@@ -16,6 +16,7 @@ pub struct BattleEngagement {
     pub participants: HashMap<String, Vec<i64>>,
     pub turn_phase: BattlePhase,
     action_queue: HashMap<i64, QueuedAbility>,
+    skipped_ids: HashSet<i64>,
     ticks_in_phase: u64,
     turn_count: u64,
     pending_costs: HashMap<i64, Vec<(String, i64)>>,
@@ -29,6 +30,7 @@ impl BattleEngagement {
             participants,
             turn_phase: BattlePhase::InnateEffects,
             action_queue: HashMap::new(),
+            skipped_ids: HashSet::new(),
             ticks_in_phase: 0,
             turn_count: 0,
             pending_costs: HashMap::new(),
@@ -66,15 +68,19 @@ impl BattleEngagement {
     pub fn unacted_planning_ids(&self) -> Vec<i64> {
         self.planning_ids()
             .into_iter()
-            .filter(|id| !self.action_queue.contains_key(id))
+            .filter(|id| !self.action_queue.contains_key(id) && !self.skipped_ids.contains(id))
             .collect()
     }
 
     pub fn unacted_responding_ids(&self) -> Vec<i64> {
         self.responding_ids()
             .into_iter()
-            .filter(|id| !self.action_queue.contains_key(id))
+            .filter(|id| !self.action_queue.contains_key(id) && !self.skipped_ids.contains(id))
             .collect()
+    }
+
+    pub fn skip_phase(&mut self, entity_id: i64) {
+        self.skipped_ids.insert(entity_id);
     }
 
     /// Queue an ability for the caster targeting the given entity. Validates and tracks resource
@@ -146,6 +152,7 @@ impl BattleEngagement {
             ids.retain(|&id| id != entity_id);
         }
         self.action_queue.remove(&entity_id);
+        self.skipped_ids.remove(&entity_id);
         self.pending_costs.remove(&entity_id);
     }
 
@@ -198,7 +205,7 @@ impl BattleEngagement {
                 let all_submitted = self
                     .planning_ids()
                     .iter()
-                    .all(|id| self.action_queue.contains_key(id));
+                    .all(|id| self.action_queue.contains_key(id) || self.skipped_ids.contains(id));
                 if all_submitted || self.ticks_in_phase >= max_engage_ticks {
                     let next = BattlePhase::Response { faction };
                     out.messages.push(BattleMessage::PhaseChange {
@@ -213,9 +220,9 @@ impl BattleEngagement {
                 self.ticks_in_phase += 1;
                 let responding_ids = self.responding_ids();
                 let all_submitted = responding_ids.is_empty()
-                    || responding_ids
-                        .iter()
-                        .all(|id| self.action_queue.contains_key(id));
+                    || responding_ids.iter().all(|id| {
+                        self.action_queue.contains_key(id) || self.skipped_ids.contains(id)
+                    });
                 if all_submitted || self.ticks_in_phase >= max_engage_ticks {
                     out.messages.push(BattleMessage::PhaseChange {
                         phase: BattlePhase::Resolution,
@@ -230,6 +237,7 @@ impl BattleEngagement {
                     .drain()
                     .map(|(_, ability)| ability)
                     .collect();
+                self.skipped_ids.clear();
                 self.pending_costs.clear();
                 if !self.factions.is_empty() {
                     self.planning_faction_index =

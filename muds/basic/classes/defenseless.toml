@@ -1,0 +1,15 @@
+name = "Defenseless"
+description = "Completely unprepared for combat. Can attack, but has no idea how to defend."
+innate_abilities = ["basic_attack"]
+
+[[attributes]]
+definition_id = "hp"
+min_value = 0
+max_value = 80
+current_value = 80
+
+[[attributes]]
+definition_id = "mp"
+min_value = 0
+max_value = 10
+current_value = 10

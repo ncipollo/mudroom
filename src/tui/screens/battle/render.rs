@@ -135,6 +135,7 @@ fn render_abilities_panel(frame: &mut Frame, battle: &BattleState, area: Rect) {
         .iter()
         .enumerate()
         .map(|(i, ability)| {
+            let is_skip = ability.id == "skip";
             let cost_str = ability
                 .costs
                 .iter()
@@ -162,6 +163,12 @@ fn render_abilities_panel(frame: &mut Frame, battle: &BattleState, area: Rect) {
                     Style::default()
                         .fg(Color::Yellow)
                         .add_modifier(Modifier::BOLD),
+                )
+            } else if is_skip {
+                ListItem::new(label).style(
+                    Style::default()
+                        .fg(Color::DarkGray)
+                        .add_modifier(Modifier::ITALIC),
                 )
             } else {
                 ListItem::new(label)
