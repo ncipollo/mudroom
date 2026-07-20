@@ -16,6 +16,7 @@ pub use attribute::Attribute;
 pub use attribute_definition::AttributeCategory;
 pub use attribute_definition::AttributeDefinition;
 pub use attribute_definition::AttributeType;
+pub use attribute_definition::ResetCondition;
 pub use check::Check;
 pub use description::CheckedDescription;
 pub use description::Description;
