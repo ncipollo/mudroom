@@ -24,6 +24,7 @@ pub enum BattleMessage {
         target_id: i64,
     },
     Meta(String),
+    EffectText(String),
 }
 
 impl fmt::Display for BattleMessage {
@@ -46,6 +47,7 @@ impl fmt::Display for BattleMessage {
                 "{caster_name} is preparing {ability_name} → {target_name}"
             ),
             BattleMessage::Meta(msg) => write!(f, "{msg}"),
+            BattleMessage::EffectText(msg) => write!(f, "{msg}"),
         }
     }
 }

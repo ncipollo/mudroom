@@ -9,3 +9,4 @@ targets = ["self"]
 name = "damage_reduction"
 trigger_info = { type = "once" }
 effect_type = { type = "attribute_shield", attribute_id = "hp", absorb_amount = 5 }
+description = { text = "Defend for {{abs_value}}" }

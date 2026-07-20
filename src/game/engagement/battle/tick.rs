@@ -7,7 +7,7 @@ use crate::game::config::AttributeConfig;
 use crate::game::engagement::TurnOrder;
 use crate::game::entity::Entity;
 use crate::game::messaging::{BattleParticipantInfo, BattleUpdateMessage};
-use crate::game::narration::{TextResolver, VariableMap};
+use crate::game::narration::{TextResolver, VariableMap, effect_text};
 use crate::game::{GameState, messaging};
 
 use super::resolution;
@@ -257,7 +257,7 @@ async fn apply_battle_effects(
 
     for &caster_id in speed_sorted_casters {
         for qa in by_caster.remove(&caster_id).unwrap_or_default() {
-            cast_messages.push(ability_cast_message(&qa, entity_names));
+            cast_messages.extend(ability_cast_messages(&qa, entity_names));
             target_effects
                 .entry(qa.target_id)
                 .or_insert_with(Vec::new)
@@ -266,7 +266,7 @@ async fn apply_battle_effects(
     }
     for abilities in by_caster.into_values() {
         for qa in abilities {
-            cast_messages.push(ability_cast_message(&qa, entity_names));
+            cast_messages.extend(ability_cast_messages(&qa, entity_names));
             target_effects
                 .entry(qa.target_id)
                 .or_insert_with(Vec::new)
@@ -279,7 +279,10 @@ async fn apply_battle_effects(
     }
 }
 
-fn ability_cast_message(qa: &QueuedAbility, entity_names: &HashMap<i64, String>) -> BattleMessage {
+fn ability_cast_messages(
+    qa: &QueuedAbility,
+    entity_names: &HashMap<i64, String>,
+) -> Vec<BattleMessage> {
     let caster_name = entity_names
         .get(&qa.caster_id)
         .cloned()
@@ -289,18 +292,29 @@ fn ability_cast_message(qa: &QueuedAbility, entity_names: &HashMap<i64, String>)
         .cloned()
         .unwrap_or_else(|| "Unknown".to_string());
 
-    if let Some(action_text) = &qa.ability.action_text {
+    let effect_lines: Vec<BattleMessage> = qa
+        .ability
+        .effects
+        .iter()
+        .map(effect_text)
+        .filter(|s| !s.is_empty())
+        .map(BattleMessage::EffectText)
+        .collect();
+
+    let cast_message = if let Some(action_text) = &qa.ability.action_text {
         let vars = VariableMap::new()
             .insert("entity", &caster_name)
             .insert("target", &target_name);
-        return BattleMessage::Meta(TextResolver::resolve(action_text, &vars));
-    }
+        BattleMessage::Meta(TextResolver::resolve(action_text, &vars))
+    } else {
+        BattleMessage::AbilityCast {
+            caster_name,
+            target_name,
+            ability_name: qa.ability.name.clone(),
+        }
+    };
 
-    BattleMessage::AbilityCast {
-        caster_name,
-        target_name,
-        ability_name: qa.ability.name.clone(),
-    }
+    std::iter::once(cast_message).chain(effect_lines).collect()
 }
 
 fn pending_attack_message(
@@ -435,6 +449,9 @@ async fn build_battle_update(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::game::component::effect::{
+        Effect, EffectDescription, EffectScope, EffectType, TriggerInfo,
+    };
     use crate::game::component::{Ability, AbilityRole};
     use crate::game::engagement::EngagementType;
 
@@ -460,46 +477,112 @@ mod tests {
         m
     }
 
+    fn hp_effect(value: i64, text: Option<&str>) -> Effect {
+        Effect {
+            name: "damage".to_string(),
+            effect_type: EffectType::AttributeUpdate {
+                attribute_id: "hp".to_string(),
+                value,
+            },
+            trigger_info: TriggerInfo::Once,
+            description: EffectDescription {
+                text: text.map(|s| s.to_string()),
+                ..Default::default()
+            },
+            scope: EffectScope::default(),
+        }
+    }
+
     #[test]
-    fn no_action_text_returns_ability_cast() {
+    fn no_action_text_no_effects_returns_ability_cast() {
         let qa = QueuedAbility {
             caster_id: 1,
             ability: make_ability(None),
             target_id: 2,
         };
-        let msg = ability_cast_message(&qa, &make_names());
+        let msgs = ability_cast_messages(&qa, &make_names());
         assert_eq!(
-            msg,
-            BattleMessage::AbilityCast {
+            msgs,
+            vec![BattleMessage::AbilityCast {
                 caster_name: "Alice".to_string(),
                 target_name: "Bob".to_string(),
                 ability_name: "Test Strike".to_string(),
-            }
+            }]
         );
     }
 
     #[test]
-    fn with_action_text_returns_meta_with_resolved_text() {
+    fn no_action_text_with_effect_appends_indented_effect_line() {
+        let mut ability = make_ability(None);
+        ability.effects = vec![hp_effect(-5, Some("Defend for {{abs_value}}"))];
+        let qa = QueuedAbility {
+            caster_id: 1,
+            ability,
+            target_id: 2,
+        };
+        let msgs = ability_cast_messages(&qa, &make_names());
+        assert_eq!(
+            msgs,
+            vec![
+                BattleMessage::AbilityCast {
+                    caster_name: "Alice".to_string(),
+                    target_name: "Bob".to_string(),
+                    ability_name: "Test Strike".to_string(),
+                },
+                BattleMessage::EffectText("Defend for 5".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn with_action_text_no_effects_returns_single_meta() {
         let qa = QueuedAbility {
             caster_id: 1,
             ability: make_ability(Some("{{entity}} strikes {{target}}!")),
             target_id: 2,
         };
-        let msg = ability_cast_message(&qa, &make_names());
-        assert_eq!(msg, BattleMessage::Meta("Alice strikes Bob!".to_string()));
+        let msgs = ability_cast_messages(&qa, &make_names());
+        assert_eq!(
+            msgs,
+            vec![BattleMessage::Meta("Alice strikes Bob!".to_string())]
+        );
     }
 
     #[test]
-    fn with_action_text_effect_stub_left_as_literal() {
+    fn with_action_text_and_hp_effect_emits_separate_indented_line() {
+        let mut ability = make_ability(Some("{{entity}} hits {{target}}"));
+        ability.effects = vec![hp_effect(-10, None)];
         let qa = QueuedAbility {
             caster_id: 1,
-            ability: make_ability(Some("{{entity}} hits {{target}} for {{effect}}")),
+            ability,
             target_id: 2,
         };
-        let msg = ability_cast_message(&qa, &make_names());
+        let msgs = ability_cast_messages(&qa, &make_names());
         assert_eq!(
-            msg,
-            BattleMessage::Meta("Alice hits Bob for {{effect}}".to_string())
+            msgs,
+            vec![
+                BattleMessage::Meta("Alice hits Bob".to_string()),
+                BattleMessage::EffectText("deals 10 damage".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn with_action_text_and_custom_effect_text_uses_resolved_text() {
+        let mut ability = make_ability(Some("{{entity}} swings ax at {{target}}"));
+        ability.effects = vec![hp_effect(-15, Some("Axe chops for {{abs_value}}"))];
+        let qa = QueuedAbility {
+            caster_id: 1,
+            ability,
+            target_id: 2,
+        };
+        let msgs = ability_cast_messages(&qa, &make_names());
+        assert_eq!(
+            msgs,
+            vec![
+                BattleMessage::Meta("Alice swings ax at Bob".to_string()),
+                BattleMessage::EffectText("Axe chops for 15".to_string()),
+            ]
         );
     }
 }
