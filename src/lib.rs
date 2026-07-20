@@ -1,6 +1,7 @@
 pub mod agent;
 pub mod cli;
 pub mod game;
+pub mod instructions;
 pub mod logging;
 pub mod network;
 pub mod paths;

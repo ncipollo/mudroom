@@ -1,4 +1,4 @@
-use super::{Cli, Commands, client, completions, players, server};
+use super::{Cli, Commands, client, completions, instructions, players, server};
 
 pub struct CliRouter;
 
@@ -14,6 +14,10 @@ impl CliRouter {
             Some(Commands::Players { command }) => players::run(command).await,
             Some(Commands::Completions { shell }) => {
                 completions::run(shell);
+                Ok(())
+            }
+            Some(Commands::Instructions { topic }) => {
+                instructions::run(topic);
                 Ok(())
             }
             None => client::run(None, false).await,

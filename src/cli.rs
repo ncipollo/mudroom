@@ -1,5 +1,6 @@
 pub mod client;
 pub mod completions;
+pub mod instructions;
 pub mod players;
 pub mod router;
 pub mod server;
@@ -49,7 +50,16 @@ pub enum Commands {
         /// Target shell
         shell: Shell,
     },
+    /// Print authoring instructions for mud config files
+    #[command(alias = "info")]
+    Instructions {
+        #[command(subcommand)]
+        topic: Option<InstructionsTopic>,
+    },
 }
+
+#[derive(Subcommand, Debug, PartialEq)]
+pub enum InstructionsTopic {}
 
 #[derive(Subcommand, Debug, PartialEq)]
 pub enum PlayersCommands {
@@ -199,6 +209,18 @@ mod tests {
                 },
             })
         );
+    }
+
+    #[test]
+    fn instructions_subcommand_parses() {
+        let cli = parse(&["mudroom", "instructions"]);
+        assert_eq!(cli.command, Some(Commands::Instructions { topic: None }));
+    }
+
+    #[test]
+    fn info_alias_parses() {
+        let cli = parse(&["mudroom", "info"]);
+        assert_eq!(cli.command, Some(Commands::Instructions { topic: None }));
     }
 
     #[test]
