@@ -106,7 +106,7 @@ mod tests {
             trigger_info: TriggerInfo::Once,
             description: EffectDescription {
                 start_description: Some("You feel healed.".to_string()),
-                end_description: None,
+                ..Default::default()
             },
             scope: Default::default(),
         }

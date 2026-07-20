@@ -224,7 +224,7 @@ fn render_message_log(frame: &mut Frame, app: &App, battle: &BattleState, area: 
 
     let log = Paragraph::new(Text::from(all_lines))
         .block(Block::default().title("Battle Log").borders(Borders::ALL))
-        .wrap(Wrap { trim: true })
+        .wrap(Wrap { trim: false })
         .scroll((scroll_from_top, 0));
     frame.render_widget(log, area);
 }
@@ -286,6 +286,10 @@ fn battle_message_to_line(msg: &BattleMessage) -> Line<'_> {
             msg.to_string(),
             Style::default().fg(Color::White),
         )),
+        BattleMessage::EffectText(text) => Line::from(vec![
+            Span::raw("  "),
+            Span::styled(text.as_str(), Style::default().fg(Color::Gray)),
+        ]),
     }
 }
 
