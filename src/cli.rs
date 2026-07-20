@@ -59,7 +59,20 @@ pub enum Commands {
 }
 
 #[derive(Subcommand, Debug, PartialEq)]
-pub enum InstructionsTopic {}
+pub enum InstructionsTopic {
+    /// Mud directory layout and mud.toml configuration reference
+    MudConfig,
+    /// Ability config file (abilities/*.toml) reference
+    Abilities,
+    /// Attribute definitions (attributes.toml) reference
+    Attributes,
+    /// Class config file (classes/*.toml) reference
+    Classes,
+    /// Entity config file (entities/*.toml) reference
+    Entities,
+    /// Map and room config file (maps/<world>/<dungeon>/<room>.toml) reference
+    Maps,
+}
 
 #[derive(Subcommand, Debug, PartialEq)]
 pub enum PlayersCommands {

@@ -1,4 +1,23 @@
-const TOPICS: &[(&str, &str)] = &[];
+const TOPICS: &[(&str, &str)] = &[
+    (
+        "mud-config",
+        "Mud directory layout and mud.toml configuration",
+    ),
+    (
+        "abilities",
+        "Ability config file (abilities/*.toml) reference",
+    ),
+    (
+        "attributes",
+        "Attribute definitions (attributes.toml) reference",
+    ),
+    ("classes", "Class config file (classes/*.toml) reference"),
+    ("entities", "Entity config file (entities/*.toml) reference"),
+    (
+        "maps",
+        "Map and room config file (maps/<world>/<dungeon>/<room>.toml) reference",
+    ),
+];
 
 pub fn render() -> String {
     let mut lines = vec![
@@ -33,8 +52,10 @@ mod tests {
     }
 
     #[test]
-    fn render_notes_no_topics_when_empty() {
+    fn render_lists_registered_topics() {
         let text = render();
-        assert!(text.contains("No topics are registered yet."));
+        assert!(text.contains("Topics:"));
+        assert!(text.contains("mud-config"));
+        assert!(text.contains("maps"));
     }
 }
