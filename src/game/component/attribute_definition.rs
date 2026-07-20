@@ -1,5 +1,14 @@
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ResetCondition {
+    #[default]
+    EachEngagementTurn,
+    EndOfEngagement,
+    Never,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum AttributeCategory {
     #[serde(rename = "life")]
@@ -33,6 +42,8 @@ pub struct AttributeDefinition {
     pub max_value: i64,
     pub attribute_type: AttributeType,
     pub attribute_category: AttributeCategory,
+    #[serde(default)]
+    pub reset_condition: ResetCondition,
 }
 
 #[cfg(test)]
@@ -49,6 +60,7 @@ mod tests {
             max_value: 100,
             attribute_type: AttributeType::HP,
             attribute_category: AttributeCategory::Life,
+            reset_condition: ResetCondition::EndOfEngagement,
         };
         let json = serde_json::to_string(&def).unwrap();
         let restored: AttributeDefinition = serde_json::from_str(&json).unwrap();
@@ -56,6 +68,50 @@ mod tests {
         assert_eq!(restored.title, def.title);
         assert_eq!(restored.min_value, def.min_value);
         assert_eq!(restored.max_value, def.max_value);
+        assert_eq!(restored.reset_condition, def.reset_condition);
+    }
+
+    #[test]
+    fn reset_condition_serializes_snake_case() {
+        let cases = [
+            (
+                ResetCondition::EachEngagementTurn,
+                r#""each_engagement_turn""#,
+            ),
+            (ResetCondition::EndOfEngagement, r#""end_of_engagement""#),
+            (ResetCondition::Never, r#""never""#),
+        ];
+        for (condition, expected) in cases {
+            assert_eq!(serde_json::to_string(&condition).unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn reset_condition_serde_round_trip() {
+        for condition in [
+            ResetCondition::EachEngagementTurn,
+            ResetCondition::EndOfEngagement,
+            ResetCondition::Never,
+        ] {
+            let json = serde_json::to_string(&condition).unwrap();
+            let restored: ResetCondition = serde_json::from_str(&json).unwrap();
+            assert_eq!(restored, condition);
+        }
+    }
+
+    #[test]
+    fn attribute_definition_missing_reset_condition_defaults() {
+        let json = r#"{
+            "id": "strength",
+            "title": "Strength",
+            "description": "Raw power.",
+            "min_value": 1,
+            "max_value": 20,
+            "attribute_type": "stat",
+            "attribute_category": "general"
+        }"#;
+        let def: AttributeDefinition = serde_json::from_str(json).unwrap();
+        assert_eq!(def.reset_condition, ResetCondition::EachEngagementTurn);
     }
 
     #[test]
@@ -81,6 +137,7 @@ mod tests {
             max_value: 20,
             attribute_type: AttributeType::Stat,
             attribute_category: AttributeCategory::General,
+            reset_condition: ResetCondition::EachEngagementTurn,
         };
         let json = serde_json::to_string(&def).unwrap();
         let restored: AttributeDefinition = serde_json::from_str(&json).unwrap();

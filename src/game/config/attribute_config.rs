@@ -3,7 +3,9 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use crate::game::component::AttributeDefinition;
-use crate::game::component::attribute_definition::{AttributeCategory, AttributeType};
+use crate::game::component::attribute_definition::{
+    AttributeCategory, AttributeType, ResetCondition,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AttributeConfig {
@@ -34,6 +36,7 @@ fn default_life_attributes() -> Vec<AttributeDefinition> {
             max_value: 999,
             attribute_type: AttributeType::HP,
             attribute_category: AttributeCategory::Life,
+            reset_condition: ResetCondition::Never,
         },
         AttributeDefinition {
             id: "mp".to_string(),
@@ -43,6 +46,7 @@ fn default_life_attributes() -> Vec<AttributeDefinition> {
             max_value: 999,
             attribute_type: AttributeType::MP,
             attribute_category: AttributeCategory::General,
+            reset_condition: ResetCondition::Never,
         },
         AttributeDefinition {
             id: "level".to_string(),
@@ -52,6 +56,7 @@ fn default_life_attributes() -> Vec<AttributeDefinition> {
             max_value: 100,
             attribute_type: AttributeType::Level,
             attribute_category: AttributeCategory::General,
+            reset_condition: Default::default(),
         },
         AttributeDefinition {
             id: "xp".to_string(),
@@ -61,6 +66,7 @@ fn default_life_attributes() -> Vec<AttributeDefinition> {
             max_value: i64::MAX,
             attribute_type: AttributeType::XP,
             attribute_category: AttributeCategory::General,
+            reset_condition: Default::default(),
         },
     ]
 }
@@ -75,6 +81,7 @@ fn default_stat_attributes() -> Vec<AttributeDefinition> {
             max_value: 20,
             attribute_type: AttributeType::Stat,
             attribute_category: AttributeCategory::General,
+            reset_condition: Default::default(),
         },
         AttributeDefinition {
             id: "dexterity".to_string(),
@@ -84,6 +91,7 @@ fn default_stat_attributes() -> Vec<AttributeDefinition> {
             max_value: 20,
             attribute_type: AttributeType::Stat,
             attribute_category: AttributeCategory::General,
+            reset_condition: Default::default(),
         },
         AttributeDefinition {
             id: "constitution".to_string(),
@@ -93,6 +101,7 @@ fn default_stat_attributes() -> Vec<AttributeDefinition> {
             max_value: 20,
             attribute_type: AttributeType::Stat,
             attribute_category: AttributeCategory::General,
+            reset_condition: Default::default(),
         },
         AttributeDefinition {
             id: "intelligence".to_string(),
@@ -102,6 +111,7 @@ fn default_stat_attributes() -> Vec<AttributeDefinition> {
             max_value: 20,
             attribute_type: AttributeType::Stat,
             attribute_category: AttributeCategory::General,
+            reset_condition: Default::default(),
         },
         AttributeDefinition {
             id: "wisdom".to_string(),
@@ -111,6 +121,7 @@ fn default_stat_attributes() -> Vec<AttributeDefinition> {
             max_value: 20,
             attribute_type: AttributeType::Stat,
             attribute_category: AttributeCategory::General,
+            reset_condition: Default::default(),
         },
         AttributeDefinition {
             id: "charisma".to_string(),
@@ -120,6 +131,7 @@ fn default_stat_attributes() -> Vec<AttributeDefinition> {
             max_value: 20,
             attribute_type: AttributeType::Stat,
             attribute_category: AttributeCategory::General,
+            reset_condition: Default::default(),
         },
     ]
 }
@@ -145,6 +157,30 @@ mod tests {
         assert!(ids.contains(&"wisdom"));
         assert!(ids.contains(&"charisma"));
         assert_eq!(config.attributes.len(), 10);
+
+        let find = |id: &str| {
+            config
+                .attributes
+                .iter()
+                .find(|a| a.id == id)
+                .unwrap()
+                .reset_condition
+                .clone()
+        };
+        assert_eq!(find("hp"), ResetCondition::Never);
+        assert_eq!(find("mp"), ResetCondition::Never);
+        for id in [
+            "level",
+            "xp",
+            "strength",
+            "dexterity",
+            "constitution",
+            "intelligence",
+            "wisdom",
+            "charisma",
+        ] {
+            assert_eq!(find(id), ResetCondition::EachEngagementTurn);
+        }
     }
 
     #[test]

@@ -129,6 +129,7 @@ mod tests {
                 max_value: 100,
                 attribute_type: AttributeType::Stat,
                 attribute_category: AttributeCategory::Speed,
+                reset_condition: Default::default(),
             }],
         };
 
@@ -177,6 +178,7 @@ mod tests {
                 max_value: 100,
                 attribute_type: AttributeType::Stat,
                 attribute_category: AttributeCategory::Speed,
+                reset_condition: Default::default(),
             }],
         };
 
