@@ -19,26 +19,26 @@ const TOPICS: &[(&str, &str)] = &[
     ),
 ];
 
+const HEADER: &str = r#"mudroom instructions — authoring guidance for mud config files
+
+Usage: mudroom instructions [topic]  (alias: mudroom info [topic])"#;
+
 pub fn render() -> String {
-    let mut lines = vec![
-        "mudroom instructions — authoring guidance for mud config files".to_string(),
-        String::new(),
-        "Usage: mudroom instructions [topic]  (alias: mudroom info [topic])".to_string(),
-    ];
+    let mut result = HEADER.to_string();
     if TOPICS.is_empty() {
-        lines.push(String::new());
-        lines.push("No topics are registered yet.".to_string());
+        result.push_str("\n\nNo topics are registered yet.");
     } else {
         let width = TOPICS.iter().map(|(name, _)| name.len()).max().unwrap_or(0);
-        lines.push(String::new());
-        lines.push("Topics:".to_string());
-        for (name, description) in TOPICS {
-            lines.push(format!(
-                "  mudroom instructions {name:<width$}  — {description}"
-            ));
-        }
+        result.push_str("\n\nTopics:\n");
+        let topic_lines: Vec<String> = TOPICS
+            .iter()
+            .map(|(name, description)| {
+                format!("  mudroom instructions {name:<width$}  — {description}")
+            })
+            .collect();
+        result.push_str(&topic_lines.join("\n"));
     }
-    lines.join("\n")
+    result
 }
 
 #[cfg(test)]
