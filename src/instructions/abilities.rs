@@ -13,141 +13,125 @@ pub fn render() -> String {
 }
 
 fn header() -> String {
-    [
-        "mudroom instructions abilities — ability config file reference",
-        "",
-        "Ability files live at abilities/*.toml under a mud's config directory",
-        "(e.g. muds/basic/abilities/basic_attack.toml). Each file defines one ability.",
-        "The ability's id is derived from its file path relative to the abilities",
-        "directory (extension stripped) — it is not set in the TOML itself.",
-    ]
-    .join("\n")
+    r#"mudroom instructions abilities — ability config file reference
+
+Ability files live at abilities/*.toml under a mud's config directory
+(e.g. muds/basic/abilities/basic_attack.toml). Each file defines one ability.
+The ability's id is derived from its file path relative to the abilities
+directory (extension stripped) — it is not set in the TOML itself."#
+        .to_string()
 }
 
 fn fields_section() -> String {
-    [
-        "Top-level fields:",
-        "  name              string            Display name.",
-        "  description       string, optional  Short description.",
-        "  action_text       string, optional  Narration template shown when the",
-        "                                       ability is used, e.g.",
-        "                                       \"{{entity}} swings ax at {{target}}\".",
-        "  engagement_types  array of strings   Engagement types this ability can be",
-        "                                       used in. See \"engagement_types\" below.",
-        "  costs             array of tables    Resources consumed to use the ability.",
-        "                                       See \"costs\" below. Use [] for none.",
-        "  role              string, optional   The ability's role. See \"role\" below.",
-        "                                       Defaults to \"attack\" if omitted.",
-        "  targets           array of strings   Who the ability can target. See",
-        "                                       \"targets\" below. Defaults to [] if",
-        "                                       omitted.",
-        "  modifiers         array of tables    Optional attribute-scaling modifiers.",
-        "                                       Each has attribute_id (string) and",
-        "                                       operator (\"add\", \"subtract\",",
-        "                                       \"multiply\", or \"divide\"). Defaults to",
-        "                                       [] if omitted.",
-        "  [[effects]]       array of tables     One or more effect blocks describing",
-        "                                       what the ability does. See \"effects\"",
-        "                                       below.",
-    ]
-    .join("\n")
+    r#"Top-level fields:
+  name              string            Display name.
+  description       string, optional  Short description.
+  action_text       string, optional  Narration template shown when the
+                                       ability is used, e.g.
+                                       "{{entity}} swings ax at {{target}}".
+  engagement_types  array of strings   Engagement types this ability can be
+                                       used in. See "engagement_types" below.
+  costs             array of tables    Resources consumed to use the ability.
+                                       See "costs" below. Use [] for none.
+  role              string, optional   The ability's role. See "role" below.
+                                       Defaults to "attack" if omitted.
+  targets           array of strings   Who the ability can target. See
+                                       "targets" below. Defaults to [] if
+                                       omitted.
+  modifiers         array of tables    Optional attribute-scaling modifiers.
+                                       Each has attribute_id (string) and
+                                       operator ("add", "subtract",
+                                       "multiply", or "divide"). Defaults to
+                                       [] if omitted.
+  [[effects]]       array of tables     One or more effect blocks describing
+                                       what the ability does. See "effects"
+                                       below."#
+        .to_string()
 }
 
 fn engagement_types_section() -> String {
-    [
-        "engagement_types values:",
-        "  \"battle\"         Usable during a battle engagement.",
-        "  \"conversation\"   Usable during a conversation engagement.",
-    ]
-    .join("\n")
+    r#"engagement_types values:
+  "battle"         Usable during a battle engagement.
+  "conversation"   Usable during a conversation engagement."#
+        .to_string()
 }
 
 fn costs_section() -> String {
-    [
-        "costs entries:",
-        "  { type = \"resource\", resource_id = \"<attribute id>\", amount = <integer> }",
-        "    Consumes `amount` of the entity's `resource_id` attribute (e.g. mp or",
-        "    stamina) when the ability is used. Use an empty array (costs = [])",
-        "    for abilities with no cost.",
-    ]
-    .join("\n")
+    r#"costs entries:
+  { type = "resource", resource_id = "<attribute id>", amount = <integer> }
+    Consumes `amount` of the entity's `resource_id` attribute (e.g. mp or
+    stamina) when the ability is used. Use an empty array (costs = [])
+    for abilities with no cost."#
+        .to_string()
 }
 
 fn role_section() -> String {
-    [
-        "role values:",
-        "  \"attack\"   Offensive ability (default).",
-        "  \"defend\"   Defensive ability.",
-        "  \"world\"    Non-combat / world-interaction ability.",
-    ]
-    .join("\n")
+    r#"role values:
+  "attack"   Offensive ability (default).
+  "defend"   Defensive ability.
+  "world"    Non-combat / world-interaction ability."#
+        .to_string()
 }
 
 fn targets_section() -> String {
-    [
-        "targets values:",
-        "  \"opponent\"   Targets the opposing side.",
-        "  \"allies\"     Targets allies.",
-        "  \"self\"       Targets the acting entity.",
-    ]
-    .join("\n")
+    r#"targets values:
+  "opponent"   Targets the opposing side.
+  "allies"     Targets allies.
+  "self"       Targets the acting entity."#
+        .to_string()
 }
 
 fn effects_section() -> String {
-    [
-        "[[effects]] fields:",
-        "  name           string            Identifier for the effect.",
-        "  trigger_info   inline table      When/how the effect fires. See",
-        "                                   \"trigger_info variants\" below.",
-        "  effect_type    inline table      What the effect does. See",
-        "                                   \"effect_type variants\" below.",
-        "  description    inline table,     Optional narration for the effect.",
-        "                 optional          { text = \"...\" } supports variables",
-        "                                   like {{value}} and {{abs_value}}.",
-        "  scope          string, optional  \"world\" (default), \"battle\", or",
-        "                                   \"conversation\" — where the effect",
-        "                                   applies.",
-        "",
-        "trigger_info variants:",
-        "  { type = \"once\" }",
-        "    Fires a single time when the ability is used.",
-        "  { type = \"over_time\", start = <ticks>, end = <ticks, optional>, rate = <ticks> }",
-        "    Fires repeatedly starting at `start`, every `rate` ticks, until `end`",
-        "    (or indefinitely if `end` is omitted).",
-        "",
-        "effect_type variants:",
-        "  { type = \"attribute_update\", attribute_id = \"<id>\", value = <integer> }",
-        "    Adds `value` to the target's `attribute_id` attribute (negative values",
-        "    deal damage, positive values heal/buff).",
-        "  { type = \"attribute_shield\", attribute_id = \"<id>\", absorb_amount = <integer> }",
-        "    Grants a shield absorbing up to `absorb_amount` of damage to",
-        "    `attribute_id` before it is reduced directly.",
-        "  { type = \"entity_spawn\", entity_id = \"<id>\", location = <table, optional> }",
-        "    Spawns an entity with the given `entity_id`, optionally at a specific",
-        "    location (world_id, dungeon_id, room_id). Omit `location` to spawn near",
-        "    the acting entity.",
-    ]
-    .join("\n")
+    r#"[[effects]] fields:
+  name           string            Identifier for the effect.
+  trigger_info   inline table      When/how the effect fires. See
+                                   "trigger_info variants" below.
+  effect_type    inline table      What the effect does. See
+                                   "effect_type variants" below.
+  description    inline table,     Optional narration for the effect.
+                 optional          { text = "..." } supports variables
+                                   like {{value}} and {{abs_value}}.
+  scope          string, optional  "world" (default), "battle", or
+                                   "conversation" — where the effect
+                                   applies.
+
+trigger_info variants:
+  { type = "once" }
+    Fires a single time when the ability is used.
+  { type = "over_time", start = <ticks>, end = <ticks, optional>, rate = <ticks> }
+    Fires repeatedly starting at `start`, every `rate` ticks, until `end`
+    (or indefinitely if `end` is omitted).
+
+effect_type variants:
+  { type = "attribute_update", attribute_id = "<id>", value = <integer> }
+    Adds `value` to the target's `attribute_id` attribute (negative values
+    deal damage, positive values heal/buff).
+  { type = "attribute_shield", attribute_id = "<id>", absorb_amount = <integer> }
+    Grants a shield absorbing up to `absorb_amount` of damage to
+    `attribute_id` before it is reduced directly.
+  { type = "entity_spawn", entity_id = "<id>", location = <table, optional> }
+    Spawns an entity with the given `entity_id`, optionally at a specific
+    location (world_id, dungeon_id, room_id). Omit `location` to spawn near
+    the acting entity."#
+        .to_string()
 }
 
 fn example_section() -> String {
-    [
-        "Complete annotated example (muds/basic/abilities/defend.toml):",
-        "",
-        "  name = \"Defend\"",
-        "  description = \"Brace for impact, absorbing incoming damage.\"",
-        "  engagement_types = [\"battle\"]           # usable in battle only",
-        "  costs = []                              # no resource cost",
-        "  role = \"defend\"                         # defensive ability",
-        "  targets = [\"self\"]                      # targets the caster",
-        "",
-        "  [[effects]]",
-        "  name = \"damage_reduction\"",
-        "  trigger_info = { type = \"once\" }        # fires once when used",
-        "  effect_type = { type = \"attribute_shield\", attribute_id = \"hp\", absorb_amount = 5 }",
-        "  description = { text = \"Defend for {{abs_value}}\" }",
-    ]
-    .join("\n")
+    r#"Complete annotated example (muds/basic/abilities/defend.toml):
+
+  name = "Defend"
+  description = "Brace for impact, absorbing incoming damage."
+  engagement_types = ["battle"]           # usable in battle only
+  costs = []                              # no resource cost
+  role = "defend"                         # defensive ability
+  targets = ["self"]                      # targets the caster
+
+  [[effects]]
+  name = "damage_reduction"
+  trigger_info = { type = "once" }        # fires once when used
+  effect_type = { type = "attribute_shield", attribute_id = "hp", absorb_amount = 5 }
+  description = { text = "Defend for {{abs_value}}" }"#
+        .to_string()
 }
 
 #[cfg(test)]
