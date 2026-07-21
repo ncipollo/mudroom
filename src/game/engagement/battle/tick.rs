@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::game::component::Attribute;
 use crate::game::component::AttributeType;
 use crate::game::component::effect::{EffectScope, TriggerInfo};
 use crate::game::config::AttributeConfig;
@@ -10,7 +11,6 @@ use crate::game::messaging::{BattleParticipantInfo, BattleUpdateMessage};
 use crate::game::narration::{TextResolver, VariableMap, effect_text};
 use crate::game::{GameState, messaging};
 
-use super::resolution;
 use super::{
     BattleMessage, BattlePhase, BattleTick, QueuedAbility, entity_innate_battle_abilities,
 };
@@ -28,11 +28,14 @@ struct BattleTickOutcome {
 /// This is the single entry point for battle processing; no battle-specific logic escapes
 /// into the engagement orchestration layer.
 pub async fn process_ticks(game_state: &Arc<GameState>, max_engage_ticks: u64) {
-    let battle_results = game_state
-        .engagements
-        .battles
-        .tick_all(max_engage_ticks)
-        .await;
+    let battle_results = {
+        let entities = game_state.active_entities.read().await;
+        game_state
+            .engagements
+            .battles
+            .tick_all(max_engage_ticks, &entities, &game_state.attribute_config)
+            .await
+    };
     for result in battle_results {
         let outcome = handle_tick(game_state, result, max_engage_ticks).await;
         let surviving = game_state
@@ -68,20 +71,18 @@ async fn handle_tick(
 
     let (entity_names, speed_sorted_casters) = collect_entity_data(game_state, &result).await;
 
-    let mut cast_messages = Vec::new();
-    apply_innate_effects(
+    let effects_input = TickEffectsInput {
+        engagement_id,
+        all_participant_ids: all_ids.clone(),
+        turn_count: result.turn_count,
+        resolution_queue: result.resolution_queue,
+        phase: result.phase.clone(),
+    };
+    let cast_messages = resolve_tick_effects(
         game_state,
-        &result.all_participant_ids,
-        result.turn_count,
-        &mut cast_messages,
-    )
-    .await;
-    apply_battle_effects(
-        game_state,
-        result.resolution_queue,
+        effects_input,
         &speed_sorted_casters,
         &entity_names,
-        &mut cast_messages,
     )
     .await;
 
@@ -150,6 +151,58 @@ async fn handle_tick(
     }
 }
 
+struct TickEffectsInput {
+    engagement_id: i64,
+    all_participant_ids: Vec<i64>,
+    turn_count: u64,
+    resolution_queue: Vec<QueuedAbility>,
+    phase: BattlePhase,
+}
+
+/// Applies this tick's innate and queued-ability effects (both routed through the engagement's
+/// pending attribute working copy), then — if this tick just completed the Resolution phase —
+/// flushes `Never`-condition attributes (hp, mp) from pending back into the actual entities.
+async fn resolve_tick_effects(
+    game_state: &Arc<GameState>,
+    input: TickEffectsInput,
+    speed_sorted_casters: &[i64],
+    entity_names: &HashMap<i64, String>,
+) -> Vec<BattleMessage> {
+    let mut cast_messages = Vec::new();
+    apply_innate_effects(
+        game_state,
+        input.engagement_id,
+        &input.all_participant_ids,
+        input.turn_count,
+        &mut cast_messages,
+    )
+    .await;
+    apply_battle_effects(
+        game_state,
+        input.engagement_id,
+        input.resolution_queue,
+        speed_sorted_casters,
+        entity_names,
+        &mut cast_messages,
+    )
+    .await;
+
+    if input.phase == BattlePhase::InnateEffects {
+        let mut entities = game_state.active_entities.write().await;
+        game_state
+            .engagements
+            .battles
+            .flush_never_attributes(
+                input.engagement_id,
+                &game_state.attribute_config,
+                &mut entities,
+            )
+            .await;
+    }
+
+    cast_messages
+}
+
 async fn handle_battle_ended(game_state: &Arc<GameState>, outcome: &BattleTickOutcome) {
     loot::resolve_loot(&outcome.all_participant_ids);
     clear_active_effects(game_state, &outcome.all_participant_ids).await;
@@ -176,6 +229,12 @@ async fn collect_entity_data(
         })
         .collect();
 
+    let pending = game_state
+        .engagements
+        .battles
+        .pending_attributes(result.engagement_id)
+        .await;
+
     let speed_sorted_casters = speed_sort_casters(
         &result
             .resolution_queue
@@ -183,6 +242,7 @@ async fn collect_entity_data(
             .map(|qa| qa.caster_id)
             .collect::<Vec<_>>(),
         &entities,
+        &pending,
         &game_state.attribute_config,
     );
 
@@ -192,40 +252,69 @@ async fn collect_entity_data(
 fn speed_sort_casters(
     caster_ids: &[i64],
     entities: &HashMap<i64, Entity>,
+    pending: &HashMap<i64, HashMap<String, Attribute>>,
     config: &AttributeConfig,
 ) -> Vec<i64> {
-    let entity_refs: Vec<&Entity> = caster_ids
+    let effective_entities: Vec<Entity> = caster_ids
         .iter()
         .collect::<std::collections::HashSet<_>>()
         .into_iter()
         .filter_map(|&id| entities.get(&id))
+        .map(|entity| with_pending_attributes(entity, pending.get(&entity.id)))
         .collect();
+    let entity_refs: Vec<&Entity> = effective_entities.iter().collect();
     TurnOrder::new_from_entities(&entity_refs, config)
         .order()
         .to_vec()
 }
 
+/// Clones an entity, overlaying any pending attribute values so battle decisions (like turn
+/// order) prefer in-turn working values over the entity's actual, persisted state.
+fn with_pending_attributes(
+    entity: &Entity,
+    pending: Option<&HashMap<String, Attribute>>,
+) -> Entity {
+    let mut effective = entity.clone();
+    if let Some(pending) = pending {
+        for (id, attr) in pending {
+            effective.attributes.insert(id.clone(), attr.clone());
+        }
+    }
+    effective
+}
+
 async fn apply_innate_effects(
     game_state: &Arc<GameState>,
+    engagement_id: i64,
     participant_ids: &[i64],
     turn_count: u64,
     cast_messages: &mut Vec<BattleMessage>,
 ) {
-    let mut entities = game_state.active_entities.write().await;
-    for &entity_id in participant_ids {
-        let Some(entity) = entities.get(&entity_id) else {
-            continue;
-        };
-        let triggered: Vec<_> = entity
-            .active_effects
+    let triggered_by_entity: Vec<(i64, Vec<_>)> = {
+        let entities = game_state.active_entities.read().await;
+        participant_ids
             .iter()
-            .filter(|e| is_over_time_triggered(&e.trigger_info, turn_count))
-            .cloned()
-            .collect();
-        if !triggered.is_empty() {
-            let messages = resolution::resolve_effects(entity_id, triggered, &mut entities);
-            cast_messages.extend(messages);
-        }
+            .filter_map(|&entity_id| {
+                let entity = entities.get(&entity_id)?;
+                let triggered: Vec<_> = entity
+                    .active_effects
+                    .iter()
+                    .filter(|e| is_over_time_triggered(&e.trigger_info, turn_count))
+                    .cloned()
+                    .collect();
+                (!triggered.is_empty()).then_some((entity_id, triggered))
+            })
+            .collect()
+    };
+
+    let mut entities = game_state.active_entities.write().await;
+    for (entity_id, triggered) in triggered_by_entity {
+        let messages = game_state
+            .engagements
+            .battles
+            .resolve_battle_effects(engagement_id, entity_id, triggered, &mut entities)
+            .await;
+        cast_messages.extend(messages);
     }
 }
 
@@ -242,12 +331,12 @@ fn is_over_time_triggered(trigger: &TriggerInfo, turn_count: u64) -> bool {
 
 async fn apply_battle_effects(
     game_state: &Arc<GameState>,
+    engagement_id: i64,
     resolution_queue: Vec<QueuedAbility>,
     speed_sorted_casters: &[i64],
     entity_names: &HashMap<i64, String>,
     cast_messages: &mut Vec<BattleMessage>,
 ) {
-    let mut entities = game_state.active_entities.write().await;
     let mut target_effects = HashMap::new();
 
     let mut by_caster: HashMap<i64, Vec<QueuedAbility>> = HashMap::new();
@@ -274,8 +363,13 @@ async fn apply_battle_effects(
         }
     }
 
+    let mut entities = game_state.active_entities.write().await;
     for (target_id, effects) in target_effects {
-        resolution::resolve_effects(target_id, effects, &mut entities);
+        game_state
+            .engagements
+            .battles
+            .resolve_battle_effects(engagement_id, target_id, effects, &mut entities)
+            .await;
     }
 }
 

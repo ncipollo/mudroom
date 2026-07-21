@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::game::component::Attribute;
 use crate::game::component::effect::{Effect, EffectType, TriggerInfo};
 use crate::game::entity::Entity;
 
@@ -14,22 +15,31 @@ pub fn resolve_effects(
     target_id: i64,
     mut effects: Vec<Effect>,
     entities: &mut HashMap<i64, Entity>,
+    pending: &mut HashMap<i64, HashMap<String, Attribute>>,
 ) -> Vec<BattleMessage> {
     let Some(entity) = entities.get_mut(&target_id) else {
         return vec![];
     };
     effects.sort_by_key(|e| e.effect_type.resolution_order());
     let mut context = ResolutionContext::default();
+    let target_pending = pending.entry(target_id).or_default();
     for effect in &effects {
-        resolve_effect(effect, entity, &mut context);
+        resolve_effect(effect, entity, target_pending, &mut context);
     }
     vec![]
 }
 
-fn resolve_effect(effect: &Effect, entity: &mut Entity, context: &mut ResolutionContext) {
+fn resolve_effect(
+    effect: &Effect,
+    entity: &mut Entity,
+    pending: &mut HashMap<String, Attribute>,
+    context: &mut ResolutionContext,
+) {
     match &effect.effect_type {
         EffectType::AttributeShield { .. } => apply_attribute_shield(effect, entity, context),
-        EffectType::AttributeUpdate { .. } => apply_attribute_update(effect, entity, context),
+        EffectType::AttributeUpdate { .. } => {
+            apply_attribute_update(effect, entity, pending, context)
+        }
         EffectType::EntitySpawn { .. } => apply_entity_spawn(effect, entity, context),
     }
 }
@@ -41,7 +51,12 @@ fn apply_attribute_shield(effect: &Effect, entity: &mut Entity, context: &mut Re
     }
 }
 
-fn apply_attribute_update(effect: &Effect, entity: &mut Entity, context: &mut ResolutionContext) {
+fn apply_attribute_update(
+    effect: &Effect,
+    entity: &Entity,
+    pending: &mut HashMap<String, Attribute>,
+    context: &mut ResolutionContext,
+) {
     let EffectType::AttributeUpdate {
         attribute_id,
         value,
@@ -53,7 +68,12 @@ fn apply_attribute_update(effect: &Effect, entity: &mut Entity, context: &mut Re
         return;
     }
     let adjusted = absorb_with_shields(&mut context.once_shields, attribute_id, *value);
-    if let Some(attr) = entity.attributes.get_mut(attribute_id) {
+    if !pending.contains_key(attribute_id)
+        && let Some(actual) = entity.attributes.get(attribute_id)
+    {
+        pending.insert(attribute_id.clone(), actual.clone());
+    }
+    if let Some(attr) = pending.get_mut(attribute_id) {
         attr.current_value = (attr.current_value + adjusted)
             .max(attr.min_value)
             .min(attr.max_value);
@@ -168,24 +188,31 @@ mod tests {
         entities
     }
 
+    fn no_pending() -> HashMap<i64, HashMap<String, Attribute>> {
+        HashMap::new()
+    }
+
     #[test]
     fn shield_absorbs_partial_damage_and_is_consumed() {
         let mut entities = single_entity(100);
+        let mut pending = no_pending();
         // Shield and damage come through the same resolution pass
         resolve_effects(
             1,
             vec![shield_effect(5, TriggerInfo::Once), damage_effect(-10)],
             &mut entities,
+            &mut pending,
         );
 
-        let entity = entities.get(&1).unwrap();
-        assert_eq!(entity.attributes["hp"].current_value, 95);
-        assert!(entity.active_effects.is_empty());
+        assert_eq!(pending[&1]["hp"].current_value, 95);
+        assert_eq!(entities[&1].attributes["hp"].current_value, 100);
+        assert!(entities[&1].active_effects.is_empty());
     }
 
     #[test]
     fn over_time_shield_is_stubbed_and_not_applied() {
         let mut entities = single_entity(100);
+        let mut pending = no_pending();
         let over_time_shield = shield_effect(
             5,
             TriggerInfo::OverTime {
@@ -195,88 +222,93 @@ mod tests {
             },
         );
 
-        resolve_effects(1, vec![over_time_shield, damage_effect(-10)], &mut entities);
+        resolve_effects(
+            1,
+            vec![over_time_shield, damage_effect(-10)],
+            &mut entities,
+            &mut pending,
+        );
 
-        let entity = entities.get(&1).unwrap();
         // OverTime shield pushed to active_effects but not applied — full damage lands
-        assert_eq!(entity.attributes["hp"].current_value, 90);
-        assert_eq!(entity.active_effects.len(), 1);
+        assert_eq!(pending[&1]["hp"].current_value, 90);
+        assert_eq!(entities[&1].active_effects.len(), 1);
     }
 
     #[test]
     fn shield_does_not_affect_positive_attribute_updates() {
         let mut entities = single_entity(50);
+        let mut pending = no_pending();
         let effects = vec![shield_effect(5, TriggerInfo::Once), damage_effect(10)];
 
-        resolve_effects(1, effects, &mut entities);
+        resolve_effects(1, effects, &mut entities, &mut pending);
 
-        let entity = entities.get(&1).unwrap();
-        assert_eq!(entity.attributes["hp"].current_value, 60);
+        assert_eq!(pending[&1]["hp"].current_value, 60);
         // Shield is still present since heals don't trigger it
         // (shield was in same-pass effects, not active_effects — it's simply not consumed)
-        assert!(entity.active_effects.is_empty());
+        assert!(entities[&1].active_effects.is_empty());
     }
 
     #[test]
     fn defend_and_attack_in_same_pass_shield_intercepts() {
         let mut entities = single_entity(100);
+        let mut pending = no_pending();
 
         // Simulate: defend (shield 5) + attack (-10) queued for same target in same resolution pass
         let effects = vec![shield_effect(5, TriggerInfo::Once), damage_effect(-10)];
 
-        resolve_effects(1, effects, &mut entities);
+        resolve_effects(1, effects, &mut entities, &mut pending);
 
-        let entity = entities.get(&1).unwrap();
         // Shield absorbed 5, 5 damage gets through
-        assert_eq!(entity.attributes["hp"].current_value, 95);
-        assert!(entity.active_effects.is_empty());
+        assert_eq!(pending[&1]["hp"].current_value, 95);
+        assert!(entities[&1].active_effects.is_empty());
     }
 
     #[test]
     fn shield_fully_absorbs_attack() {
         let mut entities = single_entity(100);
+        let mut pending = no_pending();
         let effects = vec![shield_effect(20, TriggerInfo::Once), damage_effect(-10)];
 
-        resolve_effects(1, effects, &mut entities);
+        resolve_effects(1, effects, &mut entities, &mut pending);
 
-        let entity = entities.get(&1).unwrap();
-        assert_eq!(entity.attributes["hp"].current_value, 100);
-        assert!(entity.active_effects.is_empty());
+        assert_eq!(pending[&1]["hp"].current_value, 100);
+        assert!(entities[&1].active_effects.is_empty());
     }
 
     #[test]
     fn shield_depletes_across_multiple_hits_until_exhausted() {
         let mut entities = single_entity(100);
+        let mut pending = no_pending();
         let effects = vec![
             shield_effect(8, TriggerInfo::Once),
             damage_effect(-5),
             damage_effect(-5),
         ];
 
-        resolve_effects(1, effects, &mut entities);
+        resolve_effects(1, effects, &mut entities, &mut pending);
 
-        let entity = entities.get(&1).unwrap();
         // Shield absorbs 5 from first hit (3 remaining), then 3 from second (exhausted),
         // leaving 2 damage through
-        assert_eq!(entity.attributes["hp"].current_value, 98);
-        assert!(entity.active_effects.is_empty());
+        assert_eq!(pending[&1]["hp"].current_value, 98);
+        assert!(entities[&1].active_effects.is_empty());
     }
 
     #[test]
     fn absorb_clamps_to_zero_not_positive() {
         let mut entities = single_entity(100);
+        let mut pending = no_pending();
         let effects = vec![shield_effect(20, TriggerInfo::Once), damage_effect(-10)];
 
-        resolve_effects(1, effects, &mut entities);
+        resolve_effects(1, effects, &mut entities, &mut pending);
 
-        let entity = entities.get(&1).unwrap();
-        assert_eq!(entity.attributes["hp"].current_value, 100);
+        assert_eq!(pending[&1]["hp"].current_value, 100);
     }
 
     #[test]
     fn unknown_target_is_noop() {
         let mut entities: HashMap<i64, Entity> = HashMap::new();
-        let messages = resolve_effects(99, vec![damage_effect(-10)], &mut entities);
+        let mut pending = no_pending();
+        let messages = resolve_effects(99, vec![damage_effect(-10)], &mut entities, &mut pending);
         assert!(messages.is_empty());
     }
 
@@ -284,6 +316,7 @@ mod tests {
     fn applying_shield_effect_directly_adds_to_active_effects_via_over_time() {
         // Verifies OverTime shields are stored for future use
         let mut entities = single_entity(100);
+        let mut pending = no_pending();
         let over_time_shield = shield_effect(
             5,
             TriggerInfo::OverTime {
@@ -293,17 +326,52 @@ mod tests {
             },
         );
 
-        resolve_effects(1, vec![over_time_shield], &mut entities);
+        resolve_effects(1, vec![over_time_shield], &mut entities, &mut pending);
 
-        let entity = entities.get(&1).unwrap();
-        assert_eq!(entity.active_effects.len(), 1);
-        assert_eq!(entity.attributes["hp"].current_value, 100);
+        assert_eq!(entities[&1].active_effects.len(), 1);
+        assert_eq!(entities[&1].attributes["hp"].current_value, 100);
     }
 
     #[test]
     fn attack_ability_effects_resolve_correctly() {
         let mut entities = single_entity(100);
-        resolve_effects(1, attack_ability(-10).effects, &mut entities);
-        assert_eq!(entities[&1].attributes["hp"].current_value, 90);
+        let mut pending = no_pending();
+        resolve_effects(1, attack_ability(-10).effects, &mut entities, &mut pending);
+        assert_eq!(pending[&1]["hp"].current_value, 90);
+    }
+
+    #[test]
+    fn attribute_update_does_not_mutate_actual_entity() {
+        let mut entities = single_entity(100);
+        let mut pending = no_pending();
+        resolve_effects(1, vec![damage_effect(-10)], &mut entities, &mut pending);
+
+        assert_eq!(pending[&1]["hp"].current_value, 90);
+        assert_eq!(entities[&1].attributes["hp"].current_value, 100);
+    }
+
+    #[test]
+    fn attribute_update_seeds_pending_from_actual_when_absent() {
+        let mut entities = single_entity(75);
+        let mut pending = no_pending();
+        resolve_effects(1, vec![damage_effect(-5)], &mut entities, &mut pending);
+
+        assert_eq!(pending[&1]["hp"].current_value, 70);
+    }
+
+    #[test]
+    fn attribute_update_uses_existing_pending_value_not_actual() {
+        let mut entities = single_entity(100);
+        let mut pending = no_pending();
+        pending
+            .entry(1)
+            .or_default()
+            .insert("hp".to_string(), hp_attribute(50));
+
+        resolve_effects(1, vec![damage_effect(-10)], &mut entities, &mut pending);
+
+        // Started from the existing pending value (50), not actual (100)
+        assert_eq!(pending[&1]["hp"].current_value, 40);
+        assert_eq!(entities[&1].attributes["hp"].current_value, 100);
     }
 }

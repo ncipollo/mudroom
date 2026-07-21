@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::game::component::{Ability, Attribute, Cost};
+use crate::game::component::{Ability, Attribute, Cost, ResetCondition};
+use crate::game::config::AttributeConfig;
 use crate::game::entity::Entity;
 
 use super::{BattleMessage, BattlePhase, BattleTick, QueuedAbility};
@@ -21,6 +22,7 @@ pub struct BattleEngagement {
     turn_count: u64,
     pending_costs: HashMap<i64, Vec<(String, i64)>>,
     planning_faction_index: usize,
+    pub pending_entity_attributes: HashMap<i64, HashMap<String, Attribute>>,
 }
 
 impl BattleEngagement {
@@ -35,6 +37,7 @@ impl BattleEngagement {
             turn_count: 0,
             pending_costs: HashMap::new(),
             planning_faction_index: 0,
+            pending_entity_attributes: HashMap::new(),
         }
     }
 
@@ -97,7 +100,12 @@ impl BattleEngagement {
                 resource_id,
                 amount,
             } = cost;
-            match entity_attrs.get(resource_id) {
+            let current = self
+                .pending_entity_attributes
+                .get(&caster_id)
+                .and_then(|attrs| attrs.get(resource_id))
+                .or_else(|| entity_attrs.get(resource_id));
+            match current {
                 Some(attr) if attr.current_value >= *amount => {}
                 _ => return false,
             }
@@ -154,6 +162,7 @@ impl BattleEngagement {
         self.action_queue.remove(&entity_id);
         self.skipped_ids.remove(&entity_id);
         self.pending_costs.remove(&entity_id);
+        self.pending_entity_attributes.remove(&entity_id);
     }
 
     pub fn surviving_faction_count(&self) -> usize {
@@ -163,9 +172,15 @@ impl BattleEngagement {
             .count()
     }
 
-    pub fn tick(&mut self, engagement_id: i64, max_engage_ticks: u64) -> BattleTick {
+    pub fn tick(
+        &mut self,
+        engagement_id: i64,
+        max_engage_ticks: u64,
+        entities: &HashMap<i64, Entity>,
+        attribute_config: &AttributeConfig,
+    ) -> BattleTick {
         let all_participant_ids = self.all_entity_ids();
-        let output = self.advance_phase(max_engage_ticks, &all_participant_ids);
+        let output = self.advance_phase(max_engage_ticks, entities, attribute_config);
         BattleTick {
             engagement_id,
             all_participant_ids,
@@ -182,7 +197,12 @@ impl BattleEngagement {
 
     /// Drives the phase state machine one step, returning messages and queued work produced by
     /// the transition. Advances `self.turn_phase` and resets `self.ticks_in_phase` as needed.
-    fn advance_phase(&mut self, max_engage_ticks: u64, _all_ids: &[i64]) -> PhaseOutput {
+    fn advance_phase(
+        &mut self,
+        max_engage_ticks: u64,
+        entities: &HashMap<i64, Entity>,
+        attribute_config: &AttributeConfig,
+    ) -> PhaseOutput {
         let mut out = PhaseOutput {
             messages: Vec::new(),
             resolution_queue: Vec::new(),
@@ -191,6 +211,7 @@ impl BattleEngagement {
         match self.turn_phase.clone() {
             BattlePhase::InnateEffects => {
                 self.turn_count += 1;
+                self.refresh_pending_attributes(entities, attribute_config);
                 let next = BattlePhase::Planning {
                     faction: self.planning_faction().to_string(),
                 };
@@ -253,6 +274,38 @@ impl BattleEngagement {
         }
         out
     }
+
+    /// Refreshes the pending attribute working copy for every participant at the start of a
+    /// faction turn: `EachEngagementTurn` attributes always reset to the actual value;
+    /// `EndOfEngagement` and `Never` attributes are only seeded from actual the first time (so
+    /// in-progress changes from earlier turns aren't clobbered).
+    fn refresh_pending_attributes(
+        &mut self,
+        entities: &HashMap<i64, Entity>,
+        attribute_config: &AttributeConfig,
+    ) {
+        for entity_id in self.all_entity_ids() {
+            let Some(entity) = entities.get(&entity_id) else {
+                continue;
+            };
+            let pending = self.pending_entity_attributes.entry(entity_id).or_default();
+            for def in &attribute_config.attributes {
+                let Some(actual) = entity.attributes.get(&def.id) else {
+                    continue;
+                };
+                match def.reset_condition {
+                    ResetCondition::EachEngagementTurn => {
+                        pending.insert(def.id.clone(), actual.clone());
+                    }
+                    ResetCondition::EndOfEngagement | ResetCondition::Never => {
+                        pending
+                            .entry(def.id.clone())
+                            .or_insert_with(|| actual.clone());
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -261,9 +314,13 @@ mod tests {
     use crate::game::component::effect::{
         Effect, EffectDescription, EffectScope, EffectType, TriggerInfo,
     };
-    use crate::game::component::{Ability, Attribute, Cost};
+    use crate::game::component::location::Location;
+    use crate::game::component::{
+        Ability, Attribute, AttributeCategory, AttributeDefinition, AttributeType, Cost,
+    };
     use crate::game::engagement::EngagementType;
     use crate::game::engagement::battle::{BattleMessage, BattlePhase};
+    use crate::game::entity::EntityType;
     use std::collections::HashMap;
 
     use super::*;
@@ -329,7 +386,7 @@ mod tests {
     #[test]
     fn tick_innate_effects_transitions_to_planning() {
         let mut eng = make_engagement();
-        let tick = eng.tick(1, 30);
+        let tick = eng.tick(1, 30, &HashMap::new(), &AttributeConfig::default_config());
         assert_eq!(
             eng.turn_phase,
             BattlePhase::Planning {
@@ -349,21 +406,21 @@ mod tests {
     fn turn_count_increments_each_innate_effects_phase() {
         let mut eng = make_engagement();
         assert_eq!(eng.turn_count, 0);
-        eng.tick(1, 1); // InnateEffects → Planning (turn_count becomes 1)
+        eng.tick(1, 1, &HashMap::new(), &AttributeConfig::default_config()); // InnateEffects → Planning (turn_count becomes 1)
         assert_eq!(eng.turn_count, 1);
-        eng.tick(1, 1); // Planning → Response
-        eng.tick(1, 1); // Response → Resolution
-        eng.tick(1, 1); // Resolution → InnateEffects (still 1, InnateEffects hasn't fired yet)
+        eng.tick(1, 1, &HashMap::new(), &AttributeConfig::default_config()); // Planning → Response
+        eng.tick(1, 1, &HashMap::new(), &AttributeConfig::default_config()); // Response → Resolution
+        eng.tick(1, 1, &HashMap::new(), &AttributeConfig::default_config()); // Resolution → InnateEffects (still 1, InnateEffects hasn't fired yet)
         assert_eq!(eng.turn_count, 1);
-        eng.tick(1, 1); // InnateEffects fires again → Planning (turn_count becomes 2)
+        eng.tick(1, 1, &HashMap::new(), &AttributeConfig::default_config()); // InnateEffects fires again → Planning (turn_count becomes 2)
         assert_eq!(eng.turn_count, 2);
     }
 
     #[test]
     fn tick_planning_waits_for_timeout() {
         let mut eng = make_engagement();
-        eng.tick(1, 30); // InnateEffects → Planning
-        let tick = eng.tick(1, 30);
+        eng.tick(1, 30, &HashMap::new(), &AttributeConfig::default_config()); // InnateEffects → Planning
+        let tick = eng.tick(1, 30, &HashMap::new(), &AttributeConfig::default_config());
         assert_eq!(
             eng.turn_phase,
             BattlePhase::Planning {
@@ -376,8 +433,8 @@ mod tests {
     #[test]
     fn tick_planning_advances_on_timeout() {
         let mut eng = make_engagement();
-        eng.tick(1, 1); // InnateEffects → Planning{player}
-        let tick = eng.tick(1, 1); // timeout → Response{player}
+        eng.tick(1, 1, &HashMap::new(), &AttributeConfig::default_config()); // InnateEffects → Planning{player}
+        let tick = eng.tick(1, 1, &HashMap::new(), &AttributeConfig::default_config()); // timeout → Response{player}
         assert_eq!(
             eng.turn_phase,
             BattlePhase::Response {
@@ -395,9 +452,9 @@ mod tests {
     #[test]
     fn tick_response_advances_on_timeout() {
         let mut eng = make_engagement();
-        eng.tick(1, 1); // InnateEffects → Planning
-        eng.tick(1, 1); // timeout → Response
-        let tick = eng.tick(1, 1); // timeout → Resolution
+        eng.tick(1, 1, &HashMap::new(), &AttributeConfig::default_config()); // InnateEffects → Planning
+        eng.tick(1, 1, &HashMap::new(), &AttributeConfig::default_config()); // timeout → Response
+        let tick = eng.tick(1, 1, &HashMap::new(), &AttributeConfig::default_config()); // timeout → Resolution
         assert_eq!(eng.turn_phase, BattlePhase::Resolution);
         assert!(tick.messages.iter().any(|m| matches!(
             m,
@@ -410,10 +467,10 @@ mod tests {
     #[test]
     fn tick_resolution_drains_queue_and_resets() {
         let mut eng = make_engagement();
-        eng.tick(1, 1); // → Planning
-        eng.tick(1, 1); // → Response
-        eng.tick(1, 1); // → Resolution
-        let tick = eng.tick(1, 1); // Resolution → InnateEffects
+        eng.tick(1, 1, &HashMap::new(), &AttributeConfig::default_config()); // → Planning
+        eng.tick(1, 1, &HashMap::new(), &AttributeConfig::default_config()); // → Response
+        eng.tick(1, 1, &HashMap::new(), &AttributeConfig::default_config()); // → Resolution
+        let tick = eng.tick(1, 1, &HashMap::new(), &AttributeConfig::default_config()); // Resolution → InnateEffects
         assert_eq!(eng.turn_phase, BattlePhase::InnateEffects);
         assert!(tick.messages.iter().any(|m| matches!(
             m,
@@ -427,12 +484,12 @@ mod tests {
     fn tick_resolution_advances_planning_faction_index() {
         let mut eng = make_engagement();
         assert_eq!(eng.planning_faction_index, 0);
-        eng.tick(1, 1); // → Planning{player}
-        eng.tick(1, 1); // → Response{player}
-        eng.tick(1, 1); // → Resolution
-        eng.tick(1, 1); // Resolution → InnateEffects (index advances to 1)
+        eng.tick(1, 1, &HashMap::new(), &AttributeConfig::default_config()); // → Planning{player}
+        eng.tick(1, 1, &HashMap::new(), &AttributeConfig::default_config()); // → Response{player}
+        eng.tick(1, 1, &HashMap::new(), &AttributeConfig::default_config()); // → Resolution
+        eng.tick(1, 1, &HashMap::new(), &AttributeConfig::default_config()); // Resolution → InnateEffects (index advances to 1)
         assert_eq!(eng.planning_faction_index, 1);
-        let tick = eng.tick(1, 1); // InnateEffects → Planning{enemy}
+        let tick = eng.tick(1, 1, &HashMap::new(), &AttributeConfig::default_config()); // InnateEffects → Planning{enemy}
         assert_eq!(
             eng.turn_phase,
             BattlePhase::Planning {
@@ -451,7 +508,7 @@ mod tests {
     fn tick_concluded_is_noop() {
         let mut eng = make_engagement();
         eng.turn_phase = BattlePhase::Concluded;
-        let tick = eng.tick(1, 30);
+        let tick = eng.tick(1, 30, &HashMap::new(), &AttributeConfig::default_config());
         assert_eq!(eng.turn_phase, BattlePhase::Concluded);
         assert!(tick.messages.is_empty());
     }
@@ -459,7 +516,7 @@ mod tests {
     #[test]
     fn tick_planning_to_response_includes_pending_actions() {
         let mut eng = make_engagement();
-        eng.tick(1, 30); // InnateEffects → Planning{player}
+        eng.tick(1, 30, &HashMap::new(), &AttributeConfig::default_config()); // InnateEffects → Planning{player}
         let ability = Ability {
             id: "slash".to_string(),
             name: "Slash".to_string(),
@@ -474,7 +531,7 @@ mod tests {
         };
         let attrs = HashMap::new();
         eng.queue_ability(1, ability.clone(), 2, &attrs);
-        let tick = eng.tick(1, 1); // timeout → Response{player}
+        let tick = eng.tick(1, 1, &HashMap::new(), &AttributeConfig::default_config()); // timeout → Response{player}
         assert_eq!(
             eng.turn_phase,
             BattlePhase::Response {
@@ -489,8 +546,8 @@ mod tests {
     #[test]
     fn tick_planning_to_response_empty_pending_actions_when_no_queued() {
         let mut eng = make_engagement();
-        eng.tick(1, 1); // InnateEffects → Planning
-        let tick = eng.tick(1, 1); // timeout → Response
+        eng.tick(1, 1, &HashMap::new(), &AttributeConfig::default_config()); // InnateEffects → Planning
+        let tick = eng.tick(1, 1, &HashMap::new(), &AttributeConfig::default_config()); // timeout → Response
         assert_eq!(
             eng.turn_phase,
             BattlePhase::Response {
@@ -529,5 +586,107 @@ mod tests {
         };
         let attrs: HashMap<String, Attribute> = HashMap::new(); // no mp
         assert!(!eng.queue_ability(1, ability, 2, &attrs));
+    }
+
+    fn test_attribute_config() -> AttributeConfig {
+        AttributeConfig {
+            attributes: vec![
+                AttributeDefinition {
+                    id: "hp".to_string(),
+                    title: "Hit Points".to_string(),
+                    description: String::new(),
+                    min_value: 0,
+                    max_value: 100,
+                    attribute_type: AttributeType::HP,
+                    attribute_category: AttributeCategory::Life,
+                    reset_condition: ResetCondition::Never,
+                },
+                AttributeDefinition {
+                    id: "speed".to_string(),
+                    title: "Speed".to_string(),
+                    description: String::new(),
+                    min_value: 0,
+                    max_value: 100,
+                    attribute_type: AttributeType::Stat,
+                    attribute_category: AttributeCategory::Speed,
+                    reset_condition: ResetCondition::EachEngagementTurn,
+                },
+            ],
+        }
+    }
+
+    fn entity_with_attrs(id: i64, hp: i64, speed: i64) -> Entity {
+        let loc = Location {
+            world_id: "w".to_string(),
+            dungeon_id: "d".to_string(),
+            room_id: "r".to_string(),
+        };
+        let mut entity = Entity::new(id, EntityType::Player, loc);
+        entity.attributes.insert(
+            "hp".to_string(),
+            Attribute::new("hp".to_string(), 0, 100, hp),
+        );
+        entity.attributes.insert(
+            "speed".to_string(),
+            Attribute::new("speed".to_string(), 0, 100, speed),
+        );
+        entity
+    }
+
+    #[test]
+    fn innate_effects_resets_each_engagement_turn_attr_to_actual() {
+        let mut eng = make_engagement();
+        let mut entities = HashMap::new();
+        entities.insert(1, entity_with_attrs(1, 100, 10));
+        let config = test_attribute_config();
+
+        // Pretend a prior in-turn effect changed pending speed away from actual.
+        eng.pending_entity_attributes.insert(
+            1,
+            HashMap::from([(
+                "speed".to_string(),
+                Attribute::new("speed".to_string(), 0, 100, 99),
+            )]),
+        );
+
+        eng.tick(1, 30, &entities, &config); // InnateEffects → Planning
+
+        assert_eq!(eng.pending_entity_attributes[&1]["speed"].current_value, 10);
+    }
+
+    #[test]
+    fn innate_effects_does_not_reset_never_attr() {
+        let mut eng = make_engagement();
+        let mut entities = HashMap::new();
+        entities.insert(1, entity_with_attrs(1, 100, 10));
+        let config = test_attribute_config();
+
+        // hp already has a pending value that diverges from actual (e.g. mid-battle damage
+        // not yet flushed) — the InnateEffects refresh must not clobber it.
+        eng.pending_entity_attributes.insert(
+            1,
+            HashMap::from([(
+                "hp".to_string(),
+                Attribute::new("hp".to_string(), 0, 100, 50),
+            )]),
+        );
+
+        eng.tick(1, 30, &entities, &config); // InnateEffects → Planning
+
+        assert_eq!(eng.pending_entity_attributes[&1]["hp"].current_value, 50);
+    }
+
+    #[test]
+    fn innate_effects_initializes_never_attr_from_actual_on_first_turn() {
+        let mut eng = make_engagement();
+        let mut entities = HashMap::new();
+        entities.insert(1, entity_with_attrs(1, 80, 10));
+        let config = test_attribute_config();
+
+        assert!(eng.pending_entity_attributes.is_empty());
+
+        eng.tick(1, 30, &entities, &config); // first InnateEffects → Planning
+
+        assert_eq!(eng.pending_entity_attributes[&1]["hp"].current_value, 80);
     }
 }

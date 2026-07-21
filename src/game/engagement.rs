@@ -310,7 +310,14 @@ mod tests {
         engagements
             .add_battle("room1".to_string(), factions, participants)
             .await;
-        let results = engagements.battles.tick_all(30).await;
+        let results = engagements
+            .battles
+            .tick_all(
+                30,
+                &HashMap::new(),
+                &crate::game::config::AttributeConfig::default_config(),
+            )
+            .await;
         assert_eq!(results.len(), 1);
         assert_eq!(
             results[0].phase,

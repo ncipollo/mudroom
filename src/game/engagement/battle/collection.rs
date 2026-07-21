@@ -2,10 +2,13 @@ use std::collections::HashMap;
 
 use tokio::sync::RwLock;
 
-use crate::game::component::{Ability, Attribute};
+use crate::game::component::effect::Effect;
+use crate::game::component::{Ability, Attribute, ResetCondition};
+use crate::game::config::AttributeConfig;
 use crate::game::engagement::{Engagement, EngagementType};
+use crate::game::entity::Entity;
 
-use super::{BattleAiContext, BattlePhase, BattleTick, factory};
+use super::{BattleAiContext, BattleMessage, BattlePhase, BattleTick, factory, resolution};
 
 pub struct Battles {
     pub(in crate::game::engagement) map: RwLock<HashMap<i64, Engagement>>,
@@ -42,15 +45,98 @@ impl Battles {
             .map(|e| e.id)
     }
 
-    pub async fn tick_all(&self, max_engage_ticks: u64) -> Vec<BattleTick> {
+    pub async fn tick_all(
+        &self,
+        max_engage_ticks: u64,
+        entities: &HashMap<i64, Entity>,
+        attribute_config: &AttributeConfig,
+    ) -> Vec<BattleTick> {
         let mut map = self.map.write().await;
         let mut results = Vec::new();
         for engagement in map.values_mut() {
             if let Some(battle) = &mut engagement.battle {
-                results.push(battle.tick(engagement.id, max_engage_ticks));
+                results.push(battle.tick(
+                    engagement.id,
+                    max_engage_ticks,
+                    entities,
+                    attribute_config,
+                ));
             }
         }
         results
+    }
+
+    /// Resolves effects for a target within a specific battle engagement, routing attribute
+    /// updates through that engagement's pending attribute working copy rather than the
+    /// entity's actual state.
+    pub async fn resolve_battle_effects(
+        &self,
+        engagement_id: i64,
+        target_id: i64,
+        effects: Vec<Effect>,
+        entities: &mut HashMap<i64, Entity>,
+    ) -> Vec<BattleMessage> {
+        let mut map = self.map.write().await;
+        let Some(engagement) = map.get_mut(&engagement_id) else {
+            return vec![];
+        };
+        let Some(battle) = &mut engagement.battle else {
+            return vec![];
+        };
+        resolution::resolve_effects(
+            target_id,
+            effects,
+            entities,
+            &mut battle.pending_entity_attributes,
+        )
+    }
+
+    /// Copies every `Never`-reset-condition attribute from the engagement's pending working
+    /// copy back into the actual entities. Called once, at the end of the Resolution phase,
+    /// after this round's queued effects have already been applied to pending.
+    pub async fn flush_never_attributes(
+        &self,
+        engagement_id: i64,
+        attribute_config: &AttributeConfig,
+        entities: &mut HashMap<i64, Entity>,
+    ) {
+        let map = self.map.read().await;
+        let Some(engagement) = map.get(&engagement_id) else {
+            return;
+        };
+        let Some(battle) = &engagement.battle else {
+            return;
+        };
+        let never_ids: Vec<&str> = attribute_config
+            .attributes
+            .iter()
+            .filter(|def| def.reset_condition == ResetCondition::Never)
+            .map(|def| def.id.as_str())
+            .collect();
+        for (entity_id, pending_attrs) in &battle.pending_entity_attributes {
+            let Some(entity) = entities.get_mut(entity_id) else {
+                continue;
+            };
+            for &attr_id in &never_ids {
+                if let Some(attr) = pending_attrs.get(attr_id) {
+                    entity.attributes.insert(attr_id.to_string(), attr.clone());
+                }
+            }
+        }
+    }
+
+    /// Returns a clone of the engagement's pending attribute working copy (empty if the
+    /// engagement or its battle isn't found), used to prefer in-turn pending values over actual
+    /// entity state when making battle decisions (e.g. turn order).
+    pub async fn pending_attributes(
+        &self,
+        engagement_id: i64,
+    ) -> HashMap<i64, HashMap<String, Attribute>> {
+        let map = self.map.read().await;
+        map.get(&engagement_id)
+            .and_then(|engagement| engagement.battle.as_ref())
+            .map(|battle| battle.pending_entity_attributes.clone())
+            .unwrap_or_default()
     }
 
     pub async fn update_participants(&self, engagement_id: i64, dead_entity_ids: &[i64]) -> usize {
@@ -139,7 +225,6 @@ impl Default for Battles {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::engagement::battle::factory;
 
     fn test_participants() -> (Vec<String>, HashMap<String, Vec<i64>>) {
         let mut participants = HashMap::new();
@@ -181,7 +266,9 @@ mod tests {
     #[tokio::test]
     async fn tick_all_advances_battle_phase() {
         let battles = make_battles().await;
-        let results = battles.tick_all(30).await;
+        let results = battles
+            .tick_all(30, &HashMap::new(), &AttributeConfig::default_config())
+            .await;
         assert_eq!(results.len(), 1);
         assert_eq!(
             results[0].phase,
@@ -222,5 +309,121 @@ mod tests {
         let eng = map.get(&1).unwrap();
         assert_eq!(eng.room_id, Some("room1".to_string()));
         assert_eq!(eng.engagement_type, EngagementType::Battle);
+    }
+
+    fn never_hp_config() -> AttributeConfig {
+        use crate::game::component::{AttributeCategory, AttributeDefinition};
+
+        AttributeConfig {
+            attributes: vec![AttributeDefinition {
+                id: "hp".to_string(),
+                title: "Hit Points".to_string(),
+                description: String::new(),
+                min_value: 0,
+                max_value: 100,
+                attribute_type: crate::game::component::AttributeType::HP,
+                attribute_category: AttributeCategory::Life,
+                reset_condition: ResetCondition::Never,
+            }],
+        }
+    }
+
+    fn entity_with_hp(id: i64, hp: i64) -> Entity {
+        use crate::game::component::Location;
+        use crate::game::entity::EntityType;
+
+        let loc = Location {
+            world_id: "w".to_string(),
+            dungeon_id: "d".to_string(),
+            room_id: "r".to_string(),
+        };
+        let mut entity = Entity::new(id, EntityType::Player, loc);
+        entity.attributes.insert(
+            "hp".to_string(),
+            Attribute::new("hp".to_string(), 0, 100, hp),
+        );
+        entity
+    }
+
+    #[tokio::test]
+    async fn flush_never_attributes_copies_pending_hp_to_actual() {
+        let battles = make_battles().await;
+        let mut entities = HashMap::new();
+        entities.insert(1, entity_with_hp(1, 100));
+
+        {
+            let mut map = battles.map.write().await;
+            let battle = map.get_mut(&1).unwrap().battle.as_mut().unwrap();
+            battle.pending_entity_attributes.insert(
+                1,
+                HashMap::from([(
+                    "hp".to_string(),
+                    Attribute::new("hp".to_string(), 0, 100, 42),
+                )]),
+            );
+        }
+
+        battles
+            .flush_never_attributes(1, &never_hp_config(), &mut entities)
+            .await;
+
+        assert_eq!(entities[&1].attributes["hp"].current_value, 42);
+    }
+
+    #[tokio::test]
+    async fn flush_never_attributes_leaves_pending_intact() {
+        let battles = make_battles().await;
+        let mut entities = HashMap::new();
+        entities.insert(1, entity_with_hp(1, 100));
+
+        {
+            let mut map = battles.map.write().await;
+            let battle = map.get_mut(&1).unwrap().battle.as_mut().unwrap();
+            battle.pending_entity_attributes.insert(
+                1,
+                HashMap::from([(
+                    "hp".to_string(),
+                    Attribute::new("hp".to_string(), 0, 100, 42),
+                )]),
+            );
+        }
+
+        battles
+            .flush_never_attributes(1, &never_hp_config(), &mut entities)
+            .await;
+
+        let map = battles.map.read().await;
+        let battle = map[&1].battle.as_ref().unwrap();
+        assert_eq!(battle.pending_entity_attributes[&1]["hp"].current_value, 42);
+    }
+
+    #[tokio::test]
+    async fn resolve_battle_effects_writes_pending_not_actual() {
+        use crate::game::component::effect::{
+            Effect, EffectDescription, EffectScope, EffectType, TriggerInfo,
+        };
+
+        let battles = make_battles().await;
+        let mut entities = HashMap::new();
+        entities.insert(1, entity_with_hp(1, 100));
+        let effects = vec![Effect {
+            name: "damage".to_string(),
+            effect_type: EffectType::AttributeUpdate {
+                attribute_id: "hp".to_string(),
+                value: -10,
+            },
+            trigger_info: TriggerInfo::Once,
+            description: EffectDescription::default(),
+            scope: EffectScope::default(),
+        }];
+
+        battles
+            .resolve_battle_effects(1, 1, effects, &mut entities)
+            .await;
+
+        assert_eq!(entities[&1].attributes["hp"].current_value, 100);
+        let map = battles.map.read().await;
+        let battle = map[&1].battle.as_ref().unwrap();
+        assert_eq!(battle.pending_entity_attributes[&1]["hp"].current_value, 90);
     }
 }
