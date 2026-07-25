@@ -308,7 +308,7 @@ fn render_status_bar(frame: &mut Frame, battle: &BattleState, area: Rect) {
     };
 
     let timer_str = match &battle.snapshot.phase {
-        BattlePhase::Planning { .. } | BattlePhase::Response { .. } => {
+        BattlePhase::DeclareAttacks { .. } | BattlePhase::DeclareDefense { .. } => {
             let remaining = battle.snapshot.countdown_secs;
             let max = battle.snapshot.max_turn_secs.max(1);
             let filled = ((remaining * 10) / max).min(10) as usize;

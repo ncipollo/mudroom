@@ -54,14 +54,14 @@ impl BattleState {
             return vec![];
         }
         let abilities: Vec<Ability> = match &self.snapshot.phase {
-            BattlePhase::Planning { .. } => self
+            BattlePhase::DeclareAttacks { .. } => self
                 .snapshot
                 .available_abilities
                 .iter()
                 .filter(|a| a.role == AbilityRole::Attack)
                 .cloned()
                 .collect(),
-            BattlePhase::Response { .. } => self
+            BattlePhase::DeclareDefense { .. } => self
                 .snapshot
                 .available_abilities
                 .iter()
@@ -93,8 +93,8 @@ impl BattleState {
             return None;
         }
         match &self.snapshot.phase {
-            BattlePhase::Planning { .. } => Some("Attack"),
-            BattlePhase::Response { .. } => Some("Defend"),
+            BattlePhase::DeclareAttacks { .. } => Some("Attack"),
+            BattlePhase::DeclareDefense { .. } => Some("Defend"),
             _ => None,
         }
     }
@@ -214,8 +214,8 @@ impl BattleState {
     pub fn is_player_turn(&self) -> bool {
         let player_faction = self.snapshot.factions.first().map(String::as_str);
         match &self.snapshot.phase {
-            BattlePhase::Planning { faction } => Some(faction.as_str()) == player_faction,
-            BattlePhase::Response { faction } => Some(faction.as_str()) != player_faction,
+            BattlePhase::DeclareAttacks { faction } => Some(faction.as_str()) == player_faction,
+            BattlePhase::DeclareDefense { faction } => Some(faction.as_str()) != player_faction,
             _ => false,
         }
     }
@@ -245,9 +245,9 @@ mod tests {
     }
 
     #[test]
-    fn is_player_turn_true_when_player_faction_is_planning() {
+    fn is_player_turn_true_when_player_faction_is_declaring_attacks() {
         assert!(
-            make_state(BattlePhase::Planning {
+            make_state(BattlePhase::DeclareAttacks {
                 faction: "player".into()
             })
             .is_player_turn()
@@ -255,9 +255,9 @@ mod tests {
     }
 
     #[test]
-    fn is_player_turn_false_when_other_faction_is_planning() {
+    fn is_player_turn_false_when_other_faction_is_declaring_attacks() {
         assert!(
-            !make_state(BattlePhase::Planning {
+            !make_state(BattlePhase::DeclareAttacks {
                 faction: "enemy".into()
             })
             .is_player_turn()
@@ -265,10 +265,10 @@ mod tests {
     }
 
     #[test]
-    fn is_player_turn_true_when_defending_against_enemy_plan() {
-        // Response { faction: "enemy" } means enemy planned; player (factions[0]) is defending
+    fn is_player_turn_true_when_defending_against_enemy_declare() {
+        // DeclareDefense { faction: "enemy" } means enemy declared; player (factions[0]) defends
         assert!(
-            make_state(BattlePhase::Response {
+            make_state(BattlePhase::DeclareDefense {
                 faction: "enemy".into()
             })
             .is_player_turn()
@@ -276,10 +276,10 @@ mod tests {
     }
 
     #[test]
-    fn is_player_turn_false_when_player_planned_and_enemy_defends() {
-        // Response { faction: "player" } means player planned; enemy is defending, not the player
+    fn is_player_turn_false_when_player_declared_and_enemy_defends() {
+        // DeclareDefense { faction: "player" } means player declared; enemy defends, not player
         assert!(
-            !make_state(BattlePhase::Response {
+            !make_state(BattlePhase::DeclareDefense {
                 faction: "player".into()
             })
             .is_player_turn()
@@ -287,13 +287,18 @@ mod tests {
     }
 
     #[test]
-    fn is_player_turn_false_during_innate_effects() {
-        assert!(!make_state(BattlePhase::InnateEffects).is_player_turn());
+    fn is_player_turn_false_during_reset_attributes() {
+        assert!(
+            !make_state(BattlePhase::ResetAttributes {
+                faction: "player".into()
+            })
+            .is_player_turn()
+        );
     }
 
     #[test]
-    fn is_player_turn_false_during_resolution() {
-        assert!(!make_state(BattlePhase::Resolution).is_player_turn());
+    fn is_player_turn_false_during_resolve_abilities() {
+        assert!(!make_state(BattlePhase::ResolveAbilities).is_player_turn());
     }
 
     #[test]
