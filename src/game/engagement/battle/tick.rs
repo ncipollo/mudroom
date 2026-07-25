@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::game::messaging::{BattleParticipantInfo, BattleUpdateMessage};
-use crate::game::{GameState, messaging};
+use crate::game::GameState;
 
-use super::{
-    BattleMessage, BattlePhase, BattleTick, QueuedAbility, entity_innate_battle_abilities,
-};
-use super::{death, resolution, timer, victory};
+use super::message::broadcast::{self, BattleUpdateParams};
+use super::message::tick_message::assemble_tick_messages;
+use super::resolution::{ability, innate};
+use super::{BattleMessage, BattlePhase, BattleTick, QueuedAbility};
+use super::{death, timer, victory};
 
 /// Advances all active battle engagements one tick and handles the full lifecycle:
 /// phase state machine → effect resolution → dead-entity removal → engagement conclusion.
@@ -65,8 +65,8 @@ async fn handle_tick(game_state: &Arc<GameState>, result: BattleTick, max_engage
         countdown_secs: timer::ticks_to_secs(countdown_ticks, tick_rate_ms),
         max_turn_secs: timer::ticks_to_secs(max_engage_ticks, tick_rate_ms),
     };
-    let update = build_battle_update(game_state, params).await;
-    broadcast_update(game_state, &player_pairs, &update).await;
+    let update = broadcast::build_battle_update(game_state, params).await;
+    broadcast::broadcast_update(game_state, &player_pairs, &update).await;
 
     if result.phase == BattlePhase::Concluded {
         let player_ids: Vec<i64> = player_pairs.iter().map(|&(pid, _)| pid).collect();
@@ -92,11 +92,10 @@ async fn dispatch_phase_work(
     let mut dead_ids = Vec::new();
     match completed_phase {
         BattlePhase::ApplyEffects { .. } => {
-            resolution::apply_innate_effects(game_state, all_ids, turn_count, &mut cast_messages)
-                .await;
+            innate::apply_innate_effects(game_state, all_ids, turn_count, &mut cast_messages).await;
         }
         BattlePhase::ResolveAbilities => {
-            resolution::apply_battle_effects(
+            ability::apply_battle_effects(
                 game_state,
                 resolution_queue,
                 entity_names,
@@ -119,54 +118,6 @@ async fn dispatch_phase_work(
     (cast_messages, dead_ids)
 }
 
-fn assemble_tick_messages(
-    base_messages: &[BattleMessage],
-    pending_actions: &[QueuedAbility],
-    cast_messages: &[BattleMessage],
-    dead_ids: &[i64],
-    entity_names: &HashMap<i64, String>,
-) -> Vec<BattleMessage> {
-    let death_messages: Vec<BattleMessage> = dead_ids
-        .iter()
-        .map(|&id| BattleMessage::EntityDied {
-            name: entity_names
-                .get(&id)
-                .cloned()
-                .unwrap_or_else(|| "Unknown".to_string()),
-        })
-        .collect();
-
-    let pending_attack_messages: Vec<BattleMessage> = pending_actions
-        .iter()
-        .map(|qa| pending_attack_message(qa, entity_names))
-        .collect();
-
-    base_messages
-        .iter()
-        .chain(pending_attack_messages.iter())
-        .chain(cast_messages.iter())
-        .chain(death_messages.iter())
-        .cloned()
-        .collect()
-}
-
-async fn broadcast_update(
-    game_state: &Arc<GameState>,
-    player_pairs: &[(i64, i64)],
-    update: &BattleUpdateMessage,
-) {
-    let entities = game_state.active_entities.read().await;
-    for &(pid, entity_id) in player_pairs {
-        let available_abilities = entities
-            .get(&entity_id)
-            .map(entity_innate_battle_abilities)
-            .unwrap_or_default();
-        let mut player_update = update.clone();
-        player_update.available_abilities = available_abilities;
-        messaging::battle_update(&game_state.message_tx, pid, player_update);
-    }
-}
-
 async fn collect_entity_names(
     game_state: &Arc<GameState>,
     entity_ids: &[i64],
@@ -184,24 +135,6 @@ async fn collect_entity_names(
         .collect()
 }
 
-fn pending_attack_message(
-    qa: &QueuedAbility,
-    entity_names: &HashMap<i64, String>,
-) -> BattleMessage {
-    BattleMessage::PendingAttack {
-        caster_name: entity_names
-            .get(&qa.caster_id)
-            .cloned()
-            .unwrap_or_else(|| "Unknown".to_string()),
-        ability_name: qa.ability.name.clone(),
-        target_name: entity_names
-            .get(&qa.target_id)
-            .cloned()
-            .unwrap_or_else(|| "Unknown".to_string()),
-        target_id: qa.target_id,
-    }
-}
-
 async fn find_participant_player_ids(
     game_state: &Arc<GameState>,
     entity_ids: &[i64],
@@ -212,62 +145,6 @@ async fn find_participant_player_ids(
         .filter(|p| entity_ids.contains(&p.entity_id))
         .map(|p| (p.id, p.entity_id))
         .collect()
-}
-
-struct BattleUpdateParams {
-    engagement_id: i64,
-    factions: Vec<String>,
-    participants: HashMap<String, Vec<i64>>,
-    phase: BattlePhase,
-    messages: Vec<BattleMessage>,
-    countdown_secs: u64,
-    max_turn_secs: u64,
-}
-
-async fn build_battle_update(
-    game_state: &Arc<GameState>,
-    params: BattleUpdateParams,
-) -> BattleUpdateMessage {
-    let entities = game_state.active_entities.read().await;
-    let hp_attr_id = messaging::hp_attribute_id(&game_state.attribute_config);
-
-    let participant_infos = params
-        .participants
-        .iter()
-        .map(|(faction, ids)| {
-            let infos = ids
-                .iter()
-                .map(|&id| {
-                    let entity = entities.get(&id);
-                    let name = entity
-                        .map(|e| e.name.clone())
-                        .unwrap_or_else(|| format!("Entity {id}"));
-                    let (hp_current, hp_max) = entity
-                        .and_then(|e| e.attributes.get(&hp_attr_id))
-                        .map(|a| (a.current_value, a.max_value))
-                        .unwrap_or((0, 0));
-                    BattleParticipantInfo {
-                        id,
-                        name,
-                        hp_current,
-                        hp_max,
-                    }
-                })
-                .collect();
-            (faction.clone(), infos)
-        })
-        .collect();
-
-    BattleUpdateMessage {
-        engagement_id: params.engagement_id,
-        factions: params.factions,
-        participants: participant_infos,
-        phase: params.phase,
-        messages: params.messages,
-        countdown_secs: params.countdown_secs,
-        max_turn_secs: params.max_turn_secs,
-        available_abilities: vec![],
-    }
 }
 
 #[cfg(test)]
