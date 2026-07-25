@@ -33,6 +33,7 @@ async fn handle_tick(game_state: &Arc<GameState>, result: BattleTick, max_engage
     let all_ids = result.all_participant_ids.clone();
     let entity_names = collect_entity_names(game_state, &all_ids).await;
 
+    // Run whatever work is due for the phase that just completed (if any).
     let (cast_messages, dead_ids) = dispatch_phase_work(
         game_state,
         engagement_id,
@@ -44,6 +45,7 @@ async fn handle_tick(game_state: &Arc<GameState>, result: BattleTick, max_engage
     )
     .await;
 
+    // Combine this tick's messages into one ordered log for the state broadcast below.
     let all_tick_messages = assemble_tick_messages(
         &result.messages,
         &result.pending_actions,
@@ -52,8 +54,8 @@ async fn handle_tick(game_state: &Arc<GameState>, result: BattleTick, max_engage
         &entity_names,
     );
 
+    // Broadcast the current battle state to every player, every tick, regardless of phase.
     let player_pairs = find_participant_player_ids(game_state, &all_ids).await;
-
     let countdown_ticks = max_engage_ticks.saturating_sub(result.ticks_in_phase);
     let tick_rate_ms = game_state.mud_config.game_loop.tick_rate_ms;
     let params = BattleUpdateParams {
@@ -68,6 +70,7 @@ async fn handle_tick(game_state: &Arc<GameState>, result: BattleTick, max_engage
     let update = broadcast::build_battle_update(game_state, params).await;
     broadcast::broadcast_update(game_state, &player_pairs, &update).await;
 
+    // If this tick just concluded the battle, run end-of-battle cleanup and tear it down.
     if result.phase == BattlePhase::Concluded {
         let player_ids: Vec<i64> = player_pairs.iter().map(|&(pid, _)| pid).collect();
         victory::handle_battle_ended(game_state, engagement_id, &all_ids, &player_ids).await;
