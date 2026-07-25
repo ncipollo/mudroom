@@ -5,7 +5,7 @@ use tokio::sync::RwLock;
 use crate::game::component::{Ability, Attribute};
 use crate::game::engagement::{Engagement, EngagementType};
 
-use super::{BattleAiContext, BattlePhase, BattleTick, factory};
+use super::{AttributeSnapshot, BattleAiContext, BattlePhase, BattleTick, factory};
 
 pub struct Battles {
     pub(in crate::game::engagement) map: RwLock<HashMap<i64, Engagement>>,
@@ -126,6 +126,33 @@ impl Battles {
             && let Some(battle) = &mut engagement.battle
         {
             battle.turn_phase = BattlePhase::Concluded;
+        }
+    }
+
+    /// Stores the battle-start attribute snapshot for `engagement_id`, captured once when the
+    /// battle is created. No-op if the engagement no longer exists.
+    pub async fn set_battle_start_snapshot(&self, engagement_id: i64, snapshot: AttributeSnapshot) {
+        let mut map = self.map.write().await;
+        if let Some(engagement) = map.get_mut(&engagement_id) {
+            engagement.attribute_snapshots.battle_start = snapshot;
+        }
+    }
+
+    /// Returns a clone of the battle-start attribute snapshot for `engagement_id`, or `None` if
+    /// the engagement doesn't exist.
+    pub async fn battle_start_snapshot(&self, engagement_id: i64) -> Option<AttributeSnapshot> {
+        let map = self.map.read().await;
+        map.get(&engagement_id)
+            .map(|e| e.attribute_snapshots.battle_start.clone())
+    }
+
+    /// Stores the turn-start attribute snapshot for `engagement_id`, recaptured every faction
+    /// turn after `EachEngagementTurn` resets are applied. No-op if the engagement no longer
+    /// exists.
+    pub async fn set_turn_start_snapshot(&self, engagement_id: i64, snapshot: AttributeSnapshot) {
+        let mut map = self.map.write().await;
+        if let Some(engagement) = map.get_mut(&engagement_id) {
+            engagement.attribute_snapshots.turn_start = snapshot;
         }
     }
 }

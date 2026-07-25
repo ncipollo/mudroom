@@ -5,7 +5,9 @@ use tracing;
 
 use crate::game::component::attribute_definition::AttributeType;
 use crate::game::component::faction_relations::FactionRelation;
-use crate::game::engagement::battle::{BattlePhase, entity_innate_battle_abilities};
+use crate::game::engagement::battle::{
+    BattlePhase, attribute_snapshot, entity_innate_battle_abilities,
+};
 use crate::game::entity::Entity;
 use crate::game::messaging::{BattleParticipantInfo, BattleStartedMessage};
 use crate::game::player::Player;
@@ -94,6 +96,8 @@ async fn start_battle(
         .engagements
         .add_battle(room_id.to_string(), factions.clone(), participants.clone())
         .await;
+
+    attribute_snapshot::capture_battle_start(game_state, engagement_id, &all_ids).await;
 
     let max_engage_ticks = (game_state.mud_config.game_loop.max_engage_ms
         / game_state.mud_config.game_loop.tick_rate_ms)
