@@ -59,6 +59,12 @@ fn apply_attribute_update(effect: &Effect, entity: &mut Entity, context: &mut Re
         attr.current_value = (attr.current_value + adjusted)
             .max(attr.min_value)
             .min(attr.max_value);
+        tracing::info!(
+            entity_id = entity.id,
+            attribute_id = %attribute_id,
+            pending_value = attr.current_value,
+            "Pending attribute impacted"
+        );
     }
 }
 

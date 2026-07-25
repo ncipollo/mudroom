@@ -63,11 +63,42 @@ pub(super) async fn reset_turn_start_attributes(
         snapshot_locked(&entities, entity_ids)
     };
 
+    log_reset_attributes(engagement_id, entity_ids, &turn_start, &reset_ids);
+
     game_state
         .engagements
         .battles
         .set_turn_start_snapshot(engagement_id, turn_start)
         .await;
+}
+
+fn log_reset_attributes(
+    engagement_id: i64,
+    entity_ids: &[i64],
+    turn_start: &AttributeSnapshot,
+    reset_ids: &[&str],
+) {
+    for &entity_id in entity_ids {
+        let Some(attrs) = turn_start.get(&entity_id) else {
+            continue;
+        };
+        let pairs = attribute_pairs(attrs, reset_ids);
+        tracing::info!(
+            engagement_id,
+            entity_id,
+            pending_attributes = ?pairs,
+            "Pending attributes reset for entity"
+        );
+    }
+}
+
+fn attribute_pairs(attrs: &HashMap<String, Attribute>, ids: &[&str]) -> Vec<(String, i64)> {
+    let mut pairs: Vec<(String, i64)> = ids
+        .iter()
+        .filter_map(|&id| attrs.get(id).map(|a| (id.to_string(), a.current_value)))
+        .collect();
+    pairs.sort_by(|a, b| a.0.cmp(&b.0));
+    pairs
 }
 
 /// Resets every `EndOfEngagement` attribute on every given entity back to its `battle_start`
