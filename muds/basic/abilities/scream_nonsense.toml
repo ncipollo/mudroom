@@ -1,5 +1,6 @@
 name = "Scream Nonsense"
 description = "The madman shrieks incoherently, unnerving everyone nearby."
+action_text = "{{entity}} shrieks incoherently at {{target}}"
 engagement_types = ["battle"]
 costs = []
 role = "attack"

@@ -1,5 +1,6 @@
 name = "Electric Shot"
 description = "A charged burst of electrical energy."
+action_text = "{{entity}} unleashes a bolt of lightning at {{target}}"
 engagement_types = ["battle"]
 costs = []
 role = "attack"
@@ -9,3 +10,4 @@ targets = ["opponent"]
 name = "electric_damage"
 trigger_info = { type = "once" }
 effect_type = { type = "attribute_update", attribute_id = "hp", value = -12 }
+description = { text = "Zaps for {{abs_value}} damage" }

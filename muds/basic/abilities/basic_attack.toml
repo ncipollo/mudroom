@@ -1,5 +1,6 @@
 name = "Basic Attack"
 description = "A straightforward strike."
+action_text = "{{entity}} strikes {{target}}"
 engagement_types = ["battle"]
 costs = []
 role = "attack"
@@ -9,3 +10,4 @@ targets = ["opponent"]
 name = "physical_damage"
 trigger_info = { type = "once" }
 effect_type = { type = "attribute_update", attribute_id = "hp", value = -8 }
+description = { text = "Connects for {{abs_value}} damage" }

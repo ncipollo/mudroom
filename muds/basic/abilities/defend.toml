@@ -1,5 +1,6 @@
 name = "Defend"
 description = "Brace for impact, absorbing incoming damage."
+action_text = "{{entity}} braces for impact"
 engagement_types = ["battle"]
 costs = []
 role = "defend"
