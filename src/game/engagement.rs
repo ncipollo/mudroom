@@ -7,8 +7,8 @@ pub mod turn_action;
 pub mod turn_order;
 
 pub use battle::{
-    BattleAiContext, BattleEngagement, BattleMessage, BattlePhase, BattleTick, Battles,
-    QueuedAbility,
+    AttributeSnapshot, AttributeSnapshots, BattleAiContext, BattleEngagement, BattleMessage,
+    BattlePhase, BattleTick, Battles, QueuedAbility,
 };
 pub use conversation::Conversations;
 pub use engagement_type::EngagementType;
@@ -29,6 +29,7 @@ pub struct Engagement {
     pub pending_actions: HashMap<i64, TurnAction>,
     pub ticks_on_current_turn: u64,
     pub battle: Option<BattleEngagement>,
+    pub attribute_snapshots: AttributeSnapshots,
 }
 
 impl Engagement {
@@ -43,6 +44,7 @@ impl Engagement {
             pending_actions: HashMap::new(),
             ticks_on_current_turn: 0,
             battle: None,
+            attribute_snapshots: AttributeSnapshots::default(),
         }
     }
 

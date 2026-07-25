@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::game::engagement::{Engagement, EngagementType, TurnOrder};
+use crate::game::engagement::{AttributeSnapshots, Engagement, EngagementType, TurnOrder};
 
 pub fn new_conversation(id: i64, player_entity_id: i64, npc_entity_id: i64) -> Engagement {
     let turn_order = TurnOrder::new(&[player_entity_id]);
@@ -13,6 +13,7 @@ pub fn new_conversation(id: i64, player_entity_id: i64, npc_entity_id: i64) -> E
         pending_actions: HashMap::new(),
         ticks_on_current_turn: 0,
         battle: None,
+        attribute_snapshots: AttributeSnapshots::default(),
     }
 }
 

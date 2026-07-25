@@ -3,10 +3,11 @@ use std::sync::Arc;
 use crate::game::component::effect::EffectScope;
 use crate::game::{GameState, messaging};
 
-use super::loot;
+use super::{attribute_snapshot, loot};
 
-/// Handles a battle reaching `BattlePhase::Concluded`: resolves loot, clears battle-scoped
-/// active effects from all participants, and notifies player participants the battle has ended.
+/// Handles a battle reaching `BattlePhase::Concluded`: resolves loot, resets `EndOfEngagement`
+/// attributes, clears battle-scoped active effects from all participants, and notifies player
+/// participants the battle has ended.
 pub(super) async fn handle_battle_ended(
     game_state: &Arc<GameState>,
     engagement_id: i64,
@@ -14,6 +15,13 @@ pub(super) async fn handle_battle_ended(
     player_ids: &[i64],
 ) {
     loot::resolve_loot(all_participant_ids);
+    attribute_snapshot::reset_end_of_engagement_attributes(
+        game_state,
+        engagement_id,
+        all_participant_ids,
+        &game_state.attribute_config,
+    )
+    .await;
     clear_active_effects(game_state, all_participant_ids).await;
     for &pid in player_ids {
         messaging::battle_ended(&game_state.message_tx, pid, engagement_id);
@@ -33,9 +41,12 @@ async fn clear_active_effects(game_state: &Arc<GameState>, entity_ids: &[i64]) {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
-    use crate::game::component::Location;
+    use crate::game::component::attribute_definition::ResetCondition;
     use crate::game::component::effect::{Effect, EffectDescription, EffectType, TriggerInfo};
+    use crate::game::component::{Attribute, Location};
     use crate::game::entity::{Entity, EntityType};
     use tokio::sync::broadcast;
 
@@ -118,6 +129,58 @@ mod tests {
             message.is_ok(),
             "expected a battle_ended message to be sent"
         );
+    }
+
+    #[tokio::test]
+    async fn handle_battle_ended_resets_end_of_engagement_and_leaves_hp() {
+        let mut entity = Entity::new(1, EntityType::Player, test_location());
+        entity.attributes.insert(
+            "hp".to_string(),
+            Attribute::new("hp".to_string(), 0, 100, 100),
+        );
+        entity.attributes.insert(
+            "strength".to_string(),
+            Attribute::new("strength".to_string(), 1, 20, 10),
+        );
+
+        // `AttributeConfig::default_config` has no `EndOfEngagement` attributes (only `Never`
+        // and `EachEngagementTurn`), so re-tag "strength" to exercise this reset.
+        let mut game_state = GameState::load(None).unwrap();
+        if let Some(def) = game_state
+            .attribute_config
+            .attributes
+            .iter_mut()
+            .find(|d| d.id == "strength")
+        {
+            def.reset_condition = ResetCondition::EndOfEngagement;
+        }
+        let game_state = Arc::new(game_state);
+        game_state
+            .active_entities
+            .write()
+            .await
+            .insert(entity.id, entity);
+        let mut participants = HashMap::new();
+        participants.insert("player".to_string(), vec![1]);
+        let engagement_id = game_state
+            .engagements
+            .add_battle("room".to_string(), vec!["player".to_string()], participants)
+            .await;
+
+        attribute_snapshot::capture_battle_start(&game_state, engagement_id, &[1]).await;
+
+        {
+            let mut entities = game_state.active_entities.write().await;
+            let entity = entities.get_mut(&1).unwrap();
+            entity.attributes.get_mut("strength").unwrap().current_value = 3;
+            entity.attributes.get_mut("hp").unwrap().current_value = 40;
+        }
+
+        handle_battle_ended(&game_state, engagement_id, &[1], &[]).await;
+
+        let entities = game_state.active_entities.read().await;
+        assert_eq!(entities[&1].attributes["strength"].current_value, 10);
+        assert_eq!(entities[&1].attributes["hp"].current_value, 40);
     }
 
     #[tokio::test]

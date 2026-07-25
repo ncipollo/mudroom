@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::game::engagement::{Engagement, EngagementType, TurnOrder};
 
-use super::BattleEngagement;
+use super::{AttributeSnapshots, BattleEngagement};
 
 pub fn new_battle(
     id: i64,
@@ -22,6 +22,7 @@ pub fn new_battle(
         pending_actions: HashMap::new(),
         ticks_on_current_turn: 0,
         battle: Some(battle),
+        attribute_snapshots: AttributeSnapshots::default(),
     }
 }
 
