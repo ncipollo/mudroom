@@ -59,9 +59,9 @@ mod tests {
     #[test]
     fn phase_change_display() {
         let msg = BattleMessage::PhaseChange {
-            phase: BattlePhase::Resolution,
+            phase: BattlePhase::ResolveAbilities,
         };
-        assert_eq!(msg.to_string(), "[Battle: Resolution]");
+        assert_eq!(msg.to_string(), "[Battle: Resolve Abilities]");
     }
 
     #[test]

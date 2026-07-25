@@ -147,7 +147,9 @@ pub(super) async fn build_battle_started_message(
         engagement_id,
         factions: factions.to_vec(),
         participants: participant_infos,
-        phase: BattlePhase::InnateEffects,
+        phase: BattlePhase::ResetAttributes {
+            faction: factions.first().cloned().unwrap_or_default(),
+        },
         turn_order,
         countdown_secs: max_turn_secs,
         max_turn_secs,

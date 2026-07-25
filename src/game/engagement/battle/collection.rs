@@ -106,7 +106,7 @@ impl Battles {
             .filter_map(|e| {
                 let battle = e.battle.as_ref()?;
                 match &battle.turn_phase {
-                    BattlePhase::Planning { .. } | BattlePhase::Response { .. } => {
+                    BattlePhase::DeclareAttacks { .. } | BattlePhase::DeclareDefense { .. } => {
                         Some(BattleAiContext {
                             engagement_id: e.id,
                             phase: battle.turn_phase.clone(),
@@ -139,7 +139,6 @@ impl Default for Battles {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::engagement::battle::factory;
 
     fn test_participants() -> (Vec<String>, HashMap<String, Vec<i64>>) {
         let mut participants = HashMap::new();
@@ -185,7 +184,7 @@ mod tests {
         assert_eq!(results.len(), 1);
         assert_eq!(
             results[0].phase,
-            BattlePhase::Planning {
+            BattlePhase::AnnounceState {
                 faction: "player".into()
             }
         );

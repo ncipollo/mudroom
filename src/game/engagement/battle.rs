@@ -1,4 +1,5 @@
 pub mod abilities;
+pub mod action_queue;
 pub mod ai;
 pub mod collection;
 pub mod factory;
@@ -8,9 +9,9 @@ pub mod participants;
 pub mod phase;
 pub mod queued_ability;
 pub mod resolution;
-pub mod state;
 pub mod tick;
 pub mod timer;
+pub mod turn;
 
 use std::collections::HashMap;
 
@@ -20,8 +21,8 @@ pub use collection::Battles;
 pub use message::BattleMessage;
 pub use phase::BattlePhase;
 pub use queued_ability::QueuedAbility;
-pub use state::BattleEngagement;
 pub use tick::process_ticks;
+pub use turn::BattleEngagement;
 
 pub struct BattleTick {
     pub engagement_id: i64,
@@ -31,6 +32,7 @@ pub struct BattleTick {
     pub resolution_queue: Vec<QueuedAbility>,
     pub pending_actions: Vec<QueuedAbility>,
     pub phase: BattlePhase,
+    pub completed_phase: BattlePhase,
     pub factions: Vec<String>,
     pub participants: HashMap<String, Vec<i64>>,
     pub ticks_in_phase: u64,

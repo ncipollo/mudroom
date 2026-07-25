@@ -50,12 +50,12 @@ async fn run_ai_for_context(game_state: &Arc<GameState>, ctx: &BattleAiContext) 
 
 fn collect_decisions(ctx: &BattleAiContext, entities: &HashMap<i64, Entity>) -> Vec<AiDecision> {
     match &ctx.phase {
-        BattlePhase::Planning { .. } => ctx
+        BattlePhase::DeclareAttacks { .. } => ctx
             .planning_ids
             .iter()
             .filter_map(|&id| route_attack(entities.get(&id)?, &ctx.responding_ids))
             .collect(),
-        BattlePhase::Response { .. } => ctx
+        BattlePhase::DeclareDefense { .. } => ctx
             .responding_ids
             .iter()
             .filter_map(|&id| route_defend(entities.get(&id)?))
@@ -149,7 +149,7 @@ mod tests {
     fn planning_ctx(planning_ids: Vec<i64>, responding_ids: Vec<i64>) -> BattleAiContext {
         BattleAiContext {
             engagement_id: 1,
-            phase: BattlePhase::Planning {
+            phase: BattlePhase::DeclareAttacks {
                 faction: "enemy".to_string(),
             },
             planning_ids,
@@ -160,7 +160,7 @@ mod tests {
     fn response_ctx(planning_ids: Vec<i64>, responding_ids: Vec<i64>) -> BattleAiContext {
         BattleAiContext {
             engagement_id: 1,
-            phase: BattlePhase::Response {
+            phase: BattlePhase::DeclareDefense {
                 faction: "enemy".to_string(),
             },
             planning_ids,
@@ -220,11 +220,11 @@ mod tests {
     }
 
     #[test]
-    fn collect_decisions_non_planning_phase_returns_empty() {
+    fn collect_decisions_non_declare_phase_returns_empty() {
         let entities = make_entities(vec![make_entity(1, BattleAiType::SimpleRandom)]);
         let ctx = BattleAiContext {
             engagement_id: 1,
-            phase: BattlePhase::Resolution,
+            phase: BattlePhase::ResolveAbilities,
             planning_ids: vec![1],
             responding_ids: vec![2],
         };
