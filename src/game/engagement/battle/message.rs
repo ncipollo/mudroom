@@ -25,6 +25,10 @@ pub enum BattleMessage {
     },
     Meta(String),
     EffectText(String),
+    EffectExpired {
+        entity_name: String,
+        effect_name: String,
+    },
 }
 
 impl fmt::Display for BattleMessage {
@@ -48,6 +52,10 @@ impl fmt::Display for BattleMessage {
             ),
             BattleMessage::Meta(msg) => write!(f, "{msg}"),
             BattleMessage::EffectText(msg) => write!(f, "{msg}"),
+            BattleMessage::EffectExpired {
+                entity_name,
+                effect_name,
+            } => write!(f, "{effect_name} fades from {entity_name}."),
         }
     }
 }
@@ -86,6 +94,15 @@ mod tests {
     fn meta_display() {
         let msg = BattleMessage::Meta("The battle has ended.".to_string());
         assert_eq!(msg.to_string(), "The battle has ended.");
+    }
+
+    #[test]
+    fn effect_expired_display() {
+        let msg = BattleMessage::EffectExpired {
+            entity_name: "Goblin".to_string(),
+            effect_name: "Poison".to_string(),
+        };
+        assert_eq!(msg.to_string(), "Poison fades from Goblin.");
     }
 
     #[test]
