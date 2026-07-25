@@ -80,6 +80,13 @@ impl ActionQueue {
             .collect()
     }
 
+    pub fn queued_count(&self, entity_ids: &[i64]) -> usize {
+        entity_ids
+            .iter()
+            .filter(|id| self.queued.contains_key(id))
+            .count()
+    }
+
     /// Read the currently queued abilities without draining them.
     pub fn snapshot(&self) -> Vec<QueuedAbility> {
         self.queued.values().cloned().collect()
@@ -195,6 +202,15 @@ mod tests {
         queue.queue(1, attack_ability(None), 2, &attrs);
         queue.skip(3);
         assert_eq!(queue.unacted(&[1, 3, 4]), vec![4]);
+    }
+
+    #[test]
+    fn queued_count_counts_only_queued_ids() {
+        let mut queue = ActionQueue::new();
+        let attrs = HashMap::new();
+        queue.queue(1, attack_ability(None), 2, &attrs);
+        queue.skip(3);
+        assert_eq!(queue.queued_count(&[1, 3, 4]), 1);
     }
 
     #[test]
