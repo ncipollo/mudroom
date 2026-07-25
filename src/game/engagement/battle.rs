@@ -2,6 +2,7 @@ pub mod abilities;
 pub mod action_queue;
 pub mod ai;
 pub mod collection;
+pub mod death;
 pub mod factory;
 pub mod loot;
 pub mod message;
@@ -12,6 +13,7 @@ pub mod resolution;
 pub mod tick;
 pub mod timer;
 pub mod turn;
+pub mod victory;
 
 use std::collections::HashMap;
 
