@@ -52,7 +52,7 @@ fn default_style(key: StyleKey) -> Style {
 
 fn default_message_style(kind: MessageKind) -> Style {
     match kind {
-        MessageKind::PlayerCommand => Style::default().fg(Color::Cyan),
+        MessageKind::PlayerCommand => Style::default().fg(Color::Cyan).add_modifier(Modifier::DIM),
         MessageKind::Narration => Style::default(),
         MessageKind::System => Style::default().fg(Color::Green),
         MessageKind::BattleEvent => Style::default().fg(Color::White),
