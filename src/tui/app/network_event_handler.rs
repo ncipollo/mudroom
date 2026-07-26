@@ -10,10 +10,10 @@ impl App {
         match event {
             NetworkEvent::StartSession { session_id } => self
                 .messages
-                .push(AppMessage::normal(format!("Session started: {session_id}"))),
+                .push(AppMessage::system(format!("Session started: {session_id}"))),
             NetworkEvent::EndSession { session_id } => self
                 .messages
-                .push(AppMessage::normal(format!("Session ended: {session_id}"))),
+                .push(AppMessage::system(format!("Session ended: {session_id}"))),
             NetworkEvent::Ping => {
                 if self.debug {
                     self.messages.push(AppMessage::debug("[ping received]"));
@@ -34,7 +34,7 @@ impl App {
                 self.current_entity_id = Some(entity_id);
                 self.streaming_message_index = None;
                 self.messages
-                    .push(AppMessage::normal(format!("Playing as: {player_name}")));
+                    .push(AppMessage::system(format!("Playing as: {player_name}")));
             }
             NetworkEvent::Message { player_id, content } => {
                 if Some(player_id) == self.current_player_id {

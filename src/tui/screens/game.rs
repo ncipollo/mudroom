@@ -28,7 +28,7 @@ pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
         (_, KeyCode::Enter) => {
             let input: String = app.input.drain(..).collect();
             dispatch_command(app, &input).await;
-            app.messages.push(AppMessage::normal(input));
+            app.messages.push(AppMessage::command(input));
             app.scroll_offset = 0;
         }
         (_, KeyCode::PageUp) => app.scroll_up(),
@@ -127,6 +127,7 @@ pub fn render(frame: &mut Frame, app: &App) {
     message_log::render(
         frame,
         &app.messages,
+        &app.theme,
         app.scroll_offset,
         Block::default().title("Messages").borders(Borders::ALL),
         areas[0],

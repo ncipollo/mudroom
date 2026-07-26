@@ -48,6 +48,7 @@ pub fn render(frame: &mut Frame, app: &App) {
     message_log::render(
         frame,
         &app.messages,
+        &app.theme,
         app.scroll_offset,
         Block::default().title("Messages").borders(Borders::ALL),
         areas[0],

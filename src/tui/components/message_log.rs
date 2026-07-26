@@ -1,16 +1,17 @@
 use ratatui::{
     Frame,
     layout::Rect,
-    style::{Color, Style},
     text::{Line, Span, Text},
     widgets::{Block, Paragraph, Wrap},
 };
 
+use super::theme::{MessageTheme, StyleKey};
 use crate::tui::app::AppMessage;
 
 pub fn render(
     frame: &mut Frame,
     messages: &[AppMessage],
+    theme: &MessageTheme,
     scroll_offset: usize,
     block: Block,
     area: Rect,
@@ -20,11 +21,7 @@ pub fn render(
     let all_lines: Vec<Line> = messages
         .iter()
         .flat_map(|msg| {
-            let style = if msg.debug {
-                Style::default().fg(Color::DarkGray)
-            } else {
-                Style::default()
-            };
+            let style = theme.resolve(StyleKey::Message(msg.kind), None);
             msg.text
                 .split('\n')
                 .map(|line| Line::from(Span::styled(line.to_string(), style)))

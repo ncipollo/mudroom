@@ -6,25 +6,35 @@ pub use battle_state::{BattleFocus, BattleState, QueuedAbilityInfo};
 pub use conversation_state::ConversationState;
 
 use crate::network::event::{ClassInfo, PlayerInfo};
+use crate::tui::components::theme::{MessageKind, MessageTheme};
 
 #[derive(Debug, Clone)]
 pub struct AppMessage {
     pub text: String,
-    pub debug: bool,
+    pub kind: MessageKind,
 }
 
 impl AppMessage {
     pub fn normal(text: impl Into<String>) -> Self {
-        Self {
-            text: text.into(),
-            debug: false,
-        }
+        Self::with_kind(text, MessageKind::Narration)
+    }
+
+    pub fn command(text: impl Into<String>) -> Self {
+        Self::with_kind(text, MessageKind::PlayerCommand)
+    }
+
+    pub fn system(text: impl Into<String>) -> Self {
+        Self::with_kind(text, MessageKind::System)
     }
 
     pub fn debug(text: impl Into<String>) -> Self {
+        Self::with_kind(text, MessageKind::Debug)
+    }
+
+    fn with_kind(text: impl Into<String>, kind: MessageKind) -> Self {
         Self {
             text: text.into(),
-            debug: true,
+            kind,
         }
     }
 }
@@ -75,6 +85,7 @@ pub struct App {
     pub streaming_message_index: Option<usize>,
     pub agent_responding: bool,
     pub debug: bool,
+    pub theme: MessageTheme,
 }
 
 impl App {
@@ -82,8 +93,8 @@ impl App {
         Self {
             should_quit: false,
             messages: vec![
-                AppMessage::normal("Welcome to mudroom."),
-                AppMessage::normal("Type commands and press Enter."),
+                AppMessage::system("Welcome to mudroom."),
+                AppMessage::system("Type commands and press Enter."),
             ],
             input: String::new(),
             scroll_offset: 0,
@@ -97,6 +108,7 @@ impl App {
             streaming_message_index: None,
             agent_responding: false,
             debug,
+            theme: MessageTheme,
         }
     }
 
@@ -119,6 +131,7 @@ impl App {
             streaming_message_index: None,
             agent_responding: false,
             debug,
+            theme: MessageTheme,
         }
     }
 
