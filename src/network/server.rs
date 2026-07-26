@@ -43,6 +43,11 @@ pub async fn start(
         state.db.clone(),
     ));
 
+    tokio::spawn(ping_reaper::run_ping_reaper(
+        connections,
+        state.game_state.clone(),
+    ));
+
     let router = router::build_router(state);
     let listener = TcpListener::bind("0.0.0.0:0").await?;
     let addr = listener.local_addr()?;
@@ -50,8 +55,6 @@ pub async fn start(
     tokio::spawn(async move {
         axum::serve(listener, router).await.ok();
     });
-
-    tokio::spawn(ping_reaper::run_ping_reaper(connections));
 
     Ok(addr)
 }
