@@ -29,6 +29,7 @@ pub async fn start(
         game_state: Arc::new(game_state),
         db,
         connections: connections.clone(),
+        next_connection_seq: Arc::new(std::sync::atomic::AtomicU64::new(1)),
     });
 
     message_relay::spawn(

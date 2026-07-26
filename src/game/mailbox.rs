@@ -22,6 +22,10 @@ impl Mailbox {
     pub fn drain(&mut self) -> Vec<Interaction> {
         self.queue.drain(..).collect()
     }
+
+    pub fn retain(&mut self, keep: impl FnMut(&Interaction) -> bool) {
+        self.queue.retain(keep);
+    }
 }
 
 impl Default for Mailbox {
@@ -56,6 +60,13 @@ impl Mailboxes {
     pub async fn remove(&self, entity_id: i64) {
         let mut map = self.inner.write().await;
         map.remove(&entity_id);
+    }
+
+    pub async fn retain(&self, entity_id: i64, keep: impl FnMut(&Interaction) -> bool) {
+        let mut map = self.inner.write().await;
+        if let Some(mailbox) = map.get_mut(&entity_id) {
+            mailbox.retain(keep);
+        }
     }
 }
 

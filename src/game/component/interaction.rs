@@ -20,7 +20,7 @@ pub enum Interaction {
     JoinBattle { engagement_id: i64 },
     LeaveBattle { engagement_id: i64 },
     CheckRoomThreats { room_id: String },
-    PlayerDisconnected,
+    PlayerDisconnected { client_id: String },
 }
 
 #[cfg(test)]
