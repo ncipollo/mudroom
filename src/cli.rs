@@ -39,6 +39,9 @@ pub enum Commands {
         /// Force map reload from config on startup, even if maps were previously loaded
         #[arg(long)]
         reload_maps: bool,
+        /// Enable debug output (e.g. show ping/pong messages)
+        #[arg(long)]
+        debug: bool,
     },
     /// Player administration commands
     Players {
@@ -162,6 +165,7 @@ mod tests {
                 name: None,
                 config: None,
                 reload_maps: false,
+                debug: false,
             })
         );
     }
@@ -175,6 +179,7 @@ mod tests {
                 name: Some("myserver".to_string()),
                 config: None,
                 reload_maps: false,
+                debug: false,
             })
         );
     }
@@ -188,6 +193,21 @@ mod tests {
                 name: None,
                 config: Some("muds/basic".to_string()),
                 reload_maps: false,
+                debug: false,
+            })
+        );
+    }
+
+    #[test]
+    fn server_subcommand_with_debug_parses() {
+        let cli = parse(&["mudroom", "server", "--debug"]);
+        assert_eq!(
+            cli.command,
+            Some(Commands::Server {
+                name: None,
+                config: None,
+                reload_maps: false,
+                debug: true,
             })
         );
     }
@@ -245,6 +265,7 @@ mod tests {
                 name: None,
                 config: None,
                 reload_maps: true,
+                debug: false,
             })
         );
     }
