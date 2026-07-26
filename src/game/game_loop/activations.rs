@@ -45,6 +45,12 @@ async fn register_in_game_state(
         .await
         .insert(activation.entity.id, activation.entity);
 
+    evict_stale_client_registrations(
+        game_state,
+        activation.player.entity_id,
+        &activation.client_id,
+    )
+    .await;
     game_state
         .active_players
         .write()
@@ -54,6 +60,24 @@ async fn register_in_game_state(
     if let Err(e) = game_state.sync_active_entities(db.pool()).await {
         tracing::error!(error = %e, "Failed to sync active entities on player activation");
     }
+}
+
+/// Removes any existing `active_players` entry for `entity_id` registered under a different
+/// client_id. A reconnect under a new client_id (e.g. a new process) can otherwise leave a stale
+/// entry behind if the old client_id's disconnect was never processed — leaving two entries
+/// pointing at the same entity. That stale entry would be indistinguishable, by entity-scoped
+/// activation epoch alone, from the fresh one when a disconnect eventually gets dispatched for
+/// it, risking exactly the entity it aliases getting torn down out from under the live client.
+async fn evict_stale_client_registrations(
+    game_state: &Arc<GameState>,
+    entity_id: i64,
+    new_client_id: &str,
+) {
+    game_state
+        .active_players
+        .write()
+        .await
+        .retain(|client_id, player| player.entity_id != entity_id || client_id == new_client_id);
 }
 
 /// Bumps the entity's activation epoch and discards any already-queued stale disconnects. The
@@ -155,6 +179,41 @@ mod tests {
             },
             client_id: client_id.to_string(),
         }
+    }
+
+    #[tokio::test]
+    async fn activation_evicts_stale_registration_under_old_client_id() {
+        let game_state = Arc::new(GameState::load(None).unwrap());
+        let db = Database::connect_in_memory().await.unwrap();
+        // Simulate a reconnect under a new client_id (e.g. a new process) while the old
+        // client_id's registration for the same entity was never cleaned up.
+        game_state.active_players.write().await.insert(
+            "old-client".to_string(),
+            Player {
+                id: 1,
+                client_id: "old-client".to_string(),
+                name: "Hero".to_string(),
+                entity_id: 1,
+            },
+        );
+        let activation = test_activation("new-client");
+        game_state
+            .push_pending_activation(
+                activation.entity,
+                activation.player,
+                "new-client".to_string(),
+            )
+            .await;
+
+        process(&game_state, &db).await;
+
+        let players = game_state.active_players.read().await;
+        assert!(
+            !players.contains_key("old-client"),
+            "stale registration under the old client_id must be evicted"
+        );
+        assert!(players.contains_key("new-client"));
+        assert_eq!(players.len(), 1);
     }
 
     #[tokio::test]

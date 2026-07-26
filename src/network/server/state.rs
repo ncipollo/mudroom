@@ -63,34 +63,45 @@ impl Drop for SseCleanupGuard {
                 }
             }
             info!(client_id = %client_id, "SSE disconnected — queuing cleanup");
-            let entity_id = {
-                let players = game_state.active_players.read().await;
-                players.get(&client_id).map(|p| p.entity_id)
-            };
-            if let Some(entity_id) = entity_id {
-                // Captured now, as early as possible after deciding to queue the disconnect —
-                // not right before the push below — so a reactivation racing this cleanup task
-                // is reflected as a bumped epoch by the time dispatch checks it, rather than
-                // this stale disconnect picking up the reactivation's own epoch and looking
-                // fresh again.
-                let epoch = game_state.current_activation_epoch(entity_id).await;
-                info!(
-                    entity_id,
-                    client_id = %client_id,
-                    seq,
-                    epoch,
-                    "queuing PlayerDisconnected"
-                );
-                game_state
-                    .mailboxes
-                    .push(
-                        entity_id,
-                        Interaction::PlayerDisconnected { client_id, epoch },
-                    )
-                    .await;
-            }
+            queue_player_disconnected(&game_state, &client_id).await;
         });
     }
+}
+
+/// Looks up the entity behind `client_id` and queues `Interaction::PlayerDisconnected` for it,
+/// capturing the entity's current activation epoch immediately beforehand — as early as possible
+/// after deciding to queue the disconnect — so a reactivation racing this call is reflected as a
+/// bumped epoch by the time dispatch checks it, rather than this stale disconnect picking up the
+/// reactivation's own epoch and looking fresh again. Every disconnect source (SSE drop, explicit
+/// session end, ping/pong timeout) routes through this so they all converge on the same
+/// epoch-guarded teardown path. Returns the entity id, or `None` if `client_id` has no registered
+/// player.
+pub async fn queue_player_disconnected(
+    game_state: &Arc<GameState>,
+    client_id: &str,
+) -> Option<i64> {
+    let entity_id = {
+        let players = game_state.active_players.read().await;
+        players.get(client_id).map(|p| p.entity_id)
+    }?;
+    let epoch = game_state.current_activation_epoch(entity_id).await;
+    info!(
+        entity_id,
+        client_id = %client_id,
+        epoch,
+        "queuing PlayerDisconnected"
+    );
+    game_state
+        .mailboxes
+        .push(
+            entity_id,
+            Interaction::PlayerDisconnected {
+                client_id: client_id.to_string(),
+                epoch,
+            },
+        )
+        .await;
+    Some(entity_id)
 }
 
 // Stream wrapper that keeps the guard alive until the stream is dropped.
@@ -203,6 +214,16 @@ mod tests {
             game_state.mailboxes.drain(1).await.is_empty(),
             "stale guard must not queue PlayerDisconnected"
         );
+    }
+
+    #[tokio::test]
+    async fn queue_player_disconnected_is_noop_for_unregistered_client() {
+        let game_state = Arc::new(GameState::load(None).unwrap());
+
+        let entity_id = queue_player_disconnected(&game_state, "unknown").await;
+
+        assert_eq!(entity_id, None);
+        assert!(game_state.mailboxes.drain(1).await.is_empty());
     }
 
     #[tokio::test]
