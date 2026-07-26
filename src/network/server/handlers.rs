@@ -128,7 +128,7 @@ pub async fn ping_handler(
     State(state): State<Arc<AppState>>,
     Json(body): Json<PingBody>,
 ) -> &'static str {
-    info!(client_id = %body.client_id, "POST /ping");
+    tracing::debug!(client_id = %body.client_id, "POST /ping");
     let personal_tx = {
         let mut conns = state.connections.write().await;
         conns.get_mut(&body.client_id).map(|client| {

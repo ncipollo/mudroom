@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use tokio::sync::RwLock;
-use tracing::info;
+use tracing::debug;
 
 use super::state::ConnectedClient;
 
@@ -24,7 +24,7 @@ pub async fn run_ping_reaper(connections: Arc<RwLock<HashMap<String, ConnectedCl
             let mut guard = connections.write().await;
             for id in stale {
                 guard.remove(&id);
-                info!(client_id = %id, "Ping reaper removed stale client");
+                debug!(client_id = %id, "Ping reaper removed stale client");
             }
         }
     }

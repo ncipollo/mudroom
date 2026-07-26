@@ -6,8 +6,9 @@ pub async fn run(
     name: Option<String>,
     config: Option<String>,
     reload_maps: bool,
+    debug: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    crate::logging::init_tracing();
+    crate::logging::init_tracing(debug);
     let (server_session, config_path_buf) = init_server_session(name, config).await?;
     let (game_state, db) = init_game_resources(&server_session, config_path_buf.as_deref()).await?;
     if reload_maps || game::should_auto_load(db.pool()).await? {
