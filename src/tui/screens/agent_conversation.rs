@@ -54,7 +54,7 @@ pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
                     });
                     let _ = send_interaction(url, client_id, &action).await;
                 }
-                app.messages.push(AppMessage::normal(input));
+                app.messages.push(AppMessage::command(input));
                 app.scroll_offset = 0;
                 app.agent_responding = true;
             }
@@ -77,6 +77,7 @@ pub fn render(frame: &mut Frame, app: &App) {
     message_log::render(
         frame,
         &app.messages,
+        &app.theme,
         app.scroll_offset,
         Block::default().title("Conversation").borders(Borders::ALL),
         areas[0],
