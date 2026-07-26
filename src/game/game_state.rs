@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use sqlx::SqlitePool;
 use tokio::sync::RwLock;
@@ -42,6 +42,12 @@ pub struct GameState {
     pub mailboxes: Mailboxes,
     pub active_players: RwLock<HashMap<String, Player>>,
     pub pending_activations: RwLock<Vec<PendingActivation>>,
+    /// Per-entity activation epoch. Bumped every time an entity is (re)activated so that a
+    /// `PlayerDisconnected` interaction queued before the bump can be recognized as stale even
+    /// if it lands in the mailbox after the one-time discard step in `apply_activation` already
+    /// ran — see the epoch check in `game::interaction::dispatch_player_disconnected`.
+    activation_epochs: RwLock<HashMap<i64, u64>>,
+    next_activation_epoch: AtomicU64,
     pub message_tx: broadcast::Sender<PlayerMessage>,
 }
 
@@ -127,6 +133,8 @@ impl GameState {
             mailboxes: Mailboxes::new(),
             active_players: RwLock::new(HashMap::new()),
             pending_activations: RwLock::new(Vec::new()),
+            activation_epochs: RwLock::new(HashMap::new()),
+            next_activation_epoch: AtomicU64::new(1),
             message_tx,
         })
     }
@@ -149,6 +157,27 @@ impl GameState {
     pub async fn drain_pending_activations(&self) -> Vec<PendingActivation> {
         let mut pending = self.pending_activations.write().await;
         std::mem::take(&mut *pending)
+    }
+
+    /// Marks `entity_id` as (re)activated as of a new epoch, returning that epoch. Any
+    /// previously-captured epoch for this entity is now stale.
+    pub async fn bump_activation_epoch(&self, entity_id: i64) -> u64 {
+        let epoch = self.next_activation_epoch.fetch_add(1, Ordering::Relaxed);
+        self.activation_epochs
+            .write()
+            .await
+            .insert(entity_id, epoch);
+        epoch
+    }
+
+    /// The entity's current activation epoch, or 0 if it has never been activated.
+    pub async fn current_activation_epoch(&self, entity_id: i64) -> u64 {
+        *self
+            .activation_epochs
+            .read()
+            .await
+            .get(&entity_id)
+            .unwrap_or(&0)
     }
 }
 

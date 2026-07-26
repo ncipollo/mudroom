@@ -29,6 +29,7 @@ pub async fn start(
         game_state: Arc::new(game_state),
         db,
         connections: connections.clone(),
+        next_connection_seq: Arc::new(std::sync::atomic::AtomicU64::new(1)),
     });
 
     message_relay::spawn(
@@ -42,6 +43,11 @@ pub async fn start(
         state.db.clone(),
     ));
 
+    tokio::spawn(ping_reaper::run_ping_reaper(
+        connections,
+        state.game_state.clone(),
+    ));
+
     let router = router::build_router(state);
     let listener = TcpListener::bind("0.0.0.0:0").await?;
     let addr = listener.local_addr()?;
@@ -49,8 +55,6 @@ pub async fn start(
     tokio::spawn(async move {
         axum::serve(listener, router).await.ok();
     });
-
-    tokio::spawn(ping_reaper::run_ping_reaper(connections));
 
     Ok(addr)
 }

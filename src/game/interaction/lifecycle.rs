@@ -9,8 +9,7 @@ pub async fn player_disconnected(game_state: &Arc<GameState>, player: &Player) {
         battle::participants::remove_entity(&game_state.engagements.battles, player.entity_id).await
         && surviving <= 1
     {
-        game_state.engagements.battles.conclude(engagement_id).await;
-        game_state.engagements.battles.remove(engagement_id).await;
+        battle::end_battle(game_state, engagement_id, &[player.entity_id]).await;
     }
 
     game_state

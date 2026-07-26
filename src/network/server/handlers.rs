@@ -67,11 +67,13 @@ pub async fn sse_handler(
 ) -> Sse<impl Stream<Item = Result<Event, axum::Error>>> {
     info!(client_id = %query.client_id, "GET /events - client subscribed to SSE");
     let (personal_tx, personal_rx) = tokio::sync::mpsc::channel::<NetworkEvent>(128);
+    let seq = state.next_connection_seq.fetch_add(1, Ordering::Relaxed);
     state.connections.write().await.insert(
         query.client_id.clone(),
         ConnectedClient {
             last_ping: Instant::now(),
             personal_tx,
+            seq,
         },
     );
     let inner = ReceiverStream::new(personal_rx).filter_map(|event| {
@@ -83,6 +85,7 @@ pub async fn sse_handler(
         client_id: query.client_id,
         connections: state.connections.clone(),
         game_state: state.game_state.clone(),
+        seq,
     };
     let stream = GuardedStream {
         inner,
@@ -146,8 +149,21 @@ pub async fn session_end_handler(
     State(state): State<Arc<AppState>>,
     Json(body): Json<SessionEndBody>,
 ) -> &'static str {
-    info!(session_id = %body.session_id, "POST /session/end");
-    state.connections.write().await.remove(&body.session_id);
+    let client_id = &body.session_id;
+    let entity_id = state
+        .game_state
+        .active_players
+        .read()
+        .await
+        .get(client_id)
+        .map(|p| p.entity_id);
+    let removed_connection = state.connections.write().await.remove(client_id).is_some();
+    info!(
+        client_id = %client_id,
+        entity_id,
+        removed_connection,
+        "player disconnected explicitly (session end)"
+    );
     "ok"
 }
 

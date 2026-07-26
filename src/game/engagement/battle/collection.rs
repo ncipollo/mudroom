@@ -33,6 +33,22 @@ impl Battles {
         self.map.write().await.remove(&engagement_id);
     }
 
+    /// Return the entity ids participating in the given engagement, or `None` if it is gone.
+    pub async fn entity_ids(&self, engagement_id: i64) -> Option<Vec<i64>> {
+        let map = self.map.read().await;
+        map.get(&engagement_id).map(|e| e.entity_ids.clone())
+    }
+
+    /// Return the id of the battle engagement containing the given entity, or `None`.
+    pub async fn find_for_entity(&self, entity_id: i64) -> Option<i64> {
+        let map = self.map.read().await;
+        map.values()
+            .find(|e| {
+                e.engagement_type == EngagementType::Battle && e.entity_ids.contains(&entity_id)
+            })
+            .map(|e| e.id)
+    }
+
     pub async fn find_for_room(&self, room_id: &str) -> Option<i64> {
         let map = self.map.read().await;
         map.values()

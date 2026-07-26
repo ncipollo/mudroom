@@ -121,7 +121,7 @@ async fn start_battle(
     );
 }
 
-pub(super) async fn build_battle_started_message(
+pub(crate) async fn build_battle_started_message(
     game_state: &Arc<GameState>,
     player: &Player,
     engagement_id: i64,

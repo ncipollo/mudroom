@@ -3,11 +3,15 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use tokio::sync::RwLock;
-use tracing::debug;
+use tracing::info;
 
 use super::state::ConnectedClient;
+use crate::game::GameState;
 
-pub async fn run_ping_reaper(connections: Arc<RwLock<HashMap<String, ConnectedClient>>>) {
+pub async fn run_ping_reaper(
+    connections: Arc<RwLock<HashMap<String, ConnectedClient>>>,
+    game_state: Arc<GameState>,
+) {
     let timeout = std::time::Duration::from_secs(30);
     let interval = std::time::Duration::from_secs(10);
     loop {
@@ -24,7 +28,17 @@ pub async fn run_ping_reaper(connections: Arc<RwLock<HashMap<String, ConnectedCl
             let mut guard = connections.write().await;
             for id in stale {
                 guard.remove(&id);
-                debug!(client_id = %id, "Ping reaper removed stale client");
+                let entity_id = game_state
+                    .active_players
+                    .read()
+                    .await
+                    .get(&id)
+                    .map(|p| p.entity_id);
+                info!(
+                    client_id = %id,
+                    entity_id,
+                    "player disconnected due to ping/pong timeout"
+                );
             }
         }
     }

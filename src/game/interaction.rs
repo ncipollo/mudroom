@@ -20,29 +20,35 @@ use crate::persistence::Database;
 pub async fn process(game_state: &Arc<GameState>, db: &Database, tick: u64) {
     tracing::debug!("Processing interactions tick={tick}");
 
-    let players: Vec<Player> = game_state
+    let players: Vec<(String, Player)> = game_state
         .active_players
         .read()
         .await
-        .values()
-        .cloned()
+        .iter()
+        .map(|(client_id, player)| (client_id.clone(), player.clone()))
         .collect();
 
-    for player in players {
-        process_player(game_state, db, &player).await;
+    for (client_id, player) in players {
+        process_player(game_state, db, &client_id, &player).await;
     }
 }
 
-async fn process_player(game_state: &Arc<GameState>, db: &Database, player: &Player) {
+async fn process_player(
+    game_state: &Arc<GameState>,
+    db: &Database,
+    client_id: &str,
+    player: &Player,
+) {
     let interactions = game_state.mailboxes.drain(player.entity_id).await;
     for interaction in interactions {
-        dispatch_interaction(game_state, db, player, interaction).await;
+        dispatch_interaction(game_state, db, client_id, player, interaction).await;
     }
 }
 
 async fn dispatch_interaction(
     game_state: &Arc<GameState>,
     db: &Database,
+    client_id: &str,
     player: &Player,
     interaction: Interaction,
 ) {
@@ -65,10 +71,69 @@ async fn dispatch_interaction(
         Interaction::CheckRoomThreats { room_id } => {
             room_threats::check_room_hostility(game_state, player, &room_id).await;
         }
-        Interaction::PlayerDisconnected => {
-            lifecycle::player_disconnected(game_state, player).await;
+        Interaction::PlayerDisconnected {
+            client_id: disconnected_client_id,
+            epoch,
+        } => {
+            dispatch_player_disconnected(
+                game_state,
+                client_id,
+                player,
+                disconnected_client_id,
+                epoch,
+            )
+            .await;
         }
     }
+}
+
+/// Tears down a truly disconnected player. Skips teardown if the entity's activation epoch has
+/// advanced past the one this `PlayerDisconnected` was queued under — the player already
+/// reactivated. Epoch-based rather than client_id-based because `ClientSession` reuses the same
+/// id across reconnects, so it's correct regardless of how late the disconnect lands.
+async fn dispatch_player_disconnected(
+    game_state: &Arc<GameState>,
+    client_id: &str,
+    player: &Player,
+    disconnected_client_id: String,
+    epoch: u64,
+) {
+    let current_epoch = game_state.current_activation_epoch(player.entity_id).await;
+    if epoch != current_epoch {
+        log_stale_disconnect(
+            player,
+            client_id,
+            disconnected_client_id,
+            epoch,
+            current_epoch,
+        );
+        return;
+    }
+    tracing::info!(
+        entity_id = player.entity_id,
+        disconnected_client_id,
+        client_id,
+        epoch,
+        "tearing down disconnected player"
+    );
+    lifecycle::player_disconnected(game_state, player).await;
+}
+
+fn log_stale_disconnect(
+    player: &Player,
+    client_id: &str,
+    disconnected_client_id: String,
+    disconnect_epoch: u64,
+    current_epoch: u64,
+) {
+    tracing::info!(
+        entity_id = player.entity_id,
+        disconnected_client_id,
+        client_id,
+        disconnect_epoch,
+        current_epoch,
+        "ignoring stale disconnect superseded by a later activation"
+    );
 }
 
 async fn dispatch_movement(
@@ -237,9 +302,118 @@ async fn dispatch_leave_battle(game_state: &Arc<GameState>, player: &Player) {
     };
 
     if surviving <= 1 {
-        game_state.engagements.battles.conclude(engagement_id).await;
-        game_state.engagements.battles.remove(engagement_id).await;
+        battle::end_battle(game_state, engagement_id, &[player.entity_id]).await;
     }
 
     messaging::battle_ended(&game_state.message_tx, player.id, engagement_id);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::game::component::Location;
+    use crate::game::entity::{Entity, EntityType};
+    use std::collections::HashMap;
+
+    fn test_location() -> Location {
+        Location {
+            world_id: "w".to_string(),
+            dungeon_id: "d".to_string(),
+            room_id: "r".to_string(),
+        }
+    }
+
+    fn test_player(client_id: &str) -> Player {
+        Player {
+            id: 1,
+            client_id: client_id.to_string(),
+            name: "Hero".to_string(),
+            entity_id: 1,
+        }
+    }
+
+    async fn battle_state(registered_client_id: &str) -> Arc<GameState> {
+        let game_state = Arc::new(GameState::load(None).unwrap());
+        {
+            let mut entities = game_state.active_entities.write().await;
+            entities.insert(1, Entity::new(1, EntityType::Player, test_location()));
+            entities.insert(2, Entity::new(2, EntityType::Enemy, test_location()));
+        }
+        game_state.active_players.write().await.insert(
+            registered_client_id.to_string(),
+            test_player(registered_client_id),
+        );
+        let mut participants = HashMap::new();
+        participants.insert("player".to_string(), vec![1]);
+        participants.insert("enemy".to_string(), vec![2]);
+        game_state
+            .engagements
+            .add_battle(
+                "r".to_string(),
+                vec!["player".to_string(), "enemy".to_string()],
+                participants,
+            )
+            .await;
+        game_state
+    }
+
+    #[tokio::test]
+    async fn stale_epoch_disconnect_preserves_reactivated_player() {
+        let game_state = battle_state("machine:200").await;
+        let db = Database::connect_in_memory().await.unwrap();
+        // Simulate a reactivation that already bumped the epoch past the value the disconnect
+        // was captured under, e.g. because the SSE cleanup task's mailbox push landed after
+        // apply_activation's discard step already ran.
+        game_state.bump_activation_epoch(1).await;
+        game_state
+            .mailboxes
+            .push(
+                1,
+                Interaction::PlayerDisconnected {
+                    client_id: "machine:200".to_string(),
+                    epoch: 0,
+                },
+            )
+            .await;
+
+        process(&game_state, &db, 0).await;
+
+        assert!(game_state.active_entities.read().await.contains_key(&1));
+        assert!(
+            game_state
+                .active_players
+                .read()
+                .await
+                .contains_key("machine:200")
+        );
+        assert_eq!(
+            game_state.engagements.battles.find_for_entity(1).await,
+            Some(1)
+        );
+    }
+
+    #[tokio::test]
+    async fn current_epoch_disconnect_tears_down_player() {
+        let game_state = battle_state("machine:100").await;
+        let db = Database::connect_in_memory().await.unwrap();
+        game_state
+            .mailboxes
+            .push(
+                1,
+                Interaction::PlayerDisconnected {
+                    client_id: "machine:100".to_string(),
+                    epoch: 0,
+                },
+            )
+            .await;
+
+        process(&game_state, &db, 0).await;
+
+        assert!(!game_state.active_entities.read().await.contains_key(&1));
+        assert!(game_state.active_players.read().await.is_empty());
+        assert_eq!(
+            game_state.engagements.battles.find_for_entity(1).await,
+            None
+        );
+    }
 }
