@@ -68,9 +68,25 @@ impl Drop for SseCleanupGuard {
                 players.get(&client_id).map(|p| p.entity_id)
             };
             if let Some(entity_id) = entity_id {
+                // Captured now, as early as possible after deciding to queue the disconnect —
+                // not right before the push below — so a reactivation racing this cleanup task
+                // is reflected as a bumped epoch by the time dispatch checks it, rather than
+                // this stale disconnect picking up the reactivation's own epoch and looking
+                // fresh again.
+                let epoch = game_state.current_activation_epoch(entity_id).await;
+                info!(
+                    entity_id,
+                    client_id = %client_id,
+                    seq,
+                    epoch,
+                    "queuing PlayerDisconnected"
+                );
                 game_state
                     .mailboxes
-                    .push(entity_id, Interaction::PlayerDisconnected { client_id })
+                    .push(
+                        entity_id,
+                        Interaction::PlayerDisconnected { client_id, epoch },
+                    )
                     .await;
             }
         });
@@ -208,9 +224,10 @@ mod tests {
         assert!(!connections.read().await.contains_key("m:1"));
         let queued = game_state.mailboxes.drain(1).await;
         assert!(
-            queued.iter().any(
-                |i| matches!(i, Interaction::PlayerDisconnected { client_id } if client_id == "m:1")
-            ),
+            queued.iter().any(|i| matches!(
+                i,
+                Interaction::PlayerDisconnected { client_id, .. } if client_id == "m:1"
+            )),
             "expected PlayerDisconnected for m:1, got {queued:?}"
         );
     }

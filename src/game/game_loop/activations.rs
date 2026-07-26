@@ -20,7 +20,25 @@ async fn apply_activation(
     activation: PendingActivation,
 ) {
     let room_id = activation.entity.location.room_id.clone();
+    let entity_id = activation.player.entity_id;
+    let client_id = activation.client_id.clone();
+    let player = activation.player.clone();
 
+    register_in_game_state(game_state, db, activation).await;
+    reset_disconnect_state(game_state, entity_id, &client_id).await;
+    reconcile_battle_state(game_state, &player).await;
+
+    game_state
+        .mailboxes
+        .push(entity_id, Interaction::CheckRoomThreats { room_id })
+        .await;
+}
+
+async fn register_in_game_state(
+    game_state: &Arc<GameState>,
+    db: &Database,
+    activation: PendingActivation,
+) {
     game_state
         .active_entities
         .write()
@@ -31,34 +49,47 @@ async fn apply_activation(
         .active_players
         .write()
         .await
-        .insert(activation.client_id, activation.player.clone());
+        .insert(activation.client_id, activation.player);
 
     if let Err(e) = game_state.sync_active_entities(db.pool()).await {
         tracing::error!(error = %e, "Failed to sync active entities on player activation");
     }
+}
 
-    discard_stale_disconnects(game_state, activation.player.entity_id).await;
-    reconcile_battle_state(game_state, &activation.player).await;
-
-    game_state
-        .mailboxes
-        .push(
-            activation.player.entity_id,
-            Interaction::CheckRoomThreats { room_id },
-        )
-        .await;
+/// Bumps the entity's activation epoch and discards any already-queued stale disconnects. The
+/// epoch bump is the authoritative guard: any `PlayerDisconnected` queued by a still-in-flight
+/// SSE cleanup task (captured under the prior epoch) is stale even if it lands in the mailbox
+/// after the discard below already ran — see `dispatch_player_disconnected`.
+async fn reset_disconnect_state(game_state: &Arc<GameState>, entity_id: i64, client_id: &str) {
+    let epoch = game_state.bump_activation_epoch(entity_id).await;
+    let discarded = discard_stale_disconnects(game_state, entity_id).await;
+    tracing::info!(
+        entity_id,
+        client_id,
+        epoch,
+        discarded_stale_disconnects = discarded,
+        "player activated"
+    );
 }
 
 /// A disconnect queued before this (re)activation is stale: the player is back, so the queued
-/// teardown must not run. Discard any pending `PlayerDisconnected` while preserving everything
-/// else in the mailbox.
-async fn discard_stale_disconnects(game_state: &Arc<GameState>, entity_id: i64) {
+/// teardown must not run. Discard any pending `PlayerDisconnected` already sitting in the
+/// mailbox while preserving everything else, returning how many were discarded. This is a
+/// best-effort optimization — the authoritative guard against a disconnect queued *after* this
+/// point is the epoch check in `dispatch_player_disconnected`.
+async fn discard_stale_disconnects(game_state: &Arc<GameState>, entity_id: i64) -> usize {
+    let mut discarded = 0;
     game_state
         .mailboxes
         .retain(entity_id, |i| {
-            !matches!(i, Interaction::PlayerDisconnected { .. })
+            let is_stale = matches!(i, Interaction::PlayerDisconnected { .. });
+            if is_stale {
+                discarded += 1;
+            }
+            !is_stale
         })
         .await;
+    discarded
 }
 
 /// If the entity is still a participant in an active battle (e.g. the disconnect teardown was
@@ -136,6 +167,7 @@ mod tests {
                 1,
                 Interaction::PlayerDisconnected {
                     client_id: "m:1".to_string(),
+                    epoch: 0,
                 },
             )
             .await;

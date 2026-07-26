@@ -73,31 +73,67 @@ async fn dispatch_interaction(
         }
         Interaction::PlayerDisconnected {
             client_id: disconnected_client_id,
+            epoch,
         } => {
-            dispatch_player_disconnected(game_state, client_id, player, disconnected_client_id)
-                .await;
+            dispatch_player_disconnected(
+                game_state,
+                client_id,
+                player,
+                disconnected_client_id,
+                epoch,
+            )
+            .await;
         }
     }
 }
 
-/// Tears down a truly disconnected player. A disconnect queued by a superseded client
-/// connection (the player already rejoined under a new client id) is stale and ignored.
+/// Tears down a truly disconnected player. Skips teardown if the entity's activation epoch has
+/// advanced past the one this `PlayerDisconnected` was queued under — the player already
+/// reactivated. Epoch-based rather than client_id-based because `ClientSession` reuses the same
+/// id across reconnects, so it's correct regardless of how late the disconnect lands.
 async fn dispatch_player_disconnected(
     game_state: &Arc<GameState>,
     client_id: &str,
     player: &Player,
     disconnected_client_id: String,
+    epoch: u64,
 ) {
-    if disconnected_client_id == client_id {
-        lifecycle::player_disconnected(game_state, player).await;
-    } else {
-        tracing::info!(
-            entity_id = player.entity_id,
-            disconnected_client_id,
+    let current_epoch = game_state.current_activation_epoch(player.entity_id).await;
+    if epoch != current_epoch {
+        log_stale_disconnect(
+            player,
             client_id,
-            "ignoring stale disconnect from a superseded client connection"
+            disconnected_client_id,
+            epoch,
+            current_epoch,
         );
+        return;
     }
+    tracing::info!(
+        entity_id = player.entity_id,
+        disconnected_client_id,
+        client_id,
+        epoch,
+        "tearing down disconnected player"
+    );
+    lifecycle::player_disconnected(game_state, player).await;
+}
+
+fn log_stale_disconnect(
+    player: &Player,
+    client_id: &str,
+    disconnected_client_id: String,
+    disconnect_epoch: u64,
+    current_epoch: u64,
+) {
+    tracing::info!(
+        entity_id = player.entity_id,
+        disconnected_client_id,
+        client_id,
+        disconnect_epoch,
+        current_epoch,
+        "ignoring stale disconnect superseded by a later activation"
+    );
 }
 
 async fn dispatch_movement(
@@ -322,15 +358,20 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn stale_disconnect_from_old_client_preserves_rejoined_player() {
+    async fn stale_epoch_disconnect_preserves_reactivated_player() {
         let game_state = battle_state("machine:200").await;
         let db = Database::connect_in_memory().await.unwrap();
+        // Simulate a reactivation that already bumped the epoch past the value the disconnect
+        // was captured under, e.g. because the SSE cleanup task's mailbox push landed after
+        // apply_activation's discard step already ran.
+        game_state.bump_activation_epoch(1).await;
         game_state
             .mailboxes
             .push(
                 1,
                 Interaction::PlayerDisconnected {
-                    client_id: "machine:100".to_string(),
+                    client_id: "machine:200".to_string(),
+                    epoch: 0,
                 },
             )
             .await;
@@ -352,7 +393,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn current_disconnect_tears_down_player() {
+    async fn current_epoch_disconnect_tears_down_player() {
         let game_state = battle_state("machine:100").await;
         let db = Database::connect_in_memory().await.unwrap();
         game_state
@@ -361,6 +402,7 @@ mod tests {
                 1,
                 Interaction::PlayerDisconnected {
                     client_id: "machine:100".to_string(),
+                    epoch: 0,
                 },
             )
             .await;
