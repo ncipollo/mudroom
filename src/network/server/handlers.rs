@@ -47,7 +47,7 @@ use tracing::info;
 
 use super::state::{
     AppState, ConnectedClient, GuardedStream, PingBody, SessionEndBody, SessionStartBody,
-    SseCleanupGuard, SseQuery,
+    SseCleanupGuard, SseQuery, queue_player_disconnected,
 };
 use std::sync::atomic::Ordering;
 
@@ -150,13 +150,7 @@ pub async fn session_end_handler(
     Json(body): Json<SessionEndBody>,
 ) -> &'static str {
     let client_id = &body.session_id;
-    let entity_id = state
-        .game_state
-        .active_players
-        .read()
-        .await
-        .get(client_id)
-        .map(|p| p.entity_id);
+    let entity_id = queue_player_disconnected(&state.game_state, client_id).await;
     let removed_connection = state.connections.write().await.remove(client_id).is_some();
     info!(
         client_id = %client_id,
@@ -174,4 +168,94 @@ pub async fn maps_reload_handler(State(state): State<Arc<AppState>>) -> &'static
         .reload_pending
         .store(true, Ordering::Release);
     "ok"
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::game::GameState;
+    use crate::game::component::Location;
+    use crate::game::entity::{Entity, EntityType};
+    use crate::game::interaction;
+    use crate::game::player::Player;
+    use crate::network::session::ServerSession;
+    use crate::persistence::Database;
+    use std::collections::HashMap;
+    use tokio::sync::RwLock;
+
+    fn test_location() -> Location {
+        Location {
+            world_id: "w".to_string(),
+            dungeon_id: "d".to_string(),
+            room_id: "r".to_string(),
+        }
+    }
+
+    async fn battle_app_state(client_id: &str) -> Arc<AppState> {
+        let game_state = Arc::new(GameState::load(None).unwrap());
+        {
+            let mut entities = game_state.active_entities.write().await;
+            entities.insert(1, Entity::new(1, EntityType::Player, test_location()));
+            entities.insert(2, Entity::new(2, EntityType::Enemy, test_location()));
+        }
+        game_state.active_players.write().await.insert(
+            client_id.to_string(),
+            Player {
+                id: 1,
+                client_id: client_id.to_string(),
+                name: "Hero".to_string(),
+                entity_id: 1,
+            },
+        );
+        let mut participants = HashMap::new();
+        participants.insert("player".to_string(), vec![1]);
+        participants.insert("enemy".to_string(), vec![2]);
+        game_state
+            .engagements
+            .add_battle(
+                "r".to_string(),
+                vec!["player".to_string(), "enemy".to_string()],
+                participants,
+            )
+            .await;
+
+        Arc::new(AppState {
+            server_session: ServerSession {
+                id: "srv".to_string(),
+                name: None,
+            },
+            game_state,
+            db: Database::connect_in_memory().await.unwrap(),
+            connections: Arc::new(RwLock::new(HashMap::new())),
+            next_connection_seq: Arc::new(std::sync::atomic::AtomicU64::new(1)),
+        })
+    }
+
+    #[tokio::test]
+    async fn session_end_handler_concludes_battle_for_last_departing_faction_member() {
+        let state = battle_app_state("m:1").await;
+
+        session_end_handler(
+            State(state.clone()),
+            Json(SessionEndBody {
+                session_id: "m:1".to_string(),
+            }),
+        )
+        .await;
+
+        // session_end_handler only queues the disconnect; the game loop's interaction
+        // processing is what actually tears the battle down.
+        interaction::process(&state.game_state, &state.db, 0).await;
+
+        assert_eq!(
+            state
+                .game_state
+                .engagements
+                .battles
+                .find_for_entity(2)
+                .await,
+            None,
+            "battle should conclude once the only player-faction member disconnects"
+        );
+    }
 }
