@@ -1,43 +1,14 @@
 mod battle_state;
 mod conversation_state;
+mod message;
 mod network_event_handler;
 
 pub use battle_state::{BattleFocus, BattleState, QueuedAbilityInfo};
 pub use conversation_state::ConversationState;
+pub use message::AppMessage;
 
 use crate::network::event::{ClassInfo, PlayerInfo};
-use crate::tui::components::theme::{MessageKind, MessageTheme};
-
-#[derive(Debug, Clone)]
-pub struct AppMessage {
-    pub text: String,
-    pub kind: MessageKind,
-}
-
-impl AppMessage {
-    pub fn normal(text: impl Into<String>) -> Self {
-        Self::with_kind(text, MessageKind::Narration)
-    }
-
-    pub fn command(text: impl Into<String>) -> Self {
-        Self::with_kind(text, MessageKind::PlayerCommand)
-    }
-
-    pub fn system(text: impl Into<String>) -> Self {
-        Self::with_kind(text, MessageKind::System)
-    }
-
-    pub fn debug(text: impl Into<String>) -> Self {
-        Self::with_kind(text, MessageKind::Debug)
-    }
-
-    fn with_kind(text: impl Into<String>, kind: MessageKind) -> Self {
-        Self {
-            text: text.into(),
-            kind,
-        }
-    }
-}
+use crate::tui::components::theme::MessageTheme;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum GameMode {
@@ -90,11 +61,12 @@ pub struct App {
 
 impl App {
     pub fn new(debug: bool) -> Self {
+        let theme = MessageTheme;
         Self {
             should_quit: false,
             messages: vec![
-                AppMessage::system("Welcome to mudroom."),
-                AppMessage::system("Type commands and press Enter."),
+                AppMessage::system("Welcome to mudroom.", &theme),
+                AppMessage::system("Type commands and press Enter.", &theme),
             ],
             input: String::new(),
             scroll_offset: 0,
