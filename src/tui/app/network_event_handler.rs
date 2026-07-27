@@ -8,20 +8,24 @@ use super::{App, AppMessage, BattleState, GameMode};
 impl App {
     pub fn handle_network_event(&mut self, event: NetworkEvent) {
         match event {
-            NetworkEvent::StartSession { session_id } => self
-                .messages
-                .push(AppMessage::system(format!("Session started: {session_id}"))),
-            NetworkEvent::EndSession { session_id } => self
-                .messages
-                .push(AppMessage::system(format!("Session ended: {session_id}"))),
+            NetworkEvent::StartSession { session_id } => self.messages.push(AppMessage::system(
+                format!("Session started: {session_id}"),
+                &self.theme,
+            )),
+            NetworkEvent::EndSession { session_id } => self.messages.push(AppMessage::system(
+                format!("Session ended: {session_id}"),
+                &self.theme,
+            )),
             NetworkEvent::Ping => {
                 if self.debug {
-                    self.messages.push(AppMessage::debug("[ping received]"));
+                    self.messages
+                        .push(AppMessage::debug("[ping received]", &self.theme));
                 }
             }
             NetworkEvent::Pong => {
                 if self.debug {
-                    self.messages.push(AppMessage::debug("[pong received]"));
+                    self.messages
+                        .push(AppMessage::debug("[pong received]", &self.theme));
                 }
             }
             NetworkEvent::PlayerSelected {
@@ -33,12 +37,14 @@ impl App {
                 self.current_player_id = Some(player_id);
                 self.current_entity_id = Some(entity_id);
                 self.streaming_message_index = None;
-                self.messages
-                    .push(AppMessage::system(format!("Playing as: {player_name}")));
+                self.messages.push(AppMessage::system(
+                    format!("Playing as: {player_name}"),
+                    &self.theme,
+                ));
             }
             NetworkEvent::Message { player_id, content } => {
                 if Some(player_id) == self.current_player_id {
-                    self.messages.push(AppMessage::normal(content));
+                    self.messages.push(AppMessage::normal(content, &self.theme));
                 }
             }
             NetworkEvent::MessageChunk {
@@ -73,17 +79,18 @@ impl App {
         if Some(player_id) != self.current_player_id {
             return;
         }
+        let theme = self.theme;
         match self.streaming_message_index {
             None => {
                 let idx = self.messages.len();
-                self.messages.push(AppMessage::normal(chunk));
+                self.messages.push(AppMessage::normal(chunk, &theme));
                 if !is_final {
                     self.streaming_message_index = Some(idx);
                 }
             }
             Some(idx) => {
                 if let Some(msg) = self.messages.get_mut(idx) {
-                    msg.text.push_str(&chunk);
+                    msg.append(&chunk, &theme);
                 }
                 if is_final {
                     self.streaming_message_index = None;
