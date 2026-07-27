@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use ratatui::{
     Frame,
     layout::Rect,
@@ -6,6 +8,7 @@ use ratatui::{
 };
 
 use crate::tui::app::AppMessage;
+use crate::tui::components::typewriter::{self, TypewriterState};
 
 pub fn render(
     frame: &mut Frame,
@@ -13,10 +16,25 @@ pub fn render(
     scroll_offset: usize,
     block: Block,
     area: Rect,
+    reveal: Option<&TypewriterState>,
+    reveal_queue: &VecDeque<usize>,
 ) {
     let panel_height = area.height.saturating_sub(2) as usize;
 
-    let all_lines: Vec<Line> = messages.iter().flat_map(|msg| msg.lines.clone()).collect();
+    // Messages still waiting their turn in the reveal queue haven't "started"
+    // yet and stay hidden, rather than flashing in full before their
+    // typewriter reveal begins.
+    let all_lines: Vec<Line> = messages
+        .iter()
+        .enumerate()
+        .flat_map(|(i, msg)| match reveal {
+            Some(state) if state.message_index == i => {
+                typewriter::truncate_lines(&msg.lines, state.revealed_chars)
+            }
+            _ if reveal_queue.contains(&i) => Vec::new(),
+            _ => msg.lines.clone(),
+        })
+        .collect();
 
     let total_lines = all_lines.len();
     let max_offset = total_lines.saturating_sub(panel_height);

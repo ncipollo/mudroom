@@ -130,6 +130,8 @@ pub fn render(frame: &mut Frame, app: &App) {
         app.scroll_offset,
         Block::default().title("Messages").borders(Borders::ALL),
         areas[0],
+        app.reveal.as_ref(),
+        &app.reveal_queue,
     );
 
     // Status bar

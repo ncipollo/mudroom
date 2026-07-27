@@ -80,6 +80,8 @@ pub fn render(frame: &mut Frame, app: &App) {
         app.scroll_offset,
         Block::default().title("Conversation").borders(Borders::ALL),
         areas[0],
+        app.reveal.as_ref(),
+        &app.reveal_queue,
     );
 
     let status_text = if app.agent_responding {
