@@ -5,7 +5,7 @@ use ratatui::{
     widgets::{Block, Paragraph, Wrap},
 };
 
-use super::theme::{MessageTheme, StyleKey};
+use super::theme::{MessageKind, MessageTheme, StyleKey};
 use crate::tui::app::AppMessage;
 
 pub fn render(
@@ -22,9 +22,14 @@ pub fn render(
         .iter()
         .flat_map(|msg| {
             let style = theme.resolve(StyleKey::Message(msg.kind), None);
+            let prefix = if msg.kind == MessageKind::PlayerCommand {
+                "> "
+            } else {
+                ""
+            };
             msg.text
                 .split('\n')
-                .map(|line| Line::from(Span::styled(line.to_string(), style)))
+                .map(|line| Line::from(Span::styled(format!("{prefix}{line}"), style)))
                 .collect::<Vec<_>>()
         })
         .collect();
