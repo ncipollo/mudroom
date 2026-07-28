@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crossterm::event::{Event, EventStream, MouseEventKind};
+use crossterm::event::{Event, EventStream, KeyCode, KeyModifiers, MouseEventKind};
 use futures_util::StreamExt;
 use ratatui::DefaultTerminal;
 use tokio::sync::mpsc;
@@ -14,6 +14,8 @@ use super::screens::{
     agent_conversation, battle as battle_screen, conversation, game as game_screen, player_select,
 };
 
+const REVEAL_TICK: Duration = Duration::from_millis(50);
+
 pub async fn run(
     terminal: &mut DefaultTerminal,
     app: &mut App,
@@ -22,6 +24,8 @@ pub async fn run(
     let mut event_stream = EventStream::new();
     let mut spinner_ticker = time::interval(Duration::from_millis(100));
     spinner_ticker.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
+    let mut reveal_ticker = time::interval(REVEAL_TICK);
+    reveal_ticker.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
 
     // Load player list immediately if in PlayerSelect mode
     if app.mode == GameMode::PlayerSelect
@@ -39,6 +43,9 @@ pub async fn run(
 
         tokio::select! {
             _ = spinner_ticker.tick(), if app.agent_responding => {}
+            _ = reveal_ticker.tick(), if app.reveal.is_some() => {
+                app.tick_reveal(REVEAL_TICK);
+            }
             maybe_event = event_stream.next() => {
                 if !handle_terminal_event(app, maybe_event).await {
                     break;
@@ -62,6 +69,12 @@ async fn handle_terminal_event(
 ) -> bool {
     match maybe_event {
         Some(Ok(Event::Key(key))) => {
+            let is_quit_shortcut =
+                key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c');
+            if app.reveal.is_some() && !is_quit_shortcut {
+                app.skip_reveal();
+                return true;
+            }
             match app.mode {
                 GameMode::PlayerSelect => {
                     player_select::handle_key(app, key.modifiers, key.code).await;

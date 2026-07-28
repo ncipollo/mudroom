@@ -2,13 +2,17 @@ mod battle_state;
 mod conversation_state;
 mod message;
 mod network_event_handler;
+mod reveal;
 
 pub use battle_state::{BattleFocus, BattleState, QueuedAbilityInfo};
 pub use conversation_state::ConversationState;
 pub use message::AppMessage;
 
+use std::collections::VecDeque;
+
 use crate::network::event::{ClassInfo, PlayerInfo};
 use crate::tui::components::theme::MessageTheme;
+use crate::tui::components::typewriter::{DEFAULT_REVEAL_RATE, TypewriterState};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum GameMode {
@@ -55,6 +59,9 @@ pub struct App {
     pub current_entity_id: Option<i64>,
     pub streaming_message_index: Option<usize>,
     pub agent_responding: bool,
+    pub reveal: Option<TypewriterState>,
+    pub reveal_queue: VecDeque<usize>,
+    pub reveal_rate: f64,
     pub debug: bool,
     pub theme: MessageTheme,
 }
@@ -79,6 +86,9 @@ impl App {
             current_entity_id: None,
             streaming_message_index: None,
             agent_responding: false,
+            reveal: None,
+            reveal_queue: VecDeque::new(),
+            reveal_rate: DEFAULT_REVEAL_RATE,
             debug,
             theme: MessageTheme,
         }
@@ -102,6 +112,9 @@ impl App {
             current_entity_id: None,
             streaming_message_index: None,
             agent_responding: false,
+            reveal: None,
+            reveal_queue: VecDeque::new(),
+            reveal_rate: DEFAULT_REVEAL_RATE,
             debug,
             theme: MessageTheme,
         }

@@ -44,7 +44,9 @@ impl App {
             }
             NetworkEvent::Message { player_id, content } => {
                 if Some(player_id) == self.current_player_id {
+                    let idx = self.messages.len();
                     self.messages.push(AppMessage::normal(content, &self.theme));
+                    self.start_reveal(idx);
                 }
             }
             NetworkEvent::MessageChunk {
@@ -84,6 +86,7 @@ impl App {
             None => {
                 let idx = self.messages.len();
                 self.messages.push(AppMessage::normal(chunk, &theme));
+                self.start_reveal(idx);
                 if !is_final {
                     self.streaming_message_index = Some(idx);
                 }
@@ -113,6 +116,8 @@ impl App {
                 self.mode = GameMode::AgentConversation;
                 self.messages.clear();
                 self.scroll_offset = 0;
+                self.reveal = None;
+                self.reveal_queue.clear();
             }
         }
     }
