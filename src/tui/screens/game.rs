@@ -29,10 +29,8 @@ pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
             let input: String = app.input.drain(..).collect();
             dispatch_command(app, &input).await;
             app.messages.push(AppMessage::command(input, &app.theme));
-            app.scroll_offset = 0;
+            app.log_scroll.pin_to_bottom();
         }
-        (_, KeyCode::PageUp) => app.scroll_up(),
-        (_, KeyCode::PageDown) => app.scroll_down(),
         _ => {}
     }
 }
@@ -95,7 +93,7 @@ async fn dispatch_command(app: &mut App, input: &str) {
     }
 }
 
-pub fn render(frame: &mut Frame, app: &App) {
+pub fn render(frame: &mut Frame, app: &mut App) {
     if app.mode == GameMode::PlayerSelect {
         player_select::render(frame, app);
         return;
@@ -126,12 +124,9 @@ pub fn render(frame: &mut Frame, app: &App) {
     // Message log
     message_log::render(
         frame,
-        &app.messages,
-        app.scroll_offset,
+        app,
         Block::default().title("Messages").borders(Borders::ALL),
         areas[0],
-        app.reveal.as_ref(),
-        &app.reveal_queue,
     );
 
     // Status bar

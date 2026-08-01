@@ -11,6 +11,7 @@ pub use message::AppMessage;
 use std::collections::VecDeque;
 
 use crate::network::event::{ClassInfo, PlayerInfo};
+use crate::tui::components::scroll::ScrollState;
 use crate::tui::components::theme::MessageTheme;
 use crate::tui::components::typewriter::{DEFAULT_REVEAL_RATE, TypewriterState};
 
@@ -49,7 +50,7 @@ pub struct App {
     pub should_quit: bool,
     pub messages: Vec<AppMessage>,
     pub input: String,
-    pub scroll_offset: usize,
+    pub log_scroll: ScrollState,
     pub mode: GameMode,
     pub connection: ConnectionState,
     pub player_select: PlayerSelectState,
@@ -76,7 +77,7 @@ impl App {
                 AppMessage::system("Type commands and press Enter.", &theme),
             ],
             input: String::new(),
-            scroll_offset: 0,
+            log_scroll: ScrollState::default(),
             mode: GameMode::Game,
             connection: ConnectionState::default(),
             player_select: PlayerSelectState::default(),
@@ -99,7 +100,7 @@ impl App {
             should_quit: false,
             messages: Vec::<AppMessage>::new(),
             input: String::new(),
-            scroll_offset: 0,
+            log_scroll: ScrollState::default(),
             mode: GameMode::PlayerSelect,
             connection: ConnectionState {
                 server_url: Some(server_url),
@@ -118,14 +119,6 @@ impl App {
             debug,
             theme: MessageTheme,
         }
-    }
-
-    pub fn scroll_up(&mut self) {
-        self.scroll_offset += 1;
-    }
-
-    pub fn scroll_down(&mut self) {
-        self.scroll_offset = self.scroll_offset.saturating_sub(1);
     }
 
     pub fn select_next(&mut self) {

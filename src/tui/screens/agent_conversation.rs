@@ -55,17 +55,15 @@ pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
                     let _ = send_interaction(url, client_id, &action).await;
                 }
                 app.messages.push(AppMessage::command(input, &app.theme));
-                app.scroll_offset = 0;
+                app.log_scroll.pin_to_bottom();
                 app.agent_responding = true;
             }
         }
-        (_, KeyCode::PageUp) => app.scroll_up(),
-        (_, KeyCode::PageDown) => app.scroll_down(),
         _ => {}
     }
 }
 
-pub fn render(frame: &mut Frame, app: &App) {
+pub fn render(frame: &mut Frame, app: &mut App) {
     let areas = Layout::vertical([
         Constraint::Fill(1),
         Constraint::Length(3),
@@ -76,12 +74,9 @@ pub fn render(frame: &mut Frame, app: &App) {
 
     message_log::render(
         frame,
-        &app.messages,
-        app.scroll_offset,
+        app,
         Block::default().title("Conversation").borders(Borders::ALL),
         areas[0],
-        app.reveal.as_ref(),
-        &app.reveal_queue,
     );
 
     let status_text = if app.agent_responding {
@@ -105,7 +100,7 @@ pub fn render(frame: &mut Frame, app: &App) {
         .block(Block::default().title("Message").borders(Borders::ALL));
     frame.render_widget(input, areas[2]);
 
-    let hint = Paragraph::new("/exit  Leave conversation  •  PgUp/PgDn  Scroll")
+    let hint = Paragraph::new("/exit  Leave conversation  •  PgUp/PgDn Page  •  Shift+↑↓ Scroll")
         .style(Style::default().fg(Color::DarkGray))
         .block(Block::default().borders(Borders::ALL));
     frame.render_widget(hint, areas[3]);

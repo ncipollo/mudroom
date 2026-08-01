@@ -115,7 +115,7 @@ impl App {
             ConversationKind::Agent => {
                 self.mode = GameMode::AgentConversation;
                 self.messages.clear();
-                self.scroll_offset = 0;
+                self.log_scroll.pin_to_bottom();
                 self.reveal = None;
                 self.reveal_queue.clear();
             }

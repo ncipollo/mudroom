@@ -1,6 +1,7 @@
 use crate::game::component::{Ability, AbilityRole, AbilityTargetType};
 use crate::game::engagement::battle::{BattleMessage, BattlePhase};
 use crate::network::event::{BattleSnapshot, ParticipantInfo};
+use crate::tui::components::scroll::ScrollState;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum BattleFocus {
@@ -26,6 +27,7 @@ pub struct BattleState {
     pub engagement_id: i64,
     pub snapshot: BattleSnapshot,
     pub message_log: Vec<BattleMessage>,
+    pub log_scroll: ScrollState,
     pub selected_ability_index: usize,
     pub selected_entity_index: usize,
     pub entity_scroll: usize,
@@ -40,6 +42,7 @@ impl BattleState {
             engagement_id,
             snapshot,
             message_log: Vec::new(),
+            log_scroll: ScrollState::default(),
             selected_ability_index: 0,
             selected_entity_index: 0,
             entity_scroll: 0,

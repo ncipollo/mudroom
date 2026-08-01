@@ -30,13 +30,11 @@ pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
                 let _ = send_interaction(url, client_id, &action).await;
             }
         }
-        (_, KeyCode::PageUp) => app.scroll_up(),
-        (_, KeyCode::PageDown) => app.scroll_down(),
         _ => {}
     }
 }
 
-pub fn render(frame: &mut Frame, app: &App) {
+pub fn render(frame: &mut Frame, app: &mut App) {
     let option_count = app.conversation.options.len() as u16;
     let areas = Layout::vertical([
         Constraint::Fill(1),
@@ -47,12 +45,9 @@ pub fn render(frame: &mut Frame, app: &App) {
 
     message_log::render(
         frame,
-        &app.messages,
-        app.scroll_offset,
+        app,
         Block::default().title("Messages").borders(Borders::ALL),
         areas[0],
-        app.reveal.as_ref(),
-        &app.reveal_queue,
     );
 
     let items: Vec<ListItem> = app
