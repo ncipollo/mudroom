@@ -67,7 +67,7 @@ mod tests {
 
     #[test]
     fn pending_attack_message_looks_up_caster_and_target_names() {
-        use crate::game::component::{Ability, AbilityRole};
+        use crate::game::component::{Ability, AbilityRole, Description};
         use crate::game::engagement::EngagementType;
 
         let qa = QueuedAbility {
@@ -75,7 +75,7 @@ mod tests {
             ability: Ability {
                 id: "slash".to_string(),
                 name: "Slash".to_string(),
-                description: None,
+                description: Description::default(),
                 effects: vec![],
                 engagement_types: vec![EngagementType::Battle],
                 costs: vec![],

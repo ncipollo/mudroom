@@ -119,6 +119,7 @@ mod tests {
     use super::*;
     use crate::game::component::Ability;
     use crate::game::component::AbilityRole;
+    use crate::game::component::Description;
     use crate::game::component::effect::{
         Effect, EffectDescription, EffectScope, EffectType, TriggerInfo,
     };
@@ -128,7 +129,7 @@ mod tests {
         Ability {
             id: "test".to_string(),
             name: "Test Strike".to_string(),
-            description: None,
+            description: Description::default(),
             effects: vec![],
             engagement_types: vec![EngagementType::Battle],
             costs: vec![],

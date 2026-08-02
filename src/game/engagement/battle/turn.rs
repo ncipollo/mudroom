@@ -315,6 +315,7 @@ impl BattleEngagement {
 mod tests {
     use crate::game::component::Ability;
     use crate::game::component::AbilityRole;
+    use crate::game::component::Description;
     use crate::game::engagement::EngagementType;
     use crate::game::engagement::battle::{BattleMessage, BattlePhase};
     use std::collections::HashMap;
@@ -338,7 +339,7 @@ mod tests {
         Ability {
             id: "slash".to_string(),
             name: "Slash".to_string(),
-            description: None,
+            description: Description::default(),
             effects: vec![],
             engagement_types: vec![EngagementType::Battle],
             costs: vec![],

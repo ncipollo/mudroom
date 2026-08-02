@@ -73,7 +73,7 @@ async fn sync_entity(
         &entity_type,
         location,
         config_id,
-        config.description.as_deref(),
+        config.description.text.as_deref(),
         name,
     )
     .await?;
@@ -206,7 +206,7 @@ mod tests {
             id: Some("entities/innkeeper".to_string()),
             name: Some("innkeeper".to_string()),
             entity_type: EntityTypeConfig::Character,
-            description: None,
+            description: Description::default(),
             persona: None,
             attributes: vec![],
             entity_effects: vec![],
@@ -226,7 +226,7 @@ mod tests {
             id: Some("entities/innkeeper".to_string()),
             name: Some("innkeeper".to_string()),
             entity_type: EntityTypeConfig::Character,
-            description: None,
+            description: Description::default(),
             persona: None,
             attributes: vec![
                 StartingAttribute {
@@ -364,7 +364,7 @@ mod tests {
                 id: Some("entities/innkeeper".to_string()),
                 name: Some("innkeeper".to_string()),
                 entity_type: EntityTypeConfig::Character,
-                description: None,
+                description: Description::default(),
                 persona: None,
                 attributes: vec![
                     StartingAttribute {
@@ -404,7 +404,7 @@ mod tests {
             id: Some("entities/zombie".to_string()),
             name: Some("zombie".to_string()),
             entity_type: EntityTypeConfig::Enemy,
-            description: None,
+            description: Description::default(),
             persona: None,
             attributes: vec![],
             entity_effects: vec![],

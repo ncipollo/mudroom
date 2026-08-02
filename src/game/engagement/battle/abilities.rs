@@ -39,6 +39,7 @@ pub fn battle_defend_abilities(entity: &Entity) -> Vec<Ability> {
 
 #[cfg(test)]
 mod tests {
+    use crate::game::component::Description;
     use crate::game::component::Location;
     use crate::game::entity::EntityType;
 
@@ -56,7 +57,7 @@ mod tests {
         Ability {
             id: id.to_string(),
             name: id.to_string(),
-            description: None,
+            description: Description::default(),
             effects: vec![],
             engagement_types: vec![EngagementType::Battle],
             costs: vec![],

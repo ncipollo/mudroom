@@ -8,6 +8,7 @@ use crate::game::component::Attribute;
 use crate::game::component::FactionRelations;
 use crate::game::component::Interaction;
 use crate::game::component::Location;
+use crate::game::component::description::Description;
 use crate::game::component::effect::Effect;
 use crate::game::config::BattleAiConfig;
 
@@ -32,7 +33,7 @@ pub struct Entity {
     #[serde(default)]
     pub name: String,
     #[serde(default)]
-    pub description: Option<String>,
+    pub description: Description,
     #[serde(skip)]
     pub ai: Option<EntityAI>,
     #[serde(default)]
@@ -68,7 +69,7 @@ impl Entity {
             innate_abilities: Vec::new(),
             config_id: None,
             name: String::new(),
-            description: None,
+            description: Description::default(),
             ai: None,
             battle_ai: BattleAiConfig::default(),
             factions,

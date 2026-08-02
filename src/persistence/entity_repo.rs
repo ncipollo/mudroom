@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use sqlx::SqlitePool;
 
 use crate::game::component::Attribute;
+use crate::game::component::description::Description;
 use crate::game::config::{BattleAiConfig, BattleAiType};
 use crate::game::{Entity, EntityType, Location};
 use crate::persistence::error::PersistenceError;
@@ -33,7 +34,7 @@ pub async fn insert(pool: &SqlitePool, entity: &Entity) -> Result<i64, Persisten
     .bind(&entity.location.room_id)
     .bind(&entity.config_id)
     .bind(attributes_json)
-    .bind(&entity.description)
+    .bind(&entity.description.text)
     .bind(&entity.name)
     .execute(pool)
     .await?;
@@ -196,7 +197,7 @@ fn build_entity(
     entity.config_id = config_id;
     entity.name = name;
     entity.attributes = attributes;
-    entity.description = description;
+    entity.description = Description::new(description);
     entity.battle_ai = BattleAiConfig {
         ai_type: battle_ai_type_from_str(&battle_ai_type),
     };
@@ -320,7 +321,7 @@ fn entity_type_from_str(s: &str) -> EntityType {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::{Description, Room};
+    use crate::game::Room;
     use crate::game::{Dungeon, World};
     use crate::persistence::database::Database;
     use crate::persistence::{dungeon_repo, room_repo, world_repo};
@@ -559,7 +560,10 @@ mod tests {
         .unwrap();
 
         let found = find_by_id(db.pool(), id).await.unwrap().unwrap();
-        assert_eq!(found.description.as_deref(), Some("A friendly innkeeper."));
+        assert_eq!(
+            found.description.text.as_deref(),
+            Some("A friendly innkeeper.")
+        );
     }
 
     #[tokio::test]
@@ -590,7 +594,7 @@ mod tests {
         .unwrap();
 
         let found = find_by_id(db.pool(), id).await.unwrap().unwrap();
-        assert_eq!(found.description.as_deref(), Some("New description."));
+        assert_eq!(found.description.text.as_deref(), Some("New description."));
     }
 
     #[tokio::test]
@@ -833,7 +837,7 @@ mod tests {
         let ability = Ability {
             id: "strike".to_string(),
             name: "Strike".to_string(),
-            description: None,
+            description: Description::default(),
             effects: vec![],
             costs: vec![],
             modifiers: vec![],

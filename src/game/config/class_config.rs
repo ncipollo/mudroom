@@ -1,3 +1,4 @@
+use crate::game::component::description::Description;
 use crate::game::config::ability_config::AbilityReference;
 use crate::game::config::entity_config::StartingAttribute;
 use serde::{Deserialize, Serialize};
@@ -10,7 +11,7 @@ pub struct ClassConfig {
     pub id: Option<String>,
     pub name: String,
     #[serde(default)]
-    pub description: Option<String>,
+    pub description: Description,
     #[serde(default)]
     pub attributes: Vec<StartingAttribute>,
     #[serde(default)]

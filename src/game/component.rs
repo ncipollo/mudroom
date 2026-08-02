@@ -1,6 +1,5 @@
 pub mod attribute;
 pub mod attribute_definition;
-pub mod check;
 pub mod description;
 pub mod effect;
 pub mod faction;
@@ -17,8 +16,6 @@ pub use attribute_definition::AttributeCategory;
 pub use attribute_definition::AttributeDefinition;
 pub use attribute_definition::AttributeType;
 pub use attribute_definition::ResetCondition;
-pub use check::Check;
-pub use description::CheckedDescription;
 pub use description::Description;
 pub use effect::Effect;
 pub use effect::EffectDescription;
