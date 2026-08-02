@@ -36,8 +36,12 @@ pub async fn run(
 
         tokio::select! {
             _ = spinner_ticker.tick(), if app.agent_responding => {}
-            _ = reveal_ticker.tick(), if app.reveal.is_some() => {
+            _ = reveal_ticker.tick(), if app.reveal.is_some() || app.battle.as_ref().is_some_and(|b| b.reveal.is_some()) => {
                 app.tick_reveal(REVEAL_TICK);
+                let rate = app.reveal_rate;
+                if let Some(battle) = &mut app.battle {
+                    battle.tick_reveal(REVEAL_TICK, rate);
+                }
             }
             maybe_event = event_stream.next() => {
                 if !handle_terminal_events(app, &mut event_stream, maybe_event).await {

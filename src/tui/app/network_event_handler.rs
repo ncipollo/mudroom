@@ -133,6 +133,7 @@ impl App {
         snapshot: BattleSnapshot,
         messages: Vec<BattleMessage>,
     ) {
+        let theme = self.theme;
         let Some(battle) = &mut self.battle else {
             return;
         };
@@ -148,6 +149,6 @@ impl App {
         battle.snapshot.countdown_secs = snapshot.countdown_secs;
         battle.snapshot.max_turn_secs = snapshot.max_turn_secs;
         battle.snapshot.available_abilities = snapshot.available_abilities;
-        battle.message_log.extend(messages);
+        battle.push_messages(messages, &theme);
     }
 }
