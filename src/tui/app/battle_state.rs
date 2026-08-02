@@ -5,7 +5,7 @@ pub use log_entry::BattleLogEntry;
 
 use std::collections::VecDeque;
 
-use crate::game::component::{Ability, AbilityRole, AbilityTargetType};
+use crate::game::component::{Ability, AbilityRole, AbilityTargetType, Description};
 use crate::game::engagement::battle::BattlePhase;
 use crate::network::event::{BattleSnapshot, ParticipantInfo};
 use crate::tui::components::scroll::ScrollState;
@@ -89,7 +89,7 @@ impl BattleState {
             vec![Ability {
                 id: "skip".to_string(),
                 name: "Skip".to_string(),
-                description: None,
+                description: Description::default(),
                 effects: vec![],
                 engagement_types: vec![],
                 costs: vec![],

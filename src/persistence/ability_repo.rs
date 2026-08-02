@@ -1,5 +1,6 @@
 use sqlx::SqlitePool;
 
+use crate::game::component::description::Description;
 use crate::game::component::{Ability, AbilityRole, AbilityTargetType};
 use crate::persistence::error::PersistenceError;
 
@@ -41,7 +42,7 @@ pub async fn upsert(pool: &SqlitePool, ability: &Ability) -> Result<(), Persiste
     )
     .bind(&ability.id)
     .bind(&ability.name)
-    .bind(&ability.description)
+    .bind(&ability.description.text)
     .bind(&effects_json)
     .bind(&costs_json)
     .bind(&modifiers_json)
@@ -108,7 +109,7 @@ pub async fn find_by_entity(
                 Ability {
                     id,
                     name,
-                    description,
+                    description: Description::new(description),
                     effects,
                     costs,
                     modifiers,
@@ -164,7 +165,7 @@ mod tests {
         Effect, EffectDescription, EffectScope, EffectType, TriggerInfo,
     };
     use crate::game::engagement::EngagementType;
-    use crate::game::{Description, Dungeon, Entity, EntityType, Location, Room, World};
+    use crate::game::{Dungeon, Entity, EntityType, Location, Room, World};
     use crate::persistence::database::Database;
     use crate::persistence::{dungeon_repo, entity_repo, room_repo, world_repo};
 
@@ -190,7 +191,7 @@ mod tests {
         Ability {
             id: "attack".to_string(),
             name: "Attack".to_string(),
-            description: Some("A basic attack.".to_string()),
+            description: Description::new(Some("A basic attack.".to_string())),
             effects: vec![Effect {
                 name: "damage".to_string(),
                 effect_type: EffectType::AttributeUpdate {
@@ -214,7 +215,7 @@ mod tests {
         Ability {
             id: "defend".to_string(),
             name: "Defend".to_string(),
-            description: None,
+            description: Description::default(),
             effects: vec![],
             costs: vec![],
             modifiers: vec![],

@@ -165,7 +165,7 @@ mod tests {
 
         let found = find_by_id(db.pool(), "d1", "r1").await.unwrap().unwrap();
         assert_eq!(found.id, "r1");
-        assert_eq!(found.description.standard.as_deref(), Some("A room."));
+        assert_eq!(found.description.text.as_deref(), Some("A room."));
     }
 
     #[tokio::test]

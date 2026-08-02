@@ -1,5 +1,6 @@
 use sqlx::SqlitePool;
 
+use crate::game::component::description::Description;
 use crate::game::component::resource_definition::{ResourceDefinition, ResourceLifespan};
 use crate::persistence::error::PersistenceError;
 
@@ -14,7 +15,7 @@ pub async fn upsert_definition(
     )
     .bind(&def.id)
     .bind(&def.name)
-    .bind(&def.description)
+    .bind(def.description.text.clone().unwrap_or_default())
     .bind(def.min_value)
     .bind(def.max_value)
     .bind(&lifespan)
@@ -44,7 +45,7 @@ pub async fn find_all_definitions(
                 ResourceDefinition {
                     id,
                     name,
-                    description,
+                    description: Description::new(Some(description)),
                     min_value,
                     max_value,
                     lifespan,
@@ -88,7 +89,7 @@ pub async fn find_by_entity(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::{Description, Dungeon, Entity, EntityType, Location, Room, World};
+    use crate::game::{Dungeon, Entity, EntityType, Location, Room, World};
     use crate::persistence::database::Database;
     use crate::persistence::{dungeon_repo, entity_repo, room_repo, world_repo};
 
@@ -114,7 +115,7 @@ mod tests {
         ResourceDefinition {
             id: "mp".to_string(),
             name: "Mana Points".to_string(),
-            description: "Magical energy.".to_string(),
+            description: Description::new(Some("Magical energy.".to_string())),
             min_value: 0,
             max_value: 999,
             lifespan: ResourceLifespan::Perpetual,

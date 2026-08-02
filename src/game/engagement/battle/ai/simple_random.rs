@@ -40,6 +40,7 @@ mod tests {
     use super::*;
     use crate::game::component::Ability;
     use crate::game::component::AbilityRole;
+    use crate::game::component::Description;
     use crate::game::component::Location;
     use crate::game::component::effect::{
         Effect, EffectDescription, EffectScope, EffectType, TriggerInfo,
@@ -59,7 +60,7 @@ mod tests {
         Ability {
             id: id.to_string(),
             name: id.to_string(),
-            description: None,
+            description: Description::default(),
             effects: vec![Effect {
                 name: "dmg".to_string(),
                 effect_type: EffectType::AttributeUpdate {

@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crate::game::component::description::Description;
 use crate::game::entity::EntityType;
 use crate::game::player::Player;
 use crate::game::{GameState, messaging};
@@ -13,7 +14,7 @@ pub async fn process(game_state: &Arc<GameState>, db: &Database, player: &Player
             Some(e) => e.location.clone(),
             None => return,
         };
-        let descriptions: Vec<(EntityType, Option<String>)> = entities
+        let descriptions: Vec<(EntityType, Description)> = entities
             .values()
             .filter(|e| e.id != player.entity_id && e.location == location)
             .map(|e| (e.entity_type.clone(), e.description.clone()))
@@ -29,6 +30,7 @@ pub async fn process(game_state: &Arc<GameState>, db: &Database, player: &Player
 
     for (entity_type, description) in entity_descriptions {
         let content = description
+            .text
             .unwrap_or_else(|| format!("A {} is here.", entity_type_label(&entity_type)));
         messaging::message(&game_state.message_tx, player.id, content);
     }

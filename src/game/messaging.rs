@@ -144,7 +144,7 @@ pub fn message_room_description(
 ) {
     let content = room
         .description
-        .standard
+        .text
         .as_deref()
         .unwrap_or("You look around but see nothing remarkable.")
         .to_string();

@@ -93,7 +93,7 @@ mod tests {
     use crate::game::component::effect::{
         Effect, EffectDescription, EffectScope, EffectType, TriggerInfo,
     };
-    use crate::game::component::{Ability, AbilityRole, AbilityTargetType, Location};
+    use crate::game::component::{Ability, AbilityRole, AbilityTargetType, Description, Location};
     use crate::game::config::BattleAiConfig;
     use crate::game::engagement::EngagementType;
     use crate::game::entity::{Entity, EntityType};
@@ -112,7 +112,7 @@ mod tests {
         Ability {
             id: id.to_string(),
             name: id.to_string(),
-            description: None,
+            description: Description::default(),
             effects: vec![Effect {
                 name: "dmg".to_string(),
                 effect_type: EffectType::AttributeUpdate {

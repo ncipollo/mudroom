@@ -1,3 +1,4 @@
+use crate::game::component::description::Description;
 use crate::game::component::effect::Effect;
 use crate::game::engagement::EngagementType;
 use serde::{Deserialize, Serialize};
@@ -50,7 +51,7 @@ pub struct Ability {
     #[serde(default)]
     pub id: String,
     pub name: String,
-    pub description: Option<String>,
+    pub description: Description,
     pub effects: Vec<Effect>,
     pub engagement_types: Vec<EngagementType>,
     pub costs: Vec<Cost>,
@@ -126,7 +127,7 @@ mod tests {
         let ability = Ability {
             id: "attack".to_string(),
             name: "Attack".to_string(),
-            description: Some("A basic physical attack.".to_string()),
+            description: Description::new(Some("A basic physical attack.".to_string())),
             effects: vec![attack_effect()],
             engagement_types: vec![EngagementType::Battle],
             costs: vec![Cost::Resource {
@@ -148,7 +149,7 @@ mod tests {
         let ability = Ability {
             id: "attack".to_string(),
             name: "Attack".to_string(),
-            description: Some("A strength-scaled attack.".to_string()),
+            description: Description::new(Some("A strength-scaled attack.".to_string())),
             effects: vec![attack_effect()],
             engagement_types: vec![EngagementType::Battle],
             costs: vec![Cost::Resource {
@@ -179,7 +180,7 @@ mod tests {
         let ability = Ability {
             id: "heal".to_string(),
             name: "Heal".to_string(),
-            description: None,
+            description: Description::default(),
             effects: vec![Effect {
                 name: "heal_hp".to_string(),
                 effect_type: EffectType::AttributeUpdate {
@@ -239,7 +240,7 @@ mod tests {
         let ability = Ability {
             id: "attack".to_string(),
             name: "Attack".to_string(),
-            description: None,
+            description: Description::default(),
             effects: vec![attack_effect()],
             engagement_types: vec![],
             costs: vec![],
@@ -272,7 +273,7 @@ mod tests {
         let ability = Ability {
             id: "swing_ax".to_string(),
             name: "Swing Ax".to_string(),
-            description: None,
+            description: Description::default(),
             effects: vec![attack_effect()],
             engagement_types: vec![EngagementType::Battle],
             costs: vec![],

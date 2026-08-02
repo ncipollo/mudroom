@@ -1,4 +1,5 @@
 use crate::game::component::FactionRelations;
+use crate::game::component::description::Description;
 use crate::game::component::effect::Effect;
 use crate::game::config::ability_config::AbilityReference;
 use crate::game::config::battle_ai_config::BattleAiConfig;
@@ -70,7 +71,7 @@ pub struct EntityConfig {
     pub name: Option<String>,
     pub entity_type: EntityTypeConfig,
     #[serde(default)]
-    pub description: Option<String>,
+    pub description: Description,
     pub persona: Option<PersonaConfig>,
     #[serde(default)]
     pub attributes: Vec<StartingAttribute>,

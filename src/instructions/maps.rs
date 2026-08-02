@@ -42,10 +42,10 @@ fn room_fields() -> String {
                  must match a corresponding file under entities/ (without the
                  .toml extension).
   - [description]
-      standard  — the room's prose description, shown to players.
-      checked   — optional list of conditional descriptions, each gated by an
-                  attribute check (attribute_id + expected_value). Rarely needed
-                  for basic authoring; defaults to an empty list.
+      text   — the room's prose description, shown to players.
+      theme  — optional theme id used by the theming pipeline to style the
+               narration. Rarely needed for basic authoring; defaults to the
+               standard theme when omitted.
   - [north] / [south] / [east] / [west]
       room_id   — the id of the room this exit leads to, another room .toml
                   filename (or its `name` override) in the same
@@ -61,7 +61,7 @@ fn examples() -> String {
   entities = ["entities/innkeeper"]
 
   [description]
-  standard = "A warm tavern with a crackling fireplace. The town square is to
+  text = "A warm tavern with a crackling fireplace. The town square is to
   the south. A dim corner lies to the east."
 
   [south]
@@ -73,7 +73,7 @@ fn examples() -> String {
 Example room — crossroads (muds/basic/maps/default/default/default.toml):
 
   [description]
-  standard = "You stand at the crossroads of a small town. A tavern lies to the
+  text = "You stand at the crossroads of a small town. A tavern lies to the
   north. A dark corridor leads to the east."
 
   [north]
@@ -112,7 +112,7 @@ mod tests {
         let text = render();
         assert!(text.contains("entities"));
         assert!(text.contains("[description]"));
-        assert!(text.contains("standard"));
+        assert!(text.contains("text"));
         assert!(text.contains("[north]"));
         assert!(text.contains("[south]"));
         assert!(text.contains("[east]"));

@@ -1,7 +1,7 @@
 entities = ["entities/mysterious_man"]
 
 [description]
-standard = "A dim corner of the tavern, away from the fire. A hooded figure sits alone at a small table, watching the room with unseen eyes."
+text = "A dim corner of the tavern, away from the fire. A hooded figure sits alone at a small table, watching the room with unseen eyes."
 
 [west]
 room_id = "tavern"

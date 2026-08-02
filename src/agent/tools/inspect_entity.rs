@@ -69,6 +69,7 @@ impl Tool for InspectEntity {
             }
             if let Some(ref name) = args.name
                 && e.description
+                    .text
                     .as_deref()
                     .unwrap_or("")
                     .to_lowercase()
@@ -82,7 +83,7 @@ impl Tool for InspectEntity {
         match target {
             Some(entity) => Ok(json!({
                 "entity_id": entity.id,
-                "description": entity.description.as_deref().unwrap_or("unknown"),
+                "description": entity.description.text.as_deref().unwrap_or("unknown"),
                 "location": {
                     "world_id": entity.location.world_id,
                     "dungeon_id": entity.location.dungeon_id,
@@ -100,6 +101,7 @@ mod tests {
 
     use crate::agent::tools::inspect_entity::{InspectArgs, InspectEntity};
     use crate::game::Location;
+    use crate::game::component::description::Description;
     use crate::game::entity::{Entity, EntityType};
     use crate::game::game_state::GameState;
     use rig::tool::Tool;
@@ -127,7 +129,7 @@ mod tests {
     async fn finds_entity_by_id() {
         let npc = Entity::new(1, EntityType::Character, room_location());
         let mut player = Entity::new(2, EntityType::Character, room_location());
-        player.description = Some("the player".to_string());
+        player.description = Description::new(Some("the player".to_string()));
         let state = state_with_entities(vec![npc, player]).await;
 
         let tool = InspectEntity {
@@ -150,7 +152,7 @@ mod tests {
     async fn finds_entity_by_name() {
         let npc = Entity::new(1, EntityType::Character, room_location());
         let mut player = Entity::new(2, EntityType::Character, room_location());
-        player.description = Some("grizzled merchant".to_string());
+        player.description = Description::new(Some("grizzled merchant".to_string()));
         let state = state_with_entities(vec![npc, player]).await;
 
         let tool = InspectEntity {
@@ -173,7 +175,7 @@ mod tests {
         let npc = Entity::new(1, EntityType::Character, room_location());
         let mut other = Entity::new(2, EntityType::Character, room_location());
         other.location.room_id = "other_room".to_string();
-        other.description = Some("stranger".to_string());
+        other.description = Description::new(Some("stranger".to_string()));
         let state = state_with_entities(vec![npc, other]).await;
 
         let tool = InspectEntity {

@@ -2,6 +2,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
+use crate::game::component::description::Description;
 use crate::game::component::resource_definition::{ResourceDefinition, ResourceLifespan};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -22,8 +23,9 @@ impl ResourceConfig {
                 ResourceDefinition {
                     id: "action_points".to_string(),
                     name: "Action Points".to_string(),
-                    description: "Points spent to perform actions during an engagement."
-                        .to_string(),
+                    description: Description::new(Some(
+                        "Points spent to perform actions during an engagement.".to_string(),
+                    )),
                     min_value: 0,
                     max_value: 100,
                     lifespan: ResourceLifespan::Engagement,
@@ -31,7 +33,9 @@ impl ResourceConfig {
                 ResourceDefinition {
                     id: "gold".to_string(),
                     name: "Gold".to_string(),
-                    description: "Currency used for trading and purchasing items.".to_string(),
+                    description: Description::new(Some(
+                        "Currency used for trading and purchasing items.".to_string(),
+                    )),
                     min_value: 0,
                     max_value: i64::MAX,
                     lifespan: ResourceLifespan::Perpetual,

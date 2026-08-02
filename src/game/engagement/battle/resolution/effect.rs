@@ -108,6 +108,7 @@ mod tests {
     use crate::game::component::Ability;
     use crate::game::component::AbilityRole;
     use crate::game::component::Attribute;
+    use crate::game::component::Description;
     use crate::game::component::Location;
     use crate::game::component::effect::{EffectDescription, EffectScope};
     use crate::game::engagement::EngagementType;
@@ -155,7 +156,7 @@ mod tests {
         Ability {
             id: "attack".to_string(),
             name: "Attack".to_string(),
-            description: None,
+            description: Description::default(),
             effects: vec![damage_effect(damage)],
             engagement_types: vec![EngagementType::Battle],
             costs: vec![],

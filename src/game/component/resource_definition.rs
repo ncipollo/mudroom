@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::game::component::description::Description;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ResourceLifespan {
@@ -11,7 +13,7 @@ pub enum ResourceLifespan {
 pub struct ResourceDefinition {
     pub id: String,
     pub name: String,
-    pub description: String,
+    pub description: Description,
     pub min_value: i64,
     pub max_value: i64,
     pub lifespan: ResourceLifespan,
@@ -38,7 +40,7 @@ mod tests {
         let def = ResourceDefinition {
             id: "mp".to_string(),
             name: "Mana Points".to_string(),
-            description: "Magical energy for spells.".to_string(),
+            description: Description::new(Some("Magical energy for spells.".to_string())),
             min_value: 0,
             max_value: 999,
             lifespan: ResourceLifespan::Perpetual,

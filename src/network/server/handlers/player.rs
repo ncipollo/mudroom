@@ -31,7 +31,7 @@ pub async fn player_classes_handler(State(state): State<Arc<AppState>>) -> Json<
         .map(|(id, c)| ClassInfo {
             id: id.clone(),
             name: c.name.clone(),
-            description: c.description.clone(),
+            description: c.description.text.clone(),
         })
         .collect();
     Json(ClassListResponse { classes })
