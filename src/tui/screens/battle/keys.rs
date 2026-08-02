@@ -20,8 +20,6 @@ pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
         }
         (_, KeyCode::Enter) => handle_ability_selected(app).await,
         (_, KeyCode::Esc) => handle_leave_battle(app).await,
-        (_, KeyCode::PageUp) => handle_page_up(app),
-        (_, KeyCode::PageDown) => handle_page_down(app),
         _ => {}
     }
 }
@@ -156,32 +154,4 @@ async fn handle_leave_battle(app: &mut App) {
     }
     app.battle = None;
     app.mode = GameMode::Game;
-}
-
-fn handle_page_up(app: &mut App) {
-    if app
-        .battle
-        .as_ref()
-        .is_some_and(|b| b.focus == BattleFocus::EntityList)
-    {
-        if let Some(battle) = &mut app.battle {
-            battle.entity_scroll = battle.entity_scroll.saturating_sub(1);
-        }
-    } else {
-        app.scroll_up();
-    }
-}
-
-fn handle_page_down(app: &mut App) {
-    if app
-        .battle
-        .as_ref()
-        .is_some_and(|b| b.focus == BattleFocus::EntityList)
-    {
-        if let Some(battle) = &mut app.battle {
-            battle.entity_scroll += 1;
-        }
-    } else {
-        app.scroll_down();
-    }
 }

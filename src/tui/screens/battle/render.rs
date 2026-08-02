@@ -3,15 +3,17 @@ use ratatui::{
     layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span, Text},
-    widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap},
+    widgets::{Block, Borders, Clear, List, ListItem, Paragraph},
 };
 
 use crate::game::engagement::battle::{BattleMessage, BattlePhase};
 use crate::network::event::ParticipantInfo;
 use crate::tui::app::{App, BattleFocus, BattleState};
+use crate::tui::components::scroll;
 
-pub fn render(frame: &mut Frame, app: &App) {
-    let Some(battle) = &app.battle else {
+pub fn render(frame: &mut Frame, app: &mut App) {
+    let current_entity_id = app.current_entity_id;
+    let Some(battle) = &mut app.battle else {
         return;
     };
 
@@ -23,7 +25,7 @@ pub fn render(frame: &mut Frame, app: &App) {
     .split(frame.area());
 
     render_combatants_panel(frame, battle, areas[0]);
-    render_middle_row(frame, app, battle, areas[1]);
+    render_middle_row(frame, current_entity_id, battle, areas[1]);
     render_status_bar(frame, battle, areas[2]);
 
     if battle.dialog.is_some() {
@@ -31,7 +33,7 @@ pub fn render(frame: &mut Frame, app: &App) {
     }
 }
 
-fn render_combatants_panel(frame: &mut Frame, battle: &BattleState, area: Rect) {
+fn render_combatants_panel(frame: &mut Frame, battle: &mut BattleState, area: Rect) {
     let is_focused = battle.focus == BattleFocus::EntityList;
     let border_style = if is_focused {
         Style::default().fg(Color::Yellow)
@@ -53,14 +55,7 @@ fn render_combatants_panel(frame: &mut Frame, battle: &BattleState, area: Rect) 
     ])
     .split(inner);
 
-    let scroll_y = battle.entity_scroll as u16;
-
     let left_lines = faction_lines(battle, battle.snapshot.factions.first().map(String::as_str));
-    let left = Paragraph::new(Text::from(left_lines)).scroll((scroll_y, 0));
-    frame.render_widget(left, cols[0]);
-
-    frame.render_widget(Block::default().borders(Borders::LEFT), cols[1]);
-
     let right_lines: Vec<Line> = battle
         .snapshot
         .factions
@@ -68,6 +63,18 @@ fn render_combatants_panel(frame: &mut Frame, battle: &BattleState, area: Rect) 
         .skip(1)
         .flat_map(|f| faction_lines(battle, Some(f.as_str())))
         .collect();
+
+    let max_rows = left_lines.len().max(right_lines.len());
+    battle.entity_scroll = battle
+        .entity_scroll
+        .min(max_rows.saturating_sub(inner.height as usize));
+    let scroll_y = battle.entity_scroll as u16;
+
+    let left = Paragraph::new(Text::from(left_lines)).scroll((scroll_y, 0));
+    frame.render_widget(left, cols[0]);
+
+    frame.render_widget(Block::default().borders(Borders::LEFT), cols[1]);
+
     let right = Paragraph::new(Text::from(right_lines)).scroll((scroll_y, 0));
     frame.render_widget(right, cols[2]);
 }
@@ -111,11 +118,16 @@ fn participant_line(p: &ParticipantInfo) -> Line<'static> {
     ])
 }
 
-fn render_middle_row(frame: &mut Frame, app: &App, battle: &BattleState, area: Rect) {
+fn render_middle_row(
+    frame: &mut Frame,
+    current_entity_id: Option<i64>,
+    battle: &mut BattleState,
+    area: Rect,
+) {
     let cols = Layout::horizontal([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)]).split(area);
 
     render_abilities_panel(frame, battle, cols[0]);
-    render_message_log(frame, app, battle, cols[1]);
+    render_message_log(frame, current_entity_id, battle, cols[1]);
 }
 
 fn render_abilities_panel(frame: &mut Frame, battle: &BattleState, area: Rect) {
@@ -198,9 +210,12 @@ fn render_abilities_panel(frame: &mut Frame, battle: &BattleState, area: Rect) {
     frame.render_widget(list, area);
 }
 
-fn render_message_log(frame: &mut Frame, app: &App, battle: &BattleState, area: Rect) {
-    let panel_height = area.height.saturating_sub(2) as usize;
-
+fn render_message_log(
+    frame: &mut Frame,
+    current_entity_id: Option<i64>,
+    battle: &mut BattleState,
+    area: Rect,
+) {
     let msgs = &battle.message_log;
     let mut all_lines: Vec<Line> = Vec::with_capacity(msgs.len());
     let mut i = 0;
@@ -210,23 +225,21 @@ fn render_message_log(frame: &mut Frame, app: &App, battle: &BattleState, area: 
             while i < msgs.len() && matches!(msgs[i], BattleMessage::PendingAttack { .. }) {
                 i += 1;
             }
-            all_lines.extend(render_pending_group(&msgs[start..i], app.current_entity_id));
+            all_lines.extend(render_pending_group(&msgs[start..i], current_entity_id));
         } else {
             all_lines.push(battle_message_to_line(&msgs[i]));
             i += 1;
         }
     }
 
-    let total_lines = all_lines.len();
-    let max_offset = total_lines.saturating_sub(panel_height);
-    let effective_offset = app.scroll_offset.min(max_offset);
-    let scroll_from_top = max_offset.saturating_sub(effective_offset) as u16;
-
-    let log = Paragraph::new(Text::from(all_lines))
-        .block(Block::default().title("Battle Log").borders(Borders::ALL))
-        .wrap(Wrap { trim: false })
-        .scroll((scroll_from_top, 0));
-    frame.render_widget(log, area);
+    scroll::render_scrolled_lines(
+        frame,
+        all_lines,
+        &mut battle.log_scroll,
+        Block::default().title("Battle Log").borders(Borders::ALL),
+        area,
+        false,
+    );
 }
 
 fn render_pending_group(
