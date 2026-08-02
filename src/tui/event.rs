@@ -100,15 +100,7 @@ async fn handle_terminal_event(
 ) -> bool {
     match maybe_event {
         Some(Ok(Event::Key(key))) => {
-            // Scroll keys are handled before the reveal skip so the log can be
-            // scrolled while a typewriter reveal is in progress.
             if handle_scroll_key(app, key.modifiers, key.code) {
-                return true;
-            }
-            let is_quit_shortcut =
-                key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c');
-            if app.reveal.is_some() && !is_quit_shortcut {
-                app.skip_reveal();
                 return true;
             }
             match app.mode {

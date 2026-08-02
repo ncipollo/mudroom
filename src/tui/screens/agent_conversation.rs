@@ -36,6 +36,7 @@ pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
             app.input.pop();
         }
         (_, KeyCode::Enter) => {
+            app.skip_all_reveals();
             let input: String = app.input.drain(..).collect();
             if input.trim() == "/exit" {
                 if let (Some(url), Some(client_id)) = (

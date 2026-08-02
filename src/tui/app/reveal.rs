@@ -57,6 +57,14 @@ impl App {
         self.advance_reveal_queue();
     }
 
+    /// Completes the active reveal and every queued reveal immediately,
+    /// leaving all messages fully visible. Used when the player submits
+    /// input: the log snaps to its final state before the new command.
+    pub fn skip_all_reveals(&mut self) {
+        self.reveal = None;
+        self.reveal_queue.clear();
+    }
+
     fn advance_reveal_queue(&mut self) {
         while let Some(next_index) = self.reveal_queue.pop_front() {
             let is_narration = self
@@ -201,6 +209,18 @@ mod tests {
 
         app.tick_reveal(Duration::from_secs(1));
         assert!(app.reveal.is_none());
+    }
+
+    #[test]
+    fn skip_all_reveals_clears_current_and_queue() {
+        let mut app = app_with_narration_messages(&["you move north.", "a warm tavern."]);
+        app.start_reveal(0);
+        app.start_reveal(1);
+
+        app.skip_all_reveals();
+
+        assert!(app.reveal.is_none());
+        assert!(app.reveal_queue.is_empty());
     }
 
     #[test]

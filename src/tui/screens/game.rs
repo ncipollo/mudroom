@@ -26,7 +26,11 @@ pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
             app.input.pop();
         }
         (_, KeyCode::Enter) => {
+            app.skip_all_reveals();
             let input: String = app.input.drain(..).collect();
+            if input.is_empty() {
+                return;
+            }
             dispatch_command(app, &input).await;
             app.messages.push(AppMessage::command(input, &app.theme));
             app.log_scroll.pin_to_bottom();

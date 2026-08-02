@@ -19,6 +19,7 @@ pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
         (_, KeyCode::Up) => app.conversation.select_prev(),
         (_, KeyCode::Down) => app.conversation.select_next(),
         (_, KeyCode::Enter) => {
+            app.skip_all_reveals();
             if let Some(choice) = app.conversation.selected_choice()
                 && let (Some(url), Some(client_id)) = (
                     app.connection.server_url.as_deref(),
