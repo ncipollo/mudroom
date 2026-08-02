@@ -8,8 +8,10 @@ use ratatui::{
 
 use crate::game::engagement::battle::{BattleMessage, BattlePhase};
 use crate::network::event::ParticipantInfo;
-use crate::tui::app::{App, BattleFocus, BattleState};
+use crate::tui::app::{App, BattleFocus, BattleLogEntry, BattleState};
 use crate::tui::components::scroll;
+use crate::tui::components::theme::{BattleKind, MessageTheme, StyleKey};
+use crate::tui::components::typewriter;
 
 pub fn render(frame: &mut Frame, app: &mut App) {
     let current_entity_id = app.current_entity_id;
@@ -216,18 +218,28 @@ fn render_message_log(
     battle: &mut BattleState,
     area: Rect,
 ) {
-    let msgs = &battle.message_log;
-    let mut all_lines: Vec<Line> = Vec::with_capacity(msgs.len());
+    let mut all_lines: Vec<Line> = Vec::with_capacity(battle.message_log.len());
     let mut i = 0;
-    while i < msgs.len() {
-        if matches!(msgs[i], BattleMessage::PendingAttack { .. }) {
+    while i < battle.message_log.len() {
+        if matches!(
+            battle.message_log[i].message,
+            BattleMessage::PendingAttack { .. }
+        ) {
             let start = i;
-            while i < msgs.len() && matches!(msgs[i], BattleMessage::PendingAttack { .. }) {
+            while i < battle.message_log.len()
+                && matches!(
+                    battle.message_log[i].message,
+                    BattleMessage::PendingAttack { .. }
+                )
+            {
                 i += 1;
             }
-            all_lines.extend(render_pending_group(&msgs[start..i], current_entity_id));
+            all_lines.extend(render_pending_group(
+                &battle.message_log[start..i],
+                current_entity_id,
+            ));
         } else {
-            all_lines.push(battle_message_to_line(&msgs[i]));
+            all_lines.extend(revealed_lines(battle, i));
             i += 1;
         }
     }
@@ -242,74 +254,47 @@ fn render_message_log(
     );
 }
 
+/// Applies the battle's typewriter state to the message at `index`: full
+/// lines if already revealed, a truncated slice if it's currently being
+/// revealed, or nothing yet if it's still queued behind an earlier reveal.
+fn revealed_lines(battle: &BattleState, index: usize) -> Vec<Line<'static>> {
+    match &battle.reveal {
+        Some(state) if state.message_index == index => {
+            typewriter::truncate_lines(&battle.message_log[index].lines, state.revealed_chars)
+        }
+        _ if battle.reveal_queue.contains(&index) => Vec::new(),
+        _ => battle.message_log[index].lines.clone(),
+    }
+}
+
 fn render_pending_group(
-    messages: &[BattleMessage],
+    entries: &[BattleLogEntry],
     player_entity_id: Option<i64>,
-) -> Vec<Line<'_>> {
-    if messages.len() <= 1 {
-        return messages.iter().map(battle_message_to_line).collect();
+) -> Vec<Line<'static>> {
+    if entries.len() <= 1 {
+        return entries.iter().flat_map(|e| e.lines.clone()).collect();
     }
 
-    let (player_targeted, others): (Vec<_>, Vec<_>) = messages.iter().partition(|msg| {
-        if let BattleMessage::PendingAttack { target_id, .. } = msg {
+    let (player_targeted, others): (Vec<_>, Vec<_>) = entries.iter().partition(|entry| {
+        if let BattleMessage::PendingAttack { target_id, .. } = &entry.message {
             player_entity_id == Some(*target_id)
         } else {
             false
         }
     });
 
-    let mut lines: Vec<Line<'_>> = others.iter().map(|m| battle_message_to_line(m)).collect();
+    let mut lines: Vec<Line<'static>> = others.iter().flat_map(|e| e.lines.clone()).collect();
 
     if !player_targeted.is_empty() {
+        let theme = MessageTheme;
         lines.push(Line::from(Span::styled(
             "── Targeting you ──",
-            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            theme.resolve(StyleKey::Battle(BattleKind::TargetedDivider), None),
         )));
-        lines.extend(player_targeted.iter().map(|m| battle_message_to_line(m)));
+        lines.extend(player_targeted.iter().flat_map(|e| e.lines.clone()));
     }
 
     lines
-}
-
-fn battle_message_to_line(msg: &BattleMessage) -> Line<'_> {
-    match msg {
-        BattleMessage::PhaseChange { .. } => Line::from(Span::styled(
-            msg.to_string(),
-            Style::default()
-                .fg(Color::DarkGray)
-                .add_modifier(Modifier::ITALIC | Modifier::DIM),
-        )),
-        BattleMessage::AbilityCast { .. } => Line::from(Span::styled(
-            msg.to_string(),
-            Style::default()
-                .fg(Color::White)
-                .add_modifier(Modifier::BOLD),
-        )),
-        BattleMessage::EntityDied { .. } => Line::from(Span::styled(
-            msg.to_string(),
-            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
-        )),
-        BattleMessage::PendingAttack { .. } => Line::from(Span::styled(
-            msg.to_string(),
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::ITALIC),
-        )),
-        BattleMessage::Meta(_) => Line::from(Span::styled(
-            msg.to_string(),
-            Style::default().fg(Color::White),
-        )),
-        BattleMessage::EffectText(text) => Line::from(vec![
-            Span::raw("  "),
-            Span::styled(text.as_str(), Style::default().fg(Color::Gray)),
-        ]),
-        BattleMessage::EffectExpired { .. } => Line::from(Span::styled(
-            msg.to_string(),
-            Style::default()
-                .fg(Color::DarkGray)
-                .add_modifier(Modifier::ITALIC),
-        )),
-    }
 }
 
 fn render_status_bar(frame: &mut Frame, battle: &BattleState, area: Rect) {

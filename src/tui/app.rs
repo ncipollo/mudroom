@@ -4,7 +4,7 @@ mod message;
 mod network_event_handler;
 mod reveal;
 
-pub use battle_state::{BattleFocus, BattleState, QueuedAbilityInfo};
+pub use battle_state::{BattleFocus, BattleLogEntry, BattleState, QueuedAbilityInfo};
 pub use conversation_state::ConversationState;
 pub use message::AppMessage;
 

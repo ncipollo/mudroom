@@ -1,7 +1,15 @@
+mod log_entry;
+mod reveal;
+
+pub use log_entry::BattleLogEntry;
+
+use std::collections::VecDeque;
+
 use crate::game::component::{Ability, AbilityRole, AbilityTargetType};
-use crate::game::engagement::battle::{BattleMessage, BattlePhase};
+use crate::game::engagement::battle::BattlePhase;
 use crate::network::event::{BattleSnapshot, ParticipantInfo};
 use crate::tui::components::scroll::ScrollState;
+use crate::tui::components::typewriter::TypewriterState;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum BattleFocus {
@@ -26,7 +34,7 @@ pub struct TargetDialog {
 pub struct BattleState {
     pub engagement_id: i64,
     pub snapshot: BattleSnapshot,
-    pub message_log: Vec<BattleMessage>,
+    pub message_log: Vec<BattleLogEntry>,
     pub log_scroll: ScrollState,
     pub selected_ability_index: usize,
     pub selected_entity_index: usize,
@@ -34,6 +42,8 @@ pub struct BattleState {
     pub focus: BattleFocus,
     pub dialog: Option<TargetDialog>,
     pub queued_ability: Option<QueuedAbilityInfo>,
+    pub reveal: Option<TypewriterState>,
+    pub reveal_queue: VecDeque<usize>,
 }
 
 impl BattleState {
@@ -49,6 +59,8 @@ impl BattleState {
             focus: BattleFocus::Abilities,
             dialog: None,
             queued_ability: None,
+            reveal: None,
+            reveal_queue: VecDeque::new(),
         }
     }
 

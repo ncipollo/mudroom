@@ -7,12 +7,6 @@ pub enum MessageKind {
     PlayerCommand,
     Narration,
     System,
-    /// Placeholder default for a single migrated battle message. Battle
-    /// currently has several distinct message variants (see
-    /// `battle_message_to_line` in `tui/screens/battle/render.rs`) that a
-    /// single coarse kind can't represent — that future migration should
-    /// lean on caller-supplied overrides rather than this default alone.
-    BattleEvent,
     Debug,
 }
 
@@ -24,9 +18,22 @@ pub enum Markup {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum BattleKind {
+    PhaseChange,
+    AbilityCast,
+    EntityDied,
+    PendingAttack,
+    Meta,
+    EffectText,
+    EffectExpired,
+    TargetedDivider,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StyleKey {
     Message(MessageKind),
     Markup(Markup),
+    Battle(BattleKind),
 }
 
 pub type StyleOverrides = HashMap<StyleKey, Style>;
@@ -47,6 +54,7 @@ fn default_style(key: StyleKey) -> Style {
     match key {
         StyleKey::Message(kind) => default_message_style(kind),
         StyleKey::Markup(markup) => default_markup_style(markup),
+        StyleKey::Battle(kind) => default_battle_style(kind),
     }
 }
 
@@ -55,7 +63,6 @@ fn default_message_style(kind: MessageKind) -> Style {
         MessageKind::PlayerCommand => Style::default().fg(Color::Cyan).add_modifier(Modifier::DIM),
         MessageKind::Narration => Style::default(),
         MessageKind::System => Style::default().fg(Color::Green),
-        MessageKind::BattleEvent => Style::default().fg(Color::White),
         MessageKind::Debug => Style::default().fg(Color::DarkGray),
     }
 }
@@ -67,6 +74,27 @@ fn default_markup_style(markup: Markup) -> Style {
         Markup::Highlight => Style::default()
             .fg(Color::Yellow)
             .add_modifier(Modifier::BOLD),
+    }
+}
+
+fn default_battle_style(kind: BattleKind) -> Style {
+    match kind {
+        BattleKind::PhaseChange => Style::default()
+            .fg(Color::DarkGray)
+            .add_modifier(Modifier::ITALIC | Modifier::DIM),
+        BattleKind::AbilityCast => Style::default()
+            .fg(Color::White)
+            .add_modifier(Modifier::BOLD),
+        BattleKind::EntityDied => Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+        BattleKind::PendingAttack => Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::ITALIC),
+        BattleKind::Meta => Style::default().fg(Color::White),
+        BattleKind::EffectText => Style::default().fg(Color::Gray),
+        BattleKind::EffectExpired => Style::default()
+            .fg(Color::DarkGray)
+            .add_modifier(Modifier::ITALIC),
+        BattleKind::TargetedDivider => Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
     }
 }
 
@@ -105,5 +133,27 @@ mod tests {
         let theme = MessageTheme;
         let style = theme.resolve(StyleKey::Markup(Markup::Bold), None);
         assert_eq!(style, Style::default().add_modifier(Modifier::BOLD));
+    }
+
+    #[test]
+    fn resolve_returns_default_for_battle_kind() {
+        let theme = MessageTheme;
+        let style = theme.resolve(StyleKey::Battle(BattleKind::EntityDied), None);
+        assert_eq!(
+            style,
+            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
+        );
+    }
+
+    #[test]
+    fn resolve_battle_kind_prefers_override() {
+        let theme = MessageTheme;
+        let mut overrides = StyleOverrides::new();
+        overrides.insert(
+            StyleKey::Battle(BattleKind::AbilityCast),
+            Style::default().fg(Color::Magenta),
+        );
+        let style = theme.resolve(StyleKey::Battle(BattleKind::AbilityCast), Some(&overrides));
+        assert_eq!(style, Style::default().fg(Color::Magenta));
     }
 }
