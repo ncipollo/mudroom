@@ -21,6 +21,8 @@ pub async fn run_client(
     // Track session info for cleanup on exit: (session, server_url, connection_key).
     let mut client_session_info: Option<(network::session::ClientSession, String, ConnectionKey)> =
         None;
+    let mut themes: std::collections::HashMap<String, network::event::ThemeInfo> =
+        std::collections::HashMap::new();
 
     if let Some(ref server_url) = url {
         paths::create_session_base_dirs().await?;
@@ -28,6 +30,13 @@ pub async fn run_client(
         // Fetch server identity without creating a session.
         let server_info = network::client::get_server_info(server_url).await?;
         let server_id = server_info.server_id;
+
+        // Fetch mud-authored theme definitions once for the session.
+        themes = network::client::list_themes(server_url)
+            .await?
+            .into_iter()
+            .map(|theme| (theme.id.clone(), theme))
+            .collect();
 
         // Reuse the saved machine UUID, or generate a fresh one.
         let saved_uuid = network::session::ClientSession::load(&server_id)
@@ -69,7 +78,12 @@ pub async fn run_client(
     }
 
     let mut app = if let Some((_, ref server_url, ref connection_key)) = client_session_info {
-        App::with_player_select(server_url.clone(), connection_key.to_string(), debug)
+        App::with_player_select(
+            server_url.clone(),
+            connection_key.to_string(),
+            debug,
+            themes,
+        )
     } else {
         App::new(debug)
     };

@@ -1,0 +1,10 @@
+[styles.bold]
+fg = "red"
+modifiers = ["bold"]
+
+[styles.emphasis]
+fg = "magenta"
+modifiers = ["italic"]
+
+[styles.highlight]
+fg = "cyan"

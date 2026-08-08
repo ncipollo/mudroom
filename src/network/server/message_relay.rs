@@ -26,11 +26,12 @@ pub fn spawn(
     tokio::spawn(async move {
         while let Ok(pm) = msg_rx.recv().await {
             let (player_id, network_event) = match pm.message {
-                Message::Complete(content) => (
+                Message::Complete { content, theme } => (
                     pm.player_id,
                     NetworkEvent::Message {
                         player_id: pm.player_id,
                         content,
+                        theme,
                     },
                 ),
                 Message::Streaming { chunk, state } => {

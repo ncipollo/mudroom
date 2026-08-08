@@ -51,7 +51,10 @@ use super::state::{
 };
 use std::sync::atomic::Ordering;
 
-use crate::network::event::{NetworkEvent, ServerInfoResponse, SessionStartResponse};
+use crate::network::event::{
+    NetworkEvent, ServerInfoResponse, SessionStartResponse, ThemeInfo, ThemeListResponse,
+    ThemeStyleInfo,
+};
 use crate::network::session::ConnectionKey;
 
 pub async fn server_info_handler(State(state): State<Arc<AppState>>) -> Json<ServerInfoResponse> {
@@ -59,6 +62,33 @@ pub async fn server_info_handler(State(state): State<Arc<AppState>>) -> Json<Ser
     Json(ServerInfoResponse {
         server_id: state.server_session.id.clone(),
     })
+}
+
+pub async fn theme_list_handler(State(state): State<Arc<AppState>>) -> Json<ThemeListResponse> {
+    info!("GET /themes/list");
+    let themes = state
+        .game_state
+        .themes
+        .values()
+        .map(|theme| ThemeInfo {
+            id: theme.id.clone().unwrap_or_default(),
+            styles: theme
+                .styles
+                .iter()
+                .map(|(key, style)| {
+                    (
+                        key.clone(),
+                        ThemeStyleInfo {
+                            fg: style.fg.clone(),
+                            bg: style.bg.clone(),
+                            modifiers: style.modifiers.clone(),
+                        },
+                    )
+                })
+                .collect(),
+        })
+        .collect();
+    Json(ThemeListResponse { themes })
 }
 
 pub async fn sse_handler(

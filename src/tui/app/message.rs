@@ -12,24 +12,39 @@ pub struct AppMessage {
 
 impl AppMessage {
     pub fn normal(text: impl Into<String>, theme: &MessageTheme) -> Self {
-        Self::with_kind(text, MessageKind::Narration, theme)
+        Self::with_kind(text, MessageKind::Narration, theme, None)
     }
 
     pub fn command(text: impl Into<String>, theme: &MessageTheme) -> Self {
-        Self::with_kind(text, MessageKind::PlayerCommand, theme)
+        Self::with_kind(text, MessageKind::PlayerCommand, theme, None)
     }
 
     pub fn system(text: impl Into<String>, theme: &MessageTheme) -> Self {
-        Self::with_kind(text, MessageKind::System, theme)
+        Self::with_kind(text, MessageKind::System, theme, None)
     }
 
     pub fn debug(text: impl Into<String>, theme: &MessageTheme) -> Self {
-        Self::with_kind(text, MessageKind::Debug, theme)
+        Self::with_kind(text, MessageKind::Debug, theme, None)
     }
 
-    fn with_kind(text: impl Into<String>, kind: MessageKind, theme: &MessageTheme) -> Self {
+    /// Builds a narration message with mud-authored style overrides applied, e.g. from a
+    /// description's resolved theme.
+    pub fn narration_themed(
+        text: impl Into<String>,
+        theme: &MessageTheme,
+        overrides: Option<&StyleOverrides>,
+    ) -> Self {
+        Self::with_kind(text, MessageKind::Narration, theme, overrides)
+    }
+
+    fn with_kind(
+        text: impl Into<String>,
+        kind: MessageKind,
+        theme: &MessageTheme,
+        overrides: Option<&StyleOverrides>,
+    ) -> Self {
         let text = text.into();
-        let lines = styled_lines(&text, kind, theme);
+        let lines = styled_lines(&text, kind, theme, overrides);
         Self { text, kind, lines }
     }
 
@@ -37,15 +52,21 @@ impl AppMessage {
     /// text, so a streamed SSE message stays correctly styled as it grows.
     pub fn append(&mut self, chunk: &str, theme: &MessageTheme) {
         self.text.push_str(chunk);
-        self.lines = styled_lines(&self.text, self.kind, theme);
+        self.lines = styled_lines(&self.text, self.kind, theme, None);
     }
 }
 
-fn styled_lines(text: &str, kind: MessageKind, theme: &MessageTheme) -> Vec<Line<'static>> {
-    let overrides = StyleOverrides::new();
+fn styled_lines(
+    text: &str,
+    kind: MessageKind,
+    theme: &MessageTheme,
+    overrides: Option<&StyleOverrides>,
+) -> Vec<Line<'static>> {
+    let empty = StyleOverrides::new();
+    let overrides = overrides.unwrap_or(&empty);
     let base_style = theme.resolve(StyleKey::Message(kind), None);
 
-    let lines = markup::parse(text, theme, &overrides)
+    let lines = markup::parse(text, theme, overrides)
         .into_iter()
         .map(|line| {
             let spans: Vec<Span<'static>> = line
@@ -71,7 +92,7 @@ fn prefix_command_line(mut line: Line<'static>) -> Line<'static> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ratatui::style::Modifier;
+    use ratatui::style::{Color, Modifier, Style};
 
     fn plain_text(lines: &[Line<'static>]) -> String {
         lines
@@ -106,6 +127,28 @@ mod tests {
         let msg = AppMessage::command("line one\nline two", &theme);
         assert_eq!(msg.lines.len(), 2);
         assert_eq!(plain_text(&msg.lines), "> line one\n> line two");
+    }
+
+    #[test]
+    fn narration_themed_applies_overrides() {
+        let theme = MessageTheme;
+        let mut overrides = StyleOverrides::new();
+        overrides.insert(
+            StyleKey::Markup(crate::tui::components::theme::Markup::Bold),
+            Style::default().fg(Color::Red),
+        );
+        let msg = AppMessage::narration_themed("**bold**", &theme, Some(&overrides));
+        assert_eq!(msg.lines[0].spans[0].style, Style::default().fg(Color::Red));
+    }
+
+    #[test]
+    fn narration_themed_with_no_overrides_matches_normal() {
+        let theme = MessageTheme;
+        let msg = AppMessage::narration_themed("**bold**", &theme, None);
+        assert_eq!(
+            msg.lines[0].spans[0].style,
+            Style::default().add_modifier(Modifier::BOLD)
+        );
     }
 
     #[test]

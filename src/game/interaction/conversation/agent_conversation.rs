@@ -99,7 +99,10 @@ impl<'a> AgentConversationStarter<'a> {
                 Err(e) => {
                     let _ = tx.send(PlayerMessage {
                         player_id,
-                        message: Message::Complete(format!("The NPC seems distracted. ({e})")),
+                        message: Message::Complete {
+                            content: format!("The NPC seems distracted. ({e})"),
+                            theme: None,
+                        },
                     });
                 }
             }

@@ -8,9 +8,9 @@ pub use battle_state::{BattleFocus, BattleLogEntry, BattleState, QueuedAbilityIn
 pub use conversation_state::ConversationState;
 pub use message::AppMessage;
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 
-use crate::network::event::{ClassInfo, PlayerInfo};
+use crate::network::event::{ClassInfo, PlayerInfo, ThemeInfo};
 use crate::tui::components::scroll::ScrollState;
 use crate::tui::components::theme::MessageTheme;
 use crate::tui::components::typewriter::{DEFAULT_REVEAL_RATE, TypewriterState};
@@ -65,6 +65,7 @@ pub struct App {
     pub reveal_rate: f64,
     pub debug: bool,
     pub theme: MessageTheme,
+    pub themes: HashMap<String, ThemeInfo>,
 }
 
 impl App {
@@ -92,10 +93,16 @@ impl App {
             reveal_rate: DEFAULT_REVEAL_RATE,
             debug,
             theme: MessageTheme,
+            themes: HashMap::new(),
         }
     }
 
-    pub fn with_player_select(server_url: String, client_id: String, debug: bool) -> Self {
+    pub fn with_player_select(
+        server_url: String,
+        client_id: String,
+        debug: bool,
+        themes: HashMap<String, ThemeInfo>,
+    ) -> Self {
         Self {
             should_quit: false,
             messages: Vec::<AppMessage>::new(),
@@ -118,6 +125,7 @@ impl App {
             reveal_rate: DEFAULT_REVEAL_RATE,
             debug,
             theme: MessageTheme,
+            themes,
         }
     }
 

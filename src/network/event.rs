@@ -41,6 +41,24 @@ pub struct ClassListResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ThemeStyleInfo {
+    pub fg: Option<String>,
+    pub bg: Option<String>,
+    pub modifiers: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ThemeInfo {
+    pub id: String,
+    pub styles: HashMap<String, ThemeStyleInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThemeListResponse {
+    pub themes: Vec<ThemeInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ParticipantInfo {
     pub id: i64,
     pub name: String,
@@ -79,6 +97,7 @@ pub enum NetworkEvent {
     Message {
         player_id: i64,
         content: String,
+        theme: Option<String>,
     },
     MessageChunk {
         player_id: i64,
@@ -144,6 +163,38 @@ mod tests {
         let json = serde_json::to_string(&event).unwrap();
         let decoded: NetworkEvent = serde_json::from_str(&json).unwrap();
         assert_eq!(event, decoded);
+    }
+
+    #[test]
+    fn round_trip_message_with_theme() {
+        let event = NetworkEvent::Message {
+            player_id: 1,
+            content: "A cold wind blows.".to_string(),
+            theme: Some("eerie".to_string()),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        let decoded: NetworkEvent = serde_json::from_str(&json).unwrap();
+        assert_eq!(event, decoded);
+    }
+
+    #[test]
+    fn round_trip_theme_info() {
+        let mut styles = HashMap::new();
+        styles.insert(
+            "bold".to_string(),
+            ThemeStyleInfo {
+                fg: Some("red".to_string()),
+                bg: None,
+                modifiers: vec!["bold".to_string()],
+            },
+        );
+        let theme = ThemeInfo {
+            id: "eerie".to_string(),
+            styles,
+        };
+        let json = serde_json::to_string(&theme).unwrap();
+        let decoded: ThemeInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(theme, decoded);
     }
 
     #[test]
