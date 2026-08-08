@@ -28,6 +28,14 @@ async fn apply_activation(
     reset_disconnect_state(game_state, entity_id, &client_id).await;
     reconcile_battle_state(game_state, &player).await;
 
+    // Queued directly into the mailbox (rather than left to the client to request over
+    // `/interactions`) because activation and this tick's interaction processing happen
+    // atomically here; a client-driven request could race the activation and 404 before
+    // `active_players` is populated.
+    game_state
+        .mailboxes
+        .push(entity_id, Interaction::Look)
+        .await;
     game_state
         .mailboxes
         .push(entity_id, Interaction::CheckRoomThreats { room_id })
@@ -306,5 +314,29 @@ mod tests {
         process(&game_state, &db).await;
 
         assert!(rx.try_recv().is_err(), "expected no messages");
+    }
+
+    #[tokio::test]
+    async fn activation_queues_look_before_check_room_threats() {
+        let game_state = Arc::new(GameState::load(None).unwrap());
+        let db = Database::connect_in_memory().await.unwrap();
+        let activation = test_activation("m:1");
+        game_state
+            .push_pending_activation(activation.entity, activation.player, "m:1".to_string())
+            .await;
+
+        process(&game_state, &db).await;
+
+        let queued = game_state.mailboxes.drain(1).await;
+        assert!(
+            matches!(queued.first(), Some(Interaction::Look)),
+            "expected Look to be queued first on activation, got {queued:?}"
+        );
+        assert!(
+            queued
+                .iter()
+                .any(|i| matches!(i, Interaction::CheckRoomThreats { .. })),
+            "expected CheckRoomThreats to still be queued, got {queued:?}"
+        );
     }
 }
