@@ -9,7 +9,7 @@ use tokio::sync::broadcast;
 use crate::game::component::Ability;
 use crate::game::config::{
     AttributeConfig, ClassConfig, EntityConfig, FactionConfig, MudConfig, ResourceConfig,
-    load_abilities, load_classes, load_entity_configs,
+    ThemeConfig, load_abilities, load_classes, load_entity_configs, load_themes,
 };
 use crate::game::engagement::Engagements;
 use crate::game::entity::Entity;
@@ -36,6 +36,7 @@ pub struct GameState {
     pub abilities: HashMap<String, Ability>,
     pub entity_configs: HashMap<String, EntityConfig>,
     pub classes: HashMap<String, ClassConfig>,
+    pub themes: HashMap<String, ThemeConfig>,
     pub active_entities: RwLock<HashMap<i64, Entity>>,
     pub active_dungeons: RwLock<HashSet<(String, String)>>,
     pub engagements: Engagements,
@@ -53,67 +54,35 @@ pub struct GameState {
 
 impl GameState {
     pub fn load(config_dir: Option<&Path>) -> Result<Self, Box<dyn std::error::Error>> {
-        let attribute_config = if let Some(dir) = config_dir {
-            let path = dir.join("attributes.toml");
-            if path.exists() {
-                AttributeConfig::load(&path)?
-            } else {
-                AttributeConfig::default_config()
-            }
-        } else {
-            AttributeConfig::default_config()
-        };
+        let attribute_config = load_file_config(
+            config_dir,
+            "attributes.toml",
+            AttributeConfig::load,
+            AttributeConfig::default_config,
+        )?;
+        let faction_config = load_file_config(
+            config_dir,
+            "factions.toml",
+            FactionConfig::load,
+            FactionConfig::default_config,
+        )?;
+        let resource_config = load_file_config(
+            config_dir,
+            "resources.toml",
+            ResourceConfig::load,
+            ResourceConfig::default_config,
+        )?;
+        let mud_config = load_file_config(
+            config_dir,
+            "mud.toml",
+            MudConfig::load,
+            MudConfig::default_config,
+        )?;
 
-        let faction_config = if let Some(dir) = config_dir {
-            let path = dir.join("factions.toml");
-            if path.exists() {
-                FactionConfig::load(&path)?
-            } else {
-                FactionConfig::default_config()
-            }
-        } else {
-            FactionConfig::default_config()
-        };
-
-        let resource_config = if let Some(dir) = config_dir {
-            let path = dir.join("resources.toml");
-            if path.exists() {
-                ResourceConfig::load(&path)?
-            } else {
-                ResourceConfig::default_config()
-            }
-        } else {
-            ResourceConfig::default_config()
-        };
-
-        let mud_config = if let Some(dir) = config_dir {
-            let path = dir.join("mud.toml");
-            if path.exists() {
-                MudConfig::load(&path)?
-            } else {
-                MudConfig::default_config()
-            }
-        } else {
-            MudConfig::default_config()
-        };
-
-        let entity_configs = if let Some(dir) = config_dir {
-            load_entity_configs(dir).unwrap_or_default()
-        } else {
-            HashMap::new()
-        };
-
-        let classes = if let Some(dir) = config_dir {
-            load_classes(dir).unwrap_or_default()
-        } else {
-            HashMap::new()
-        };
-
-        let abilities = if let Some(dir) = config_dir {
-            load_abilities(dir).unwrap_or_default()
-        } else {
-            HashMap::new()
-        };
+        let entity_configs = load_dir_config(config_dir, load_entity_configs);
+        let classes = load_dir_config(config_dir, load_classes);
+        let abilities = load_dir_config(config_dir, load_abilities);
+        let themes = load_dir_config(config_dir, load_themes);
 
         let (message_tx, _) = broadcast::channel::<PlayerMessage>(512);
 
@@ -127,6 +96,7 @@ impl GameState {
             abilities,
             entity_configs,
             classes,
+            themes,
             active_entities: RwLock::new(HashMap::new()),
             active_dungeons: RwLock::new(HashSet::new()),
             engagements: Engagements::new(),
@@ -179,6 +149,36 @@ impl GameState {
             .get(&entity_id)
             .unwrap_or(&0)
     }
+}
+
+/// Loads a single-file config from `config_dir/<filename>` when the dir and file both exist,
+/// falling back to `default` otherwise.
+fn load_file_config<T>(
+    config_dir: Option<&Path>,
+    filename: &str,
+    load: impl Fn(&Path) -> Result<T, Box<dyn std::error::Error>>,
+    default: impl Fn() -> T,
+) -> Result<T, Box<dyn std::error::Error>> {
+    let Some(dir) = config_dir else {
+        return Ok(default());
+    };
+    let path = dir.join(filename);
+    if path.exists() {
+        load(&path)
+    } else {
+        Ok(default())
+    }
+}
+
+/// Loads a directory-based config map via `load`, defaulting to an empty map when `config_dir`
+/// is absent or the load fails.
+fn load_dir_config<T>(
+    config_dir: Option<&Path>,
+    load: impl Fn(&Path) -> Result<HashMap<String, T>, Box<dyn std::error::Error>>,
+) -> HashMap<String, T> {
+    config_dir
+        .map(|dir| load(dir).unwrap_or_default())
+        .unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -290,6 +290,33 @@ description = "City guards."
         let state = GameState::load(Some(dir.path())).unwrap();
         assert_eq!(state.faction_config.factions.len(), 1);
         assert_eq!(state.faction_config.factions[0].id, "guard");
+    }
+
+    #[test]
+    fn load_without_config_dir_uses_empty_themes() {
+        let state = GameState::load(None).unwrap();
+        assert!(state.themes.is_empty());
+    }
+
+    #[test]
+    fn load_with_themes_dir_reads_files() {
+        let dir = TempDir::new().unwrap();
+        let themes_dir = dir.path().join("themes");
+        std::fs::create_dir_all(&themes_dir).unwrap();
+        let toml_path = themes_dir.join("eerie.toml");
+        let mut file = std::fs::File::create(&toml_path).unwrap();
+        file.write_all(
+            br#"
+[styles.bold]
+fg = "red"
+modifiers = ["bold"]
+"#,
+        )
+        .unwrap();
+
+        let state = GameState::load(Some(dir.path())).unwrap();
+        assert_eq!(state.themes.len(), 1);
+        assert!(state.themes.contains_key("eerie"));
     }
 
     #[tokio::test]

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use crate::game::component::description::Description;
+use crate::game::config::theme_config;
 use crate::game::entity::EntityType;
 use crate::game::player::Player;
 use crate::game::{GameState, messaging};
@@ -25,14 +26,18 @@ pub async fn process(game_state: &Arc<GameState>, db: &Database, player: &Player
     if let Ok(Some(room)) =
         room_repo::find_by_id(db.pool(), &location.dungeon_id, &location.room_id).await
     {
-        messaging::message_room_description(&game_state.message_tx, player.id, &room);
+        let theme =
+            theme_config::resolve_theme_id(&game_state.themes, room.description.theme.as_deref());
+        messaging::message_room_description(&game_state.message_tx, player.id, &room, theme);
     }
 
     for (entity_type, description) in entity_descriptions {
+        let theme =
+            theme_config::resolve_theme_id(&game_state.themes, description.theme.as_deref());
         let content = description
             .text
             .unwrap_or_else(|| format!("A {} is here.", entity_type_label(&entity_type)));
-        messaging::message(&game_state.message_tx, player.id, content);
+        messaging::message_themed(&game_state.message_tx, player.id, content, theme);
     }
 }
 

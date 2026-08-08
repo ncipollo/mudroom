@@ -1,7 +1,8 @@
 entities = ["entities/zombie", "entities/madman"]
 
 [description]
-text = "A dark, damp corridor. The stench of decay hangs in the air. Something shambles in the shadows."
+text = "A dark, damp corridor. The stench of decay hangs in the air. **Something** shambles in the shadows."
+theme = "eerie"
 
 [west]
 room_id = "default"

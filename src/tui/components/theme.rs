@@ -1,6 +1,9 @@
 use std::collections::HashMap;
+use std::str::FromStr;
 
 use ratatui::style::{Color, Modifier, Style};
+
+use crate::network::event::ThemeInfo;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MessageKind {
@@ -98,6 +101,70 @@ fn default_battle_style(kind: BattleKind) -> Style {
     }
 }
 
+fn markup_for_style_key(name: &str) -> Option<Markup> {
+    match name {
+        "bold" => Some(Markup::Bold),
+        "emphasis" => Some(Markup::Emphasis),
+        "highlight" => Some(Markup::Highlight),
+        _ => {
+            tracing::warn!(style_key = %name, "unknown theme style key, ignoring");
+            None
+        }
+    }
+}
+
+fn modifier_for_name(name: &str) -> Option<Modifier> {
+    match name {
+        "bold" => Some(Modifier::BOLD),
+        "dim" => Some(Modifier::DIM),
+        "italic" => Some(Modifier::ITALIC),
+        "underlined" => Some(Modifier::UNDERLINED),
+        "slow_blink" => Some(Modifier::SLOW_BLINK),
+        "rapid_blink" => Some(Modifier::RAPID_BLINK),
+        "reversed" => Some(Modifier::REVERSED),
+        "hidden" => Some(Modifier::HIDDEN),
+        "crossed_out" => Some(Modifier::CROSSED_OUT),
+        _ => {
+            tracing::warn!(modifier = %name, "unknown theme modifier, ignoring");
+            None
+        }
+    }
+}
+
+fn parse_color(name: &str) -> Option<Color> {
+    Color::from_str(name)
+        .inspect_err(|_| tracing::warn!(color = %name, "unable to parse theme color, ignoring"))
+        .ok()
+}
+
+/// Converts a mud-authored theme into the `StyleOverrides` map consumed by `markup::parse`.
+/// Unrecognized style keys, colors, or modifiers are warned about and skipped rather than
+/// failing the whole theme.
+pub fn style_overrides_from_theme(theme: &ThemeInfo) -> StyleOverrides {
+    let mut overrides = StyleOverrides::new();
+    for (key, style_info) in &theme.styles {
+        let Some(markup) = markup_for_style_key(key) else {
+            continue;
+        };
+        let mut style = Style::default();
+        if let Some(fg) = style_info.fg.as_deref().and_then(parse_color) {
+            style = style.fg(fg);
+        }
+        if let Some(bg) = style_info.bg.as_deref().and_then(parse_color) {
+            style = style.bg(bg);
+        }
+        for modifier in style_info
+            .modifiers
+            .iter()
+            .filter_map(|m| modifier_for_name(m))
+        {
+            style = style.add_modifier(modifier);
+        }
+        overrides.insert(StyleKey::Markup(markup), style);
+    }
+    overrides
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -155,5 +222,79 @@ mod tests {
         );
         let style = theme.resolve(StyleKey::Battle(BattleKind::AbilityCast), Some(&overrides));
         assert_eq!(style, Style::default().fg(Color::Magenta));
+    }
+
+    use crate::network::event::ThemeStyleInfo;
+
+    fn theme_info(styles: Vec<(&str, ThemeStyleInfo)>) -> ThemeInfo {
+        ThemeInfo {
+            id: "eerie".to_string(),
+            styles: styles
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v))
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn style_overrides_from_theme_maps_known_keys() {
+        let theme = theme_info(vec![(
+            "bold",
+            ThemeStyleInfo {
+                fg: Some("red".to_string()),
+                bg: None,
+                modifiers: vec!["bold".to_string()],
+            },
+        )]);
+        let overrides = style_overrides_from_theme(&theme);
+        let style = overrides.get(&StyleKey::Markup(Markup::Bold)).unwrap();
+        assert_eq!(
+            *style,
+            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
+        );
+    }
+
+    #[test]
+    fn style_overrides_from_theme_ignores_unknown_style_key() {
+        let theme = theme_info(vec![(
+            "not_a_real_key",
+            ThemeStyleInfo {
+                fg: Some("red".to_string()),
+                bg: None,
+                modifiers: vec![],
+            },
+        )]);
+        let overrides = style_overrides_from_theme(&theme);
+        assert!(overrides.is_empty());
+    }
+
+    #[test]
+    fn style_overrides_from_theme_ignores_bad_color_and_modifier() {
+        let theme = theme_info(vec![(
+            "highlight",
+            ThemeStyleInfo {
+                fg: Some("not_a_color".to_string()),
+                bg: None,
+                modifiers: vec!["not_a_modifier".to_string()],
+            },
+        )]);
+        let overrides = style_overrides_from_theme(&theme);
+        let style = overrides.get(&StyleKey::Markup(Markup::Highlight)).unwrap();
+        assert_eq!(*style, Style::default());
+    }
+
+    #[test]
+    fn style_overrides_from_theme_applies_bg() {
+        let theme = theme_info(vec![(
+            "emphasis",
+            ThemeStyleInfo {
+                fg: None,
+                bg: Some("blue".to_string()),
+                modifiers: vec![],
+            },
+        )]);
+        let overrides = style_overrides_from_theme(&theme);
+        let style = overrides.get(&StyleKey::Markup(Markup::Emphasis)).unwrap();
+        assert_eq!(*style, Style::default().bg(Color::Blue));
     }
 }

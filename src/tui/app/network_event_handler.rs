@@ -2,6 +2,7 @@ use crate::game::engagement::battle::BattleMessage;
 use crate::game::messaging::ConversationKind;
 use crate::network::NetworkEvent;
 use crate::network::event::BattleSnapshot;
+use crate::tui::components::theme::style_overrides_from_theme;
 
 use super::{App, AppMessage, BattleState, GameMode};
 
@@ -42,10 +43,22 @@ impl App {
                     &self.theme,
                 ));
             }
-            NetworkEvent::Message { player_id, content } => {
+            NetworkEvent::Message {
+                player_id,
+                content,
+                theme,
+            } => {
                 if Some(player_id) == self.current_player_id {
+                    let overrides = theme
+                        .as_deref()
+                        .and_then(|id| self.themes.get(id))
+                        .map(style_overrides_from_theme);
                     let idx = self.messages.len();
-                    self.messages.push(AppMessage::normal(content, &self.theme));
+                    self.messages.push(AppMessage::narration_themed(
+                        content,
+                        &self.theme,
+                        overrides.as_ref(),
+                    ));
                     self.start_reveal(idx);
                 }
             }
