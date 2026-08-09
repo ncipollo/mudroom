@@ -29,7 +29,7 @@ pub async fn sync_universe_config(
     if let Some(config_dir) = config_path {
         let character_configs = load_character_configs(config_dir)?;
         let ability_cache = ability_cache::build_ability_cache(config_dir)?;
-        ability_cache::sync_abilities_into_db(pool, &ability_cache).await?;
+        sync_abilities_into_db(pool, &ability_cache).await?;
         load_characters_into_db(pool, &universe, &character_configs, &ability_cache).await?;
     }
     Ok(())
