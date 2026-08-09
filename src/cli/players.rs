@@ -4,7 +4,7 @@ use crate::game;
 use crate::game::component::{Ability, Attribute};
 use crate::game::config::class_config::ClassConfig;
 use crate::paths;
-use crate::persistence::{self, ability_repo, entity_repo, player_repo};
+use crate::persistence::{self, ability_repo, character_repo, player_repo};
 
 use super::PlayersCommands;
 
@@ -23,7 +23,7 @@ pub async fn run(command: PlayersCommands) -> Result<(), Box<dyn std::error::Err
             let p = player_repo::find_by_name(db.pool(), &player)
                 .await?
                 .ok_or_else(|| format!("player '{player}' not found"))?;
-            entity_repo::delete(db.pool(), p.entity_id).await?;
+            character_repo::delete(db.pool(), p.entity_id).await?;
             println!("Player '{player}' removed.");
         }
         PlayersCommands::Reset {
@@ -42,12 +42,12 @@ pub async fn run(command: PlayersCommands) -> Result<(), Box<dyn std::error::Err
                 .ok_or_else(|| format!("class '{class}' not found"))?;
             let abilities = resolve_abilities(&game_state, class_config)?;
             let attributes = build_class_attributes(class_config);
-            entity_repo::update_attributes(db.pool(), p.entity_id, &attributes).await?;
+            character_repo::update_attributes(db.pool(), p.entity_id, &attributes).await?;
             for ability in &abilities {
                 ability_repo::upsert(db.pool(), ability).await?;
             }
             let ids: Vec<&str> = abilities.iter().map(|a| a.id.as_str()).collect();
-            ability_repo::set_entity_abilities(db.pool(), p.entity_id, &ids).await?;
+            ability_repo::set_character_abilities(db.pool(), p.entity_id, &ids).await?;
             println!("Player '{player}' reset to class '{class}'.");
         }
     }

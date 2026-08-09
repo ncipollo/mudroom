@@ -29,7 +29,7 @@ impl<'a> AgentTurnHandler<'a> {
     }
 
     pub async fn has_agent_state(&self) -> bool {
-        let entities = self.game_state.active_entities.read().await;
+        let entities = self.game_state.active_characters.read().await;
         entities
             .get(&self.npc_entity_id)
             .and_then(|e| e.ai.as_ref())
@@ -74,7 +74,7 @@ impl<'a> AgentTurnHandler<'a> {
     }
 
     async fn load_context(&self) -> Option<(String, Vec<AgentMessage>)> {
-        let entities = self.game_state.active_entities.read().await;
+        let entities = self.game_state.active_characters.read().await;
         entities
             .get(&self.npc_entity_id)
             .and_then(|e| e.ai.as_ref())
@@ -84,7 +84,7 @@ impl<'a> AgentTurnHandler<'a> {
     }
 
     async fn append_history(&self, player_message: &str, response: &str) {
-        let mut entities = self.game_state.active_entities.write().await;
+        let mut entities = self.game_state.active_characters.write().await;
         if let Some(npc) = entities.get_mut(&self.npc_entity_id)
             && let Some(ai) = npc.ai.as_mut()
             && let Some(state) = ai.agent_conversation_state.as_mut()

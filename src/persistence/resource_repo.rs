@@ -55,17 +55,17 @@ pub async fn find_all_definitions(
         .collect())
 }
 
-pub async fn upsert_entity_resource(
+pub async fn upsert_character_resource(
     pool: &SqlitePool,
-    entity_id: i64,
+    character_id: i64,
     resource_id: &str,
     current_value: i64,
 ) -> Result<(), PersistenceError> {
     sqlx::query(
-        "INSERT OR REPLACE INTO entity_resources (entity_id, resource_id, current_value) \
+        "INSERT OR REPLACE INTO character_resources (character_id, resource_id, current_value) \
          VALUES (?, ?, ?)",
     )
-    .bind(entity_id)
+    .bind(character_id)
     .bind(resource_id)
     .bind(current_value)
     .execute(pool)
@@ -73,14 +73,14 @@ pub async fn upsert_entity_resource(
     Ok(())
 }
 
-pub async fn find_by_entity(
+pub async fn find_by_character(
     pool: &SqlitePool,
-    entity_id: i64,
+    character_id: i64,
 ) -> Result<Vec<(String, i64)>, PersistenceError> {
     let rows: Vec<(String, i64)> = sqlx::query_as(
-        "SELECT resource_id, current_value FROM entity_resources WHERE entity_id = ?",
+        "SELECT resource_id, current_value FROM character_resources WHERE character_id = ?",
     )
-    .bind(entity_id)
+    .bind(character_id)
     .fetch_all(pool)
     .await?;
     Ok(rows)
@@ -89,9 +89,9 @@ pub async fn find_by_entity(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::{Dungeon, Entity, EntityType, Location, Room, World};
+    use crate::game::{Character, CharacterType, Dungeon, Location, Room, World};
     use crate::persistence::database::Database;
-    use crate::persistence::{dungeon_repo, entity_repo, room_repo, world_repo};
+    use crate::persistence::{character_repo, dungeon_repo, room_repo, world_repo};
 
     async fn setup(db: &Database) -> i64 {
         let world = World::new("w1".to_string());
@@ -107,8 +107,8 @@ mod tests {
             dungeon_id: "d1".to_string(),
             room_id: "r1".to_string(),
         };
-        let entity = Entity::new(0, EntityType::Player, loc);
-        entity_repo::insert(db.pool(), &entity).await.unwrap()
+        let character = Character::new(0, CharacterType::Player, loc);
+        character_repo::insert(db.pool(), &character).await.unwrap()
     }
 
     fn mp_definition() -> ResourceDefinition {
@@ -148,36 +148,38 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn upsert_and_find_entity_resource() {
+    async fn upsert_and_find_character_resource() {
         let db = Database::connect_in_memory().await.unwrap();
-        let entity_id = setup(&db).await;
+        let character_id = setup(&db).await;
         upsert_definition(db.pool(), &mp_definition())
             .await
             .unwrap();
-        upsert_entity_resource(db.pool(), entity_id, "mp", 50)
+        upsert_character_resource(db.pool(), character_id, "mp", 50)
             .await
             .unwrap();
 
-        let resources = find_by_entity(db.pool(), entity_id).await.unwrap();
+        let resources = find_by_character(db.pool(), character_id).await.unwrap();
         assert_eq!(resources.len(), 1);
         assert_eq!(resources[0].0, "mp");
         assert_eq!(resources[0].1, 50);
     }
 
     #[tokio::test]
-    async fn cascade_delete_on_entity_delete() {
+    async fn cascade_delete_on_character_delete() {
         let db = Database::connect_in_memory().await.unwrap();
-        let entity_id = setup(&db).await;
+        let character_id = setup(&db).await;
         upsert_definition(db.pool(), &mp_definition())
             .await
             .unwrap();
-        upsert_entity_resource(db.pool(), entity_id, "mp", 50)
+        upsert_character_resource(db.pool(), character_id, "mp", 50)
             .await
             .unwrap();
 
-        entity_repo::delete(db.pool(), entity_id).await.unwrap();
+        character_repo::delete(db.pool(), character_id)
+            .await
+            .unwrap();
 
-        let resources = find_by_entity(db.pool(), entity_id).await.unwrap();
+        let resources = find_by_character(db.pool(), character_id).await.unwrap();
         assert!(resources.is_empty());
     }
 }

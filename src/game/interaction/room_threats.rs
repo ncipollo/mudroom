@@ -3,12 +3,12 @@ use std::sync::Arc;
 
 use tracing;
 
+use crate::game::character::Character;
 use crate::game::component::attribute_definition::AttributeType;
 use crate::game::component::faction_relations::FactionRelation;
 use crate::game::engagement::battle::{
     BattlePhase, attribute_snapshot, entity_innate_battle_abilities,
 };
-use crate::game::entity::Entity;
 use crate::game::messaging::{BattleParticipantInfo, BattleStartedMessage};
 use crate::game::player::Player;
 use crate::game::{GameState, messaging};
@@ -56,7 +56,7 @@ async fn scan_room_threats(
     player_entity_id: i64,
     room_id: &str,
 ) -> (Vec<i64>, Vec<i64>) {
-    let entities = game_state.active_entities.read().await;
+    let entities = game_state.active_characters.read().await;
     let player_factions = entities
         .get(&player_entity_id)
         .map(|e| e.factions.clone())
@@ -64,13 +64,13 @@ async fn scan_room_threats(
 
     let mut hostile_ids = Vec::new();
     let mut unfriendly_ids = Vec::new();
-    for entity in entities.values() {
-        if entity.id == player_entity_id || entity.location.room_id != room_id {
+    for character in entities.values() {
+        if character.id == player_entity_id || character.location.room_id != room_id {
             continue;
         }
-        match entity_threat_toward_player(&entity.faction_relations.factions, &player_factions) {
-            RoomThreat::Hostile => hostile_ids.push(entity.id),
-            RoomThreat::Unfriendly => unfriendly_ids.push(entity.id),
+        match entity_threat_toward_player(&character.faction_relations.factions, &player_factions) {
+            RoomThreat::Hostile => hostile_ids.push(character.id),
+            RoomThreat::Unfriendly => unfriendly_ids.push(character.id),
             RoomThreat::None => {}
         }
     }
@@ -129,7 +129,7 @@ pub(crate) async fn build_battle_started_message(
     participants: &HashMap<String, Vec<i64>>,
     max_turn_ticks: u64,
 ) -> BattleStartedMessage {
-    let entities = game_state.active_entities.read().await;
+    let entities = game_state.active_characters.read().await;
     let players = game_state.active_players.read().await;
     let hp_attr_id = hp_attribute_id(&game_state.attribute_config);
 
@@ -163,7 +163,7 @@ pub(crate) async fn build_battle_started_message(
 
 fn build_participant_infos(
     participants: &HashMap<String, Vec<i64>>,
-    entities: &HashMap<i64, Entity>,
+    entities: &HashMap<i64, Character>,
     players: &HashMap<String, Player>,
     hp_attr_id: &str,
 ) -> HashMap<String, Vec<BattleParticipantInfo>> {
@@ -173,9 +173,9 @@ fn build_participant_infos(
             let infos = ids
                 .iter()
                 .map(|&id| {
-                    let entity = entities.get(&id);
-                    let name = resolve_entity_name(id, entity, players);
-                    let (hp_current, hp_max) = entity
+                    let character = entities.get(&id);
+                    let name = resolve_entity_name(id, character, players);
+                    let (hp_current, hp_max) = character
                         .and_then(|e| e.attributes.get(hp_attr_id))
                         .map(|a| (a.current_value, a.max_value))
                         .unwrap_or((0, 0));
@@ -194,16 +194,16 @@ fn build_participant_infos(
 
 fn resolve_entity_name(
     entity_id: i64,
-    entity: Option<&Entity>,
+    character: Option<&Character>,
     players: &HashMap<String, Player>,
 ) -> String {
     if let Some(player) = players.values().find(|p| p.entity_id == entity_id) {
         return player.name.clone();
     }
-    entity
+    character
         .and_then(|e| e.config_id.as_deref())
         .map(str::to_string)
-        .unwrap_or_else(|| format!("Entity {entity_id}"))
+        .unwrap_or_else(|| format!("Character {entity_id}"))
 }
 
 pub(super) fn hp_attribute_id(attribute_config: &crate::game::config::AttributeConfig) -> String {

@@ -5,11 +5,11 @@ use sqlx::SqlitePool;
 use crate::game::component::Attribute;
 use crate::game::component::description::Description;
 use crate::game::config::{BattleAiConfig, BattleAiType};
-use crate::game::{Entity, EntityType, Location};
+use crate::game::{Character, CharacterType, Location};
 use crate::persistence::error::PersistenceError;
 use crate::persistence::{ability_repo, faction_relations_repo, faction_repo};
 
-type EntityRow = (
+type CharacterRow = (
     i64,
     String,
     String,
@@ -22,40 +22,40 @@ type EntityRow = (
     String,
 );
 
-pub async fn insert(pool: &SqlitePool, entity: &Entity) -> Result<i64, PersistenceError> {
-    let entity_type = entity_type_to_str(&entity.entity_type);
-    let attributes_json = serde_json::to_string(&entity.attributes)?;
+pub async fn insert(pool: &SqlitePool, character: &Character) -> Result<i64, PersistenceError> {
+    let character_type = character_type_to_str(&character.character_type);
+    let attributes_json = serde_json::to_string(&character.attributes)?;
     let result = sqlx::query(
-        "INSERT INTO entities (entity_type, world_id, dungeon_id, room_id, config_id, attributes, description, name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO characters (character_type, world_id, dungeon_id, room_id, config_id, attributes, description, name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
     )
-    .bind(entity_type)
-    .bind(&entity.location.world_id)
-    .bind(&entity.location.dungeon_id)
-    .bind(&entity.location.room_id)
-    .bind(&entity.config_id)
+    .bind(character_type)
+    .bind(&character.location.world_id)
+    .bind(&character.location.dungeon_id)
+    .bind(&character.location.room_id)
+    .bind(&character.config_id)
     .bind(attributes_json)
-    .bind(&entity.description.text)
-    .bind(&entity.name)
+    .bind(&character.description.text)
+    .bind(&character.name)
     .execute(pool)
     .await?;
     Ok(result.last_insert_rowid())
 }
 
-/// Insert a config entity if no entity with the same config_id + original location exists.
-/// Returns `(entity_id, is_new)` — id of the existing or newly inserted entity, and whether it
-/// was just created. Current location is preserved on conflict (entity may have moved).
-pub async fn insert_config_entity_if_missing(
+/// Insert a config character if no character with the same config_id + original location exists.
+/// Returns `(character_id, is_new)` — id of the existing or newly inserted character, and whether it
+/// was just created. Current location is preserved on conflict (character may have moved).
+pub async fn insert_config_character_if_missing(
     pool: &SqlitePool,
-    entity_type: &EntityType,
+    character_type: &CharacterType,
     location: &Location,
     config_id: &str,
     description: Option<&str>,
     name: &str,
 ) -> Result<(i64, bool), PersistenceError> {
-    let entity_type_str = entity_type_to_str(entity_type);
+    let character_type_str = character_type_to_str(character_type);
 
     let existing: Option<(i64,)> = sqlx::query_as(
-        "SELECT id FROM entities
+        "SELECT id FROM characters
          WHERE config_id = ? AND original_world_id = ? AND original_dungeon_id = ? AND original_room_id = ?",
     )
     .bind(config_id)
@@ -66,23 +66,25 @@ pub async fn insert_config_entity_if_missing(
     .await?;
 
     if let Some((id,)) = existing {
-        sqlx::query("UPDATE entities SET entity_type = ?, description = ?, name = ? WHERE id = ?")
-            .bind(entity_type_str)
-            .bind(description)
-            .bind(name)
-            .bind(id)
-            .execute(pool)
-            .await?;
+        sqlx::query(
+            "UPDATE characters SET character_type = ?, description = ?, name = ? WHERE id = ?",
+        )
+        .bind(character_type_str)
+        .bind(description)
+        .bind(name)
+        .bind(id)
+        .execute(pool)
+        .await?;
         return Ok((id, false));
     }
 
     let result = sqlx::query(
-        "INSERT INTO entities
-             (entity_type, world_id, dungeon_id, room_id, config_id,
+        "INSERT INTO characters
+             (character_type, world_id, dungeon_id, room_id, config_id,
               original_world_id, original_dungeon_id, original_room_id, description, name)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
-    .bind(entity_type_str)
+    .bind(character_type_str)
     .bind(&location.world_id)
     .bind(&location.dungeon_id)
     .bind(&location.room_id)
@@ -98,19 +100,19 @@ pub async fn insert_config_entity_if_missing(
     Ok((result.last_insert_rowid(), true))
 }
 
-pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<Entity>, PersistenceError> {
-    let row: Option<EntityRow> = sqlx::query_as(
-        "SELECT id, entity_type, world_id, dungeon_id, room_id, config_id, attributes, description, battle_ai_type, name FROM entities WHERE id = ?",
+pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<Character>, PersistenceError> {
+    let row: Option<CharacterRow> = sqlx::query_as(
+        "SELECT id, character_type, world_id, dungeon_id, room_id, config_id, attributes, description, battle_ai_type, name FROM characters WHERE id = ?",
     )
     .bind(id)
     .fetch_optional(pool)
     .await?;
 
     if let Some(row) = row {
-        let mut entity = build_entity(row);
-        load_faction_data(pool, &mut entity).await?;
-        load_ability_data(pool, &mut entity).await?;
-        Ok(Some(entity))
+        let mut character = build_character(row);
+        load_faction_data(pool, &mut character).await?;
+        load_ability_data(pool, &mut character).await?;
+        Ok(Some(character))
     } else {
         Ok(None)
     }
@@ -119,9 +121,9 @@ pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<Entity>, Pe
 pub async fn find_by_location(
     pool: &SqlitePool,
     location: &Location,
-) -> Result<Vec<Entity>, PersistenceError> {
-    let rows: Vec<EntityRow> = sqlx::query_as(
-        "SELECT id, entity_type, world_id, dungeon_id, room_id, config_id, attributes, description, battle_ai_type, name FROM entities WHERE world_id = ? AND dungeon_id = ? AND room_id = ?",
+) -> Result<Vec<Character>, PersistenceError> {
+    let rows: Vec<CharacterRow> = sqlx::query_as(
+        "SELECT id, character_type, world_id, dungeon_id, room_id, config_id, attributes, description, battle_ai_type, name FROM characters WHERE world_id = ? AND dungeon_id = ? AND room_id = ?",
     )
     .bind(&location.world_id)
     .bind(&location.dungeon_id)
@@ -129,40 +131,40 @@ pub async fn find_by_location(
     .fetch_all(pool)
     .await?;
 
-    let mut entities = Vec::new();
+    let mut characters = Vec::new();
     for row in rows {
-        let mut entity = build_entity(row);
-        load_faction_data(pool, &mut entity).await?;
-        load_ability_data(pool, &mut entity).await?;
-        entities.push(entity);
+        let mut character = build_character(row);
+        load_faction_data(pool, &mut character).await?;
+        load_ability_data(pool, &mut character).await?;
+        characters.push(character);
     }
-    Ok(entities)
+    Ok(characters)
 }
 
-pub async fn find_config_entities_by_dungeon(
+pub async fn find_config_characters_by_dungeon(
     pool: &SqlitePool,
     world_id: &str,
     dungeon_id: &str,
-) -> Result<Vec<Entity>, PersistenceError> {
-    let rows: Vec<EntityRow> = sqlx::query_as(
-        "SELECT id, entity_type, world_id, dungeon_id, room_id, config_id, attributes, description, battle_ai_type, name FROM entities WHERE config_id IS NOT NULL AND world_id = ? AND dungeon_id = ?",
+) -> Result<Vec<Character>, PersistenceError> {
+    let rows: Vec<CharacterRow> = sqlx::query_as(
+        "SELECT id, character_type, world_id, dungeon_id, room_id, config_id, attributes, description, battle_ai_type, name FROM characters WHERE config_id IS NOT NULL AND world_id = ? AND dungeon_id = ?",
     )
     .bind(world_id)
     .bind(dungeon_id)
     .fetch_all(pool)
     .await?;
 
-    let mut entities = Vec::new();
+    let mut characters = Vec::new();
     for row in rows {
-        let mut entity = build_entity(row);
-        load_faction_data(pool, &mut entity).await?;
-        load_ability_data(pool, &mut entity).await?;
-        entities.push(entity);
+        let mut character = build_character(row);
+        load_faction_data(pool, &mut character).await?;
+        load_ability_data(pool, &mut character).await?;
+        characters.push(character);
     }
-    Ok(entities)
+    Ok(characters)
 }
 
-fn build_entity(
+fn build_character(
     (
         id,
         et,
@@ -174,44 +176,44 @@ fn build_entity(
         description,
         battle_ai_type,
         name,
-    ): EntityRow,
-) -> Entity {
+    ): CharacterRow,
+) -> Character {
     let attributes = attrs_json
         .and_then(|json| match serde_json::from_str(&json) {
             Ok(v) => Some(v),
             Err(e) => {
-                tracing::warn!("Failed to deserialize attributes for entity {id}: {e}");
+                tracing::warn!("Failed to deserialize attributes for character {id}: {e}");
                 None
             }
         })
         .unwrap_or_default();
-    let mut entity = Entity::new(
+    let mut character = Character::new(
         id,
-        entity_type_from_str(&et),
+        character_type_from_str(&et),
         Location {
             world_id,
             dungeon_id,
             room_id,
         },
     );
-    entity.config_id = config_id;
-    entity.name = name;
-    entity.attributes = attributes;
-    entity.description = Description::new(description);
-    entity.battle_ai = BattleAiConfig {
+    character.config_id = config_id;
+    character.name = name;
+    character.attributes = attributes;
+    character.description = Description::new(description);
+    character.battle_ai = BattleAiConfig {
         ai_type: battle_ai_type_from_str(&battle_ai_type),
     };
-    entity
+    character
 }
 
 pub async fn update_battle_ai_type(
     pool: &SqlitePool,
-    entity_id: i64,
+    character_id: i64,
     ai_type: &BattleAiType,
 ) -> Result<(), PersistenceError> {
-    sqlx::query("UPDATE entities SET battle_ai_type = ? WHERE id = ?")
+    sqlx::query("UPDATE characters SET battle_ai_type = ? WHERE id = ?")
         .bind(battle_ai_type_to_str(ai_type))
-        .bind(entity_id)
+        .bind(character_id)
         .execute(pool)
         .await?;
     Ok(())
@@ -231,39 +233,45 @@ fn battle_ai_type_from_str(s: &str) -> BattleAiType {
     }
 }
 
-async fn load_faction_data(pool: &SqlitePool, entity: &mut Entity) -> Result<(), PersistenceError> {
-    let db_factions: HashSet<String> = faction_repo::find_by_entity(pool, entity.id)
+async fn load_faction_data(
+    pool: &SqlitePool,
+    character: &mut Character,
+) -> Result<(), PersistenceError> {
+    let db_factions: HashSet<String> = faction_repo::find_by_character(pool, character.id)
         .await?
         .into_iter()
         .map(|f| f.id)
         .collect();
     if !db_factions.is_empty() {
-        entity.factions = db_factions;
+        character.factions = db_factions;
     }
-    let db_relations = faction_relations_repo::find_by_entity(pool, entity.id).await?;
+    let db_relations = faction_relations_repo::find_by_character(pool, character.id).await?;
     if !db_relations.factions.is_empty() {
-        entity.faction_relations = db_relations;
+        character.faction_relations = db_relations;
     }
     Ok(())
 }
 
-async fn load_ability_data(pool: &SqlitePool, entity: &mut Entity) -> Result<(), PersistenceError> {
-    let abilities = ability_repo::find_by_entity(pool, entity.id).await?;
+async fn load_ability_data(
+    pool: &SqlitePool,
+    character: &mut Character,
+) -> Result<(), PersistenceError> {
+    let abilities = ability_repo::find_by_character(pool, character.id).await?;
     if !abilities.is_empty() {
-        entity.innate_abilities = abilities;
+        character.innate_abilities = abilities;
     }
     Ok(())
 }
 
 pub async fn update_attributes(
     pool: &SqlitePool,
-    entity_id: i64,
+    character_id: i64,
     attributes: &HashMap<String, Attribute>,
 ) -> Result<(), PersistenceError> {
     let json = serde_json::to_string(attributes)?;
-    sqlx::query("UPDATE entities SET attributes = ? WHERE id = ?")
+    sqlx::query("UPDATE characters SET attributes = ? WHERE id = ?")
         .bind(json)
-        .bind(entity_id)
+        .bind(character_id)
         .execute(pool)
         .await?;
     Ok(())
@@ -271,21 +279,21 @@ pub async fn update_attributes(
 
 pub async fn update_location(
     pool: &SqlitePool,
-    entity_id: i64,
+    character_id: i64,
     location: &Location,
 ) -> Result<(), PersistenceError> {
-    sqlx::query("UPDATE entities SET world_id = ?, dungeon_id = ?, room_id = ? WHERE id = ?")
+    sqlx::query("UPDATE characters SET world_id = ?, dungeon_id = ?, room_id = ? WHERE id = ?")
         .bind(&location.world_id)
         .bind(&location.dungeon_id)
         .bind(&location.room_id)
-        .bind(entity_id)
+        .bind(character_id)
         .execute(pool)
         .await?;
     Ok(())
 }
 
 pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), PersistenceError> {
-    sqlx::query("DELETE FROM entities WHERE id = ?")
+    sqlx::query("DELETE FROM characters WHERE id = ?")
         .bind(id)
         .execute(pool)
         .await?;
@@ -293,28 +301,26 @@ pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), PersistenceError> 
 }
 
 pub async fn delete_by_room(pool: &SqlitePool, room_id: &str) -> Result<(), PersistenceError> {
-    sqlx::query("DELETE FROM entities WHERE room_id = ?")
+    sqlx::query("DELETE FROM characters WHERE room_id = ?")
         .bind(room_id)
         .execute(pool)
         .await?;
     Ok(())
 }
 
-fn entity_type_to_str(et: &EntityType) -> &'static str {
+fn character_type_to_str(et: &CharacterType) -> &'static str {
     match et {
-        EntityType::Player => "player",
-        EntityType::Character => "character",
-        EntityType::Enemy => "enemy",
-        EntityType::Object => "object",
+        CharacterType::Player => "player",
+        CharacterType::Character => "character",
+        CharacterType::Enemy => "enemy",
     }
 }
 
-fn entity_type_from_str(s: &str) -> EntityType {
+fn character_type_from_str(s: &str) -> CharacterType {
     match s {
-        "player" => EntityType::Player,
-        "enemy" => EntityType::Enemy,
-        "object" => EntityType::Object,
-        _ => EntityType::Character,
+        "player" => CharacterType::Player,
+        "enemy" => CharacterType::Enemy,
+        _ => CharacterType::Character,
     }
 }
 
@@ -349,8 +355,8 @@ mod tests {
     async fn insert_and_find_by_id() {
         let db = Database::connect_in_memory().await.unwrap();
         setup(&db).await;
-        let entity = Entity::new(0, EntityType::Player, test_location());
-        let id = insert(db.pool(), &entity).await.unwrap();
+        let character = Character::new(0, CharacterType::Player, test_location());
+        let id = insert(db.pool(), &character).await.unwrap();
 
         let found = find_by_id(db.pool(), id).await.unwrap().unwrap();
         assert_eq!(found.id, id);
@@ -365,24 +371,24 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn find_by_location_returns_entities() {
+    async fn find_by_location_returns_characters() {
         let db = Database::connect_in_memory().await.unwrap();
         setup(&db).await;
         insert(
             db.pool(),
-            &Entity::new(0, EntityType::Player, test_location()),
+            &Character::new(0, CharacterType::Player, test_location()),
         )
         .await
         .unwrap();
         insert(
             db.pool(),
-            &Entity::new(0, EntityType::Character, test_location()),
+            &Character::new(0, CharacterType::Character, test_location()),
         )
         .await
         .unwrap();
 
-        let entities = find_by_location(db.pool(), &test_location()).await.unwrap();
-        assert_eq!(entities.len(), 2);
+        let characters = find_by_location(db.pool(), &test_location()).await.unwrap();
+        assert_eq!(characters.len(), 2);
     }
 
     #[tokio::test]
@@ -393,8 +399,8 @@ mod tests {
         let room2 = Room::new("r2".to_string(), Description::new(None));
         room_repo::insert(db.pool(), &room2, "d1").await.unwrap();
 
-        let entity = Entity::new(0, EntityType::Player, test_location());
-        let id = insert(db.pool(), &entity).await.unwrap();
+        let character = Character::new(0, CharacterType::Player, test_location());
+        let id = insert(db.pool(), &character).await.unwrap();
 
         let new_loc = Location {
             world_id: "w1".to_string(),
@@ -408,11 +414,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn delete_removes_entity() {
+    async fn delete_removes_character() {
         let db = Database::connect_in_memory().await.unwrap();
         setup(&db).await;
-        let entity = Entity::new(0, EntityType::Player, test_location());
-        let id = insert(db.pool(), &entity).await.unwrap();
+        let character = Character::new(0, CharacterType::Player, test_location());
+        let id = insert(db.pool(), &character).await.unwrap();
         delete(db.pool(), id).await.unwrap();
 
         let found = find_by_id(db.pool(), id).await.unwrap();
@@ -420,36 +426,36 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn delete_by_room_removes_all_entities_in_room() {
+    async fn delete_by_room_removes_all_characters_in_room() {
         let db = Database::connect_in_memory().await.unwrap();
         setup(&db).await;
         insert(
             db.pool(),
-            &Entity::new(0, EntityType::Player, test_location()),
+            &Character::new(0, CharacterType::Player, test_location()),
         )
         .await
         .unwrap();
         insert(
             db.pool(),
-            &Entity::new(0, EntityType::Character, test_location()),
+            &Character::new(0, CharacterType::Character, test_location()),
         )
         .await
         .unwrap();
 
         delete_by_room(db.pool(), "r1").await.unwrap();
 
-        let entities = find_by_location(db.pool(), &test_location()).await.unwrap();
-        assert!(entities.is_empty());
+        let characters = find_by_location(db.pool(), &test_location()).await.unwrap();
+        assert!(characters.is_empty());
     }
 
     #[tokio::test]
-    async fn find_config_entities_by_dungeon_returns_matching() {
+    async fn find_config_characters_by_dungeon_returns_matching() {
         let db = Database::connect_in_memory().await.unwrap();
         setup(&db).await;
 
-        let (id, _) = insert_config_entity_if_missing(
+        let (id, _) = insert_config_character_if_missing(
             db.pool(),
-            &EntityType::Character,
+            &CharacterType::Character,
             &test_location(),
             "entities/innkeeper",
             None,
@@ -458,22 +464,22 @@ mod tests {
         .await
         .unwrap();
 
-        // Player entity (no config_id) should not be returned
+        // Player character (no config_id) should not be returned
         insert(
             db.pool(),
-            &Entity::new(0, EntityType::Player, test_location()),
+            &Character::new(0, CharacterType::Player, test_location()),
         )
         .await
         .unwrap();
 
-        let found = find_config_entities_by_dungeon(db.pool(), "w1", "d1")
+        let found = find_config_characters_by_dungeon(db.pool(), "w1", "d1")
             .await
             .unwrap();
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].id, id);
 
         // Different dungeon returns nothing
-        let other = find_config_entities_by_dungeon(db.pool(), "w1", "d2")
+        let other = find_config_characters_by_dungeon(db.pool(), "w1", "d2")
             .await
             .unwrap();
         assert!(other.is_empty());
@@ -484,22 +490,22 @@ mod tests {
         let db = Database::connect_in_memory().await.unwrap();
         setup(&db).await;
 
-        let mut entity = Entity::new(0, EntityType::Player, test_location());
-        entity.name = "Aragorn".to_string();
-        let id = insert(db.pool(), &entity).await.unwrap();
+        let mut character = Character::new(0, CharacterType::Player, test_location());
+        character.name = "Aragorn".to_string();
+        let id = insert(db.pool(), &character).await.unwrap();
 
         let found = find_by_id(db.pool(), id).await.unwrap().unwrap();
         assert_eq!(found.name, "Aragorn");
     }
 
     #[tokio::test]
-    async fn insert_config_entity_if_missing_stores_name() {
+    async fn insert_config_character_if_missing_stores_name() {
         let db = Database::connect_in_memory().await.unwrap();
         setup(&db).await;
 
-        let (id, _) = insert_config_entity_if_missing(
+        let (id, _) = insert_config_character_if_missing(
             db.pool(),
-            &EntityType::Character,
+            &CharacterType::Character,
             &test_location(),
             "entities/innkeeper",
             None,
@@ -513,13 +519,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn insert_config_entity_if_missing_updates_name_on_conflict() {
+    async fn insert_config_character_if_missing_updates_name_on_conflict() {
         let db = Database::connect_in_memory().await.unwrap();
         setup(&db).await;
 
-        let (id, _) = insert_config_entity_if_missing(
+        let (id, _) = insert_config_character_if_missing(
             db.pool(),
-            &EntityType::Character,
+            &CharacterType::Character,
             &test_location(),
             "entities/innkeeper",
             None,
@@ -528,9 +534,9 @@ mod tests {
         .await
         .unwrap();
 
-        insert_config_entity_if_missing(
+        insert_config_character_if_missing(
             db.pool(),
-            &EntityType::Character,
+            &CharacterType::Character,
             &test_location(),
             "entities/innkeeper",
             None,
@@ -544,13 +550,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn insert_config_entity_if_missing_stores_description() {
+    async fn insert_config_character_if_missing_stores_description() {
         let db = Database::connect_in_memory().await.unwrap();
         setup(&db).await;
 
-        let (id, _) = insert_config_entity_if_missing(
+        let (id, _) = insert_config_character_if_missing(
             db.pool(),
-            &EntityType::Character,
+            &CharacterType::Character,
             &test_location(),
             "entities/innkeeper",
             Some("A friendly innkeeper."),
@@ -567,13 +573,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn insert_config_entity_if_missing_updates_description_on_conflict() {
+    async fn insert_config_character_if_missing_updates_description_on_conflict() {
         let db = Database::connect_in_memory().await.unwrap();
         setup(&db).await;
 
-        let (id, _) = insert_config_entity_if_missing(
+        let (id, _) = insert_config_character_if_missing(
             db.pool(),
-            &EntityType::Character,
+            &CharacterType::Character,
             &test_location(),
             "entities/innkeeper",
             Some("Old description."),
@@ -582,9 +588,9 @@ mod tests {
         .await
         .unwrap();
 
-        insert_config_entity_if_missing(
+        insert_config_character_if_missing(
             db.pool(),
-            &EntityType::Character,
+            &CharacterType::Character,
             &test_location(),
             "entities/innkeeper",
             Some("New description."),
@@ -598,13 +604,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn insert_config_entity_if_missing_inserts_new() {
+    async fn insert_config_character_if_missing_inserts_new() {
         let db = Database::connect_in_memory().await.unwrap();
         setup(&db).await;
 
-        let (id, is_new) = insert_config_entity_if_missing(
+        let (id, is_new) = insert_config_character_if_missing(
             db.pool(),
-            &EntityType::Character,
+            &CharacterType::Character,
             &test_location(),
             "entities/innkeeper",
             None,
@@ -620,13 +626,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn insert_config_entity_if_missing_returns_existing_id() {
+    async fn insert_config_character_if_missing_returns_existing_id() {
         let db = Database::connect_in_memory().await.unwrap();
         setup(&db).await;
 
-        let (id1, is_new1) = insert_config_entity_if_missing(
+        let (id1, is_new1) = insert_config_character_if_missing(
             db.pool(),
-            &EntityType::Character,
+            &CharacterType::Character,
             &test_location(),
             "entities/innkeeper",
             None,
@@ -634,9 +640,9 @@ mod tests {
         )
         .await
         .unwrap();
-        let (id2, is_new2) = insert_config_entity_if_missing(
+        let (id2, is_new2) = insert_config_character_if_missing(
             db.pool(),
-            &EntityType::Character,
+            &CharacterType::Character,
             &test_location(),
             "entities/innkeeper",
             None,
@@ -648,8 +654,8 @@ mod tests {
         assert!(is_new1);
         assert!(!is_new2);
 
-        let entities = find_by_location(db.pool(), &test_location()).await.unwrap();
-        assert_eq!(entities.len(), 1);
+        let characters = find_by_location(db.pool(), &test_location()).await.unwrap();
+        assert_eq!(characters.len(), 1);
     }
 
     #[tokio::test]
@@ -657,16 +663,16 @@ mod tests {
         let db = Database::connect_in_memory().await.unwrap();
         setup(&db).await;
 
-        let mut entity = Entity::new(0, EntityType::Character, test_location());
-        entity.attributes.insert(
+        let mut character = Character::new(0, CharacterType::Character, test_location());
+        character.attributes.insert(
             "hp".to_string(),
             Attribute::new("hp".to_string(), 0, 100, 80),
         );
-        entity.attributes.insert(
+        character.attributes.insert(
             "mp".to_string(),
             Attribute::new("mp".to_string(), 0, 50, 50),
         );
-        let id = insert(db.pool(), &entity).await.unwrap();
+        let id = insert(db.pool(), &character).await.unwrap();
 
         let found = find_by_id(db.pool(), id).await.unwrap().unwrap();
         assert_eq!(found.attributes.len(), 2);
@@ -679,11 +685,11 @@ mod tests {
         let db = Database::connect_in_memory().await.unwrap();
         setup(&db).await;
 
-        let entity = Entity::new(0, EntityType::Character, test_location());
-        let id = insert(db.pool(), &entity).await.unwrap();
+        let character = Character::new(0, CharacterType::Character, test_location());
+        let id = insert(db.pool(), &character).await.unwrap();
 
         // Corrupt the attributes column
-        sqlx::query("UPDATE entities SET attributes = ? WHERE id = ?")
+        sqlx::query("UPDATE characters SET attributes = ? WHERE id = ?")
             .bind("not valid json{{{")
             .bind(id)
             .execute(db.pool())
@@ -703,8 +709,8 @@ mod tests {
         let db = Database::connect_in_memory().await.unwrap();
         setup(&db).await;
 
-        let entity = Entity::new(0, EntityType::Enemy, test_location());
-        let id = insert(db.pool(), &entity).await.unwrap();
+        let character = Character::new(0, CharacterType::Enemy, test_location());
+        let id = insert(db.pool(), &character).await.unwrap();
 
         faction_repo::upsert(
             db.pool(),
@@ -716,12 +722,12 @@ mod tests {
         )
         .await
         .unwrap();
-        faction_repo::set_entity_factions(db.pool(), id, &["enemy".to_string()])
+        faction_repo::set_character_factions(db.pool(), id, &["enemy".to_string()])
             .await
             .unwrap();
 
         use crate::game::component::FactionRelations;
-        faction_relations_repo::set_entity_relations(
+        faction_relations_repo::set_character_relations(
             db.pool(),
             id,
             &FactionRelations::default_for_enemy(),
@@ -738,14 +744,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn find_by_id_uses_entity_defaults_when_no_faction_data() {
+    async fn find_by_id_uses_character_defaults_when_no_faction_data() {
         use crate::game::component::faction_relations::FactionRelation;
 
         let db = Database::connect_in_memory().await.unwrap();
         setup(&db).await;
 
-        let entity = Entity::new(0, EntityType::Enemy, test_location());
-        let id = insert(db.pool(), &entity).await.unwrap();
+        let character = Character::new(0, CharacterType::Enemy, test_location());
+        let id = insert(db.pool(), &character).await.unwrap();
 
         let found = find_by_id(db.pool(), id).await.unwrap().unwrap();
         assert!(found.factions.contains("enemy"));
@@ -760,8 +766,8 @@ mod tests {
         let db = Database::connect_in_memory().await.unwrap();
         setup(&db).await;
 
-        let entity = Entity::new(0, EntityType::Character, test_location());
-        let id = insert(db.pool(), &entity).await.unwrap();
+        let character = Character::new(0, CharacterType::Character, test_location());
+        let id = insert(db.pool(), &character).await.unwrap();
 
         let mut attrs = HashMap::new();
         attrs.insert(
@@ -780,8 +786,8 @@ mod tests {
         let db = Database::connect_in_memory().await.unwrap();
         setup(&db).await;
 
-        let entity = Entity::new(0, EntityType::Enemy, test_location());
-        let id = insert(db.pool(), &entity).await.unwrap();
+        let character = Character::new(0, CharacterType::Enemy, test_location());
+        let id = insert(db.pool(), &character).await.unwrap();
 
         let found = find_by_id(db.pool(), id).await.unwrap().unwrap();
         assert_eq!(found.battle_ai.ai_type, BattleAiType::None);
@@ -792,8 +798,8 @@ mod tests {
         let db = Database::connect_in_memory().await.unwrap();
         setup(&db).await;
 
-        let entity = Entity::new(0, EntityType::Enemy, test_location());
-        let id = insert(db.pool(), &entity).await.unwrap();
+        let character = Character::new(0, CharacterType::Enemy, test_location());
+        let id = insert(db.pool(), &character).await.unwrap();
 
         update_battle_ai_type(db.pool(), id, &BattleAiType::SimpleRandom)
             .await
@@ -808,8 +814,8 @@ mod tests {
         let db = Database::connect_in_memory().await.unwrap();
         setup(&db).await;
 
-        let entity = Entity::new(0, EntityType::Enemy, test_location());
-        let id = insert(db.pool(), &entity).await.unwrap();
+        let character = Character::new(0, CharacterType::Enemy, test_location());
+        let id = insert(db.pool(), &character).await.unwrap();
 
         update_battle_ai_type(db.pool(), id, &BattleAiType::SimpleRandom)
             .await
@@ -831,8 +837,8 @@ mod tests {
         let db = Database::connect_in_memory().await.unwrap();
         setup(&db).await;
 
-        let entity = Entity::new(0, EntityType::Enemy, test_location());
-        let id = insert(db.pool(), &entity).await.unwrap();
+        let character = Character::new(0, CharacterType::Enemy, test_location());
+        let id = insert(db.pool(), &character).await.unwrap();
 
         let ability = Ability {
             id: "strike".to_string(),
@@ -847,7 +853,7 @@ mod tests {
             action_text: None,
         };
         ability_repo::upsert(db.pool(), &ability).await.unwrap();
-        ability_repo::set_entity_abilities(db.pool(), id, &["strike"])
+        ability_repo::set_character_abilities(db.pool(), id, &["strike"])
             .await
             .unwrap();
 

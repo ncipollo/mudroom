@@ -6,25 +6,25 @@ use sqlx::SqlitePool;
 use tokio::sync::RwLock;
 use tokio::sync::broadcast;
 
+use crate::game::character::Character;
 use crate::game::component::Ability;
 use crate::game::config::{
-    AttributeConfig, ClassConfig, EntityConfig, FactionConfig, MudConfig, ResourceConfig,
-    ThemeConfig, load_abilities, load_classes, load_entity_configs, load_themes,
+    AttributeConfig, CharacterConfig, ClassConfig, FactionConfig, MudConfig, ResourceConfig,
+    ThemeConfig, load_abilities, load_character_configs, load_classes, load_themes,
 };
 use crate::game::engagement::Engagements;
-use crate::game::entity::Entity;
 use crate::game::mailbox::Mailboxes;
 use crate::game::messaging::PlayerMessage;
 use crate::game::player::Player;
 use crate::persistence::PersistenceError;
 
 pub struct PendingActivation {
-    pub entity: Entity,
+    pub character: Character,
     pub player: Player,
     pub client_id: String,
 }
 
-mod entity_sync;
+mod character_sync;
 
 pub struct GameState {
     pub config_path: Option<PathBuf>,
@@ -34,10 +34,10 @@ pub struct GameState {
     pub resource_config: ResourceConfig,
     pub mud_config: MudConfig,
     pub abilities: HashMap<String, Ability>,
-    pub entity_configs: HashMap<String, EntityConfig>,
+    pub character_configs: HashMap<String, CharacterConfig>,
     pub classes: HashMap<String, ClassConfig>,
     pub themes: HashMap<String, ThemeConfig>,
-    pub active_entities: RwLock<HashMap<i64, Entity>>,
+    pub active_characters: RwLock<HashMap<i64, Character>>,
     pub active_dungeons: RwLock<HashSet<(String, String)>>,
     pub engagements: Engagements,
     pub mailboxes: Mailboxes,
@@ -79,7 +79,7 @@ impl GameState {
             MudConfig::default_config,
         )?;
 
-        let entity_configs = load_dir_config(config_dir, load_entity_configs);
+        let character_configs = load_dir_config(config_dir, load_character_configs);
         let classes = load_dir_config(config_dir, load_classes);
         let abilities = load_dir_config(config_dir, load_abilities);
         let themes = load_dir_config(config_dir, load_themes);
@@ -94,10 +94,10 @@ impl GameState {
             resource_config,
             mud_config,
             abilities,
-            entity_configs,
+            character_configs,
             classes,
             themes,
-            active_entities: RwLock::new(HashMap::new()),
+            active_characters: RwLock::new(HashMap::new()),
             active_dungeons: RwLock::new(HashSet::new()),
             engagements: Engagements::new(),
             mailboxes: Mailboxes::new(),
@@ -109,16 +109,21 @@ impl GameState {
         })
     }
 
-    pub async fn sync_active_entities(&self, pool: &SqlitePool) -> Result<(), PersistenceError> {
-        entity_sync::sync(self, pool).await
+    pub async fn sync_active_characters(&self, pool: &SqlitePool) -> Result<(), PersistenceError> {
+        character_sync::sync(self, pool).await
     }
 
-    pub async fn push_pending_activation(&self, entity: Entity, player: Player, client_id: String) {
+    pub async fn push_pending_activation(
+        &self,
+        character: Character,
+        player: Player,
+        client_id: String,
+    ) {
         self.pending_activations
             .write()
             .await
             .push(PendingActivation {
-                entity,
+                character,
                 player,
                 client_id,
             });
@@ -320,10 +325,10 @@ modifiers = ["bold"]
     }
 
     #[tokio::test]
-    async fn load_initializes_empty_entities() {
+    async fn load_initializes_empty_characters() {
         let state = GameState::load(None).unwrap();
-        let entities = state.active_entities.read().await;
-        assert!(entities.is_empty());
+        let characters = state.active_characters.read().await;
+        assert!(characters.is_empty());
     }
 
     #[tokio::test]

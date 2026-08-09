@@ -1,4 +1,4 @@
-use crate::game::config::entity_config::{DialogLine, PlayerResponse};
+use crate::game::config::character_config::{DialogLine, PlayerResponse};
 use pulldown_cmark::{Event, HeadingLevel, Parser, Tag, TagEnd};
 use std::error::Error;
 

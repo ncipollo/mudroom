@@ -1,6 +1,6 @@
 name = "Basic Attack"
 description = "A straightforward strike."
-action_text = "{{entity}} strikes {{target}}"
+action_text = "{{character}} strikes {{target}}"
 engagement_types = ["battle"]
 costs = []
 role = "attack"

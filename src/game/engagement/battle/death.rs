@@ -2,9 +2,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::game::GameState;
+use crate::game::character::Character;
 use crate::game::component::AttributeType;
 use crate::game::config::AttributeConfig;
-use crate::game::entity::Entity;
 
 /// Detects which of the given entities have died (an HP-type attribute at or below its minimum).
 /// Only call this when the current battle tick has just completed the `ResolveEntityState` phase.
@@ -20,7 +20,7 @@ pub(super) async fn detect_dead_entities(
         .map(|def| def.id.as_str())
         .collect();
 
-    let entities = game_state.active_entities.read().await;
+    let entities = game_state.active_characters.read().await;
     entity_ids
         .iter()
         .filter(|&&id| is_entity_dead(id, &entities, &hp_def_ids))
@@ -28,12 +28,12 @@ pub(super) async fn detect_dead_entities(
         .collect()
 }
 
-fn is_entity_dead(entity_id: i64, entities: &HashMap<i64, Entity>, hp_def_ids: &[&str]) -> bool {
-    let Some(entity) = entities.get(&entity_id) else {
+fn is_entity_dead(entity_id: i64, entities: &HashMap<i64, Character>, hp_def_ids: &[&str]) -> bool {
+    let Some(character) = entities.get(&entity_id) else {
         return false;
     };
     hp_def_ids.iter().any(|&hp_id| {
-        entity
+        character
             .attributes
             .get(hp_id)
             .is_some_and(|attr| attr.current_value <= attr.min_value)
@@ -43,9 +43,9 @@ fn is_entity_dead(entity_id: i64, entities: &HashMap<i64, Entity>, hp_def_ids: &
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::game::character::CharacterType;
     use crate::game::component::Attribute;
     use crate::game::component::Location;
-    use crate::game::entity::EntityType;
 
     fn test_location() -> Location {
         Location {
@@ -55,20 +55,20 @@ mod tests {
         }
     }
 
-    fn entity_with_hp(id: i64, current: i64) -> Entity {
-        let mut entity = Entity::new(id, EntityType::Player, test_location());
-        entity.attributes.insert(
+    fn entity_with_hp(id: i64, current: i64) -> Character {
+        let mut character = Character::new(id, CharacterType::Player, test_location());
+        character.attributes.insert(
             "hp".to_string(),
             Attribute::new("hp".to_string(), 0, 100, current),
         );
-        entity
+        character
     }
 
-    async fn game_state_with_entities(entities: Vec<Entity>) -> Arc<GameState> {
+    async fn game_state_with_entities(entities: Vec<Character>) -> Arc<GameState> {
         let game_state = Arc::new(GameState::load(None).unwrap());
-        let mut map = game_state.active_entities.write().await;
-        for entity in entities {
-            map.insert(entity.id, entity);
+        let mut map = game_state.active_characters.write().await;
+        for character in entities {
+            map.insert(character.id, character);
         }
         drop(map);
         game_state

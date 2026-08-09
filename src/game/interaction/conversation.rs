@@ -51,7 +51,7 @@ async fn remove_npc_conversation_state(
     npc_entity_id: i64,
     engagement_id: i64,
 ) {
-    let mut entities = game_state.active_entities.write().await;
+    let mut entities = game_state.active_characters.write().await;
     if let Some(npc) = entities.get_mut(&npc_entity_id)
         && let Some(ai) = npc.ai.as_mut()
     {
@@ -84,7 +84,7 @@ pub async fn process(
     }
 
     let player_location = {
-        let entities = game_state.active_entities.read().await;
+        let entities = game_state.active_characters.read().await;
         match entities.get(&player.entity_id) {
             Some(e) => e.location.clone(),
             None => return,
@@ -129,13 +129,13 @@ async fn find_talk_candidate(
     player: &Player,
     player_location: &crate::game::Location,
 ) -> Option<TalkCandidate> {
-    let entities = game_state.active_entities.read().await;
+    let entities = game_state.active_characters.read().await;
     entities
         .values()
         .filter(|e| e.id != player.entity_id && &e.location == player_location)
         .find_map(|e| {
             let config_id = e.config_id.as_deref()?;
-            let config = game_state.entity_configs.get(config_id)?;
+            let config = game_state.character_configs.get(config_id)?;
             match &config.persona {
                 Some(PersonaConfig::Agent { parsed_persona, .. }) => {
                     let instructions = match parsed_persona {
@@ -177,7 +177,7 @@ async fn start_standard_dialog(
         .await;
 
     {
-        let mut entities = game_state.active_entities.write().await;
+        let mut entities = game_state.active_characters.write().await;
         if let Some(npc) = entities.get_mut(&npc_entity_id) {
             let mut state = SimpleConversationState::default();
             state.contexts.insert(

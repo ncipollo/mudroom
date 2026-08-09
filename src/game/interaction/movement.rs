@@ -8,7 +8,7 @@ use crate::game::player::Player;
 
 use crate::game::{GameState, Location, messaging};
 use crate::persistence::Database;
-use crate::persistence::{entity_repo, room_repo};
+use crate::persistence::{character_repo, room_repo};
 
 use super::look;
 use super::room_threats;
@@ -26,7 +26,7 @@ pub async fn process(
     direction: Direction,
 ) {
     let location = {
-        let entities = game_state.active_entities.read().await;
+        let entities = game_state.active_characters.read().await;
         match entities.get(&player.entity_id) {
             Some(e) => e.location.clone(),
             None => return,
@@ -100,13 +100,13 @@ async fn update_entity_location(
     new_location: &Location,
 ) {
     {
-        let mut entities = game_state.active_entities.write().await;
-        if let Some(entity) = entities.get_mut(&entity_id) {
-            entity.location = new_location.clone();
+        let mut entities = game_state.active_characters.write().await;
+        if let Some(character) = entities.get_mut(&entity_id) {
+            character.location = new_location.clone();
         }
     }
-    if let Err(e) = entity_repo::update_location(db.pool(), entity_id, new_location).await {
-        tracing::error!("Failed to update entity location in DB: {e}");
+    if let Err(e) = character_repo::update_location(db.pool(), entity_id, new_location).await {
+        tracing::error!("Failed to update character location in DB: {e}");
     }
 }
 
@@ -118,7 +118,7 @@ async fn sync_if_dungeon_changed(
 ) {
     let dungeon_changed = new_location.world_id != old_location.world_id
         || new_location.dungeon_id != old_location.dungeon_id;
-    if dungeon_changed && let Err(e) = game_state.sync_active_entities(db.pool()).await {
+    if dungeon_changed && let Err(e) = game_state.sync_active_characters(db.pool()).await {
         tracing::error!("Failed to sync active entities after dungeon change: {e}");
     }
 }

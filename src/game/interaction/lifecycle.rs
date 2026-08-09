@@ -13,7 +13,7 @@ pub async fn player_disconnected(game_state: &Arc<GameState>, player: &Player) {
     }
 
     game_state
-        .active_entities
+        .active_characters
         .write()
         .await
         .remove(&player.entity_id);

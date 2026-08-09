@@ -17,19 +17,19 @@ pub(in crate::game::engagement::battle) async fn apply_innate_effects(
     turn_count: u64,
     messages: &mut Vec<BattleMessage>,
 ) {
-    let mut entities = game_state.active_entities.write().await;
+    let mut entities = game_state.active_characters.write().await;
     for &entity_id in participant_ids {
-        let Some(entity) = entities.get(&entity_id) else {
+        let Some(character) = entities.get(&entity_id) else {
             continue;
         };
-        let entity_name = entity.name.clone();
-        let triggered: Vec<Effect> = entity
+        let entity_name = character.name.clone();
+        let triggered: Vec<Effect> = character
             .active_effects
             .iter()
             .filter(|e| is_over_time_triggered(&e.trigger_info, turn_count))
             .cloned()
             .collect();
-        let expired_names: Vec<String> = entity
+        let expired_names: Vec<String> = character
             .active_effects
             .iter()
             .filter(|e| is_over_time_expired(&e.trigger_info, turn_count))
@@ -42,9 +42,9 @@ pub(in crate::game::engagement::battle) async fn apply_innate_effects(
         }
 
         if !expired_names.is_empty()
-            && let Some(entity) = entities.get_mut(&entity_id)
+            && let Some(character) = entities.get_mut(&entity_id)
         {
-            entity
+            character
                 .active_effects
                 .retain(|e| !is_over_time_expired(&e.trigger_info, turn_count));
         }
@@ -75,10 +75,10 @@ fn is_over_time_expired(trigger: &TriggerInfo, turn_count: u64) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::game::character::{Character, CharacterType};
     use crate::game::component::Attribute;
     use crate::game::component::Location;
     use crate::game::component::effect::{EffectDescription, EffectScope, EffectType};
-    use crate::game::entity::{Entity, EntityType};
 
     fn test_location() -> Location {
         Location {
@@ -127,31 +127,31 @@ mod tests {
         }
     }
 
-    async fn game_state_with_entity(entity: Entity) -> Arc<GameState> {
+    async fn game_state_with_entity(character: Character) -> Arc<GameState> {
         let game_state = Arc::new(GameState::load(None).unwrap());
         game_state
-            .active_entities
+            .active_characters
             .write()
             .await
-            .insert(entity.id, entity);
+            .insert(character.id, character);
         game_state
     }
 
     #[tokio::test]
     async fn apply_innate_effects_resolves_triggered_over_time_effect() {
-        let mut entity = Entity::new(1, EntityType::Player, test_location());
-        entity
+        let mut character = Character::new(1, CharacterType::Player, test_location());
+        character
             .attributes
             .insert("hp".to_string(), hp_attribute(100));
-        entity
+        character
             .active_effects
             .push(over_time_shield_effect(5, 0, None, 1));
-        let game_state = game_state_with_entity(entity).await;
+        let game_state = game_state_with_entity(character).await;
 
         let mut messages = Vec::new();
         apply_innate_effects(&game_state, &[1], 0, &mut messages).await;
 
-        let entities = game_state.active_entities.read().await;
+        let entities = game_state.active_characters.read().await;
         // The triggered effect is resolved and re-pushed onto active_effects, proving it
         // actually ran (rather than being silently skipped by the trigger-gate check).
         assert_eq!(entities[&1].active_effects.len(), 2);
@@ -159,20 +159,20 @@ mod tests {
 
     #[tokio::test]
     async fn apply_innate_effects_removes_expired_over_time_effect_and_emits_message() {
-        let mut entity = Entity::new(1, EntityType::Player, test_location());
-        entity.name = "Goblin".to_string();
-        entity
+        let mut character = Character::new(1, CharacterType::Player, test_location());
+        character.name = "Goblin".to_string();
+        character
             .attributes
             .insert("hp".to_string(), hp_attribute(100));
-        entity
+        character
             .active_effects
             .push(over_time_effect(-1, 0, Some(3), 1));
-        let game_state = game_state_with_entity(entity).await;
+        let game_state = game_state_with_entity(character).await;
 
         let mut messages = Vec::new();
         apply_innate_effects(&game_state, &[1], 3, &mut messages).await;
 
-        let entities = game_state.active_entities.read().await;
+        let entities = game_state.active_characters.read().await;
         assert!(entities[&1].active_effects.is_empty());
         assert!(messages.contains(&BattleMessage::EffectExpired {
             entity_name: "Goblin".to_string(),
@@ -182,19 +182,19 @@ mod tests {
 
     #[tokio::test]
     async fn apply_innate_effects_still_triggers_on_the_tick_before_expiry() {
-        let mut entity = Entity::new(1, EntityType::Player, test_location());
-        entity
+        let mut character = Character::new(1, CharacterType::Player, test_location());
+        character
             .attributes
             .insert("hp".to_string(), hp_attribute(100));
-        entity
+        character
             .active_effects
             .push(over_time_shield_effect(5, 0, Some(3), 1));
-        let game_state = game_state_with_entity(entity).await;
+        let game_state = game_state_with_entity(character).await;
 
         let mut messages = Vec::new();
         apply_innate_effects(&game_state, &[1], 2, &mut messages).await;
 
-        let entities = game_state.active_entities.read().await;
+        let entities = game_state.active_characters.read().await;
         assert_eq!(entities[&1].active_effects.len(), 2);
         assert!(messages.is_empty());
     }

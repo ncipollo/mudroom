@@ -51,11 +51,11 @@ async fn participant_player_ids(game_state: &Arc<GameState>, entity_ids: &[i64])
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::game::character::{Character, CharacterType};
     use crate::game::component::Location;
     use crate::game::component::effect::{
         Effect, EffectDescription, EffectScope, EffectType, TriggerInfo,
     };
-    use crate::game::entity::{Entity, EntityType};
     use crate::game::messaging::Message;
     use crate::game::player::Player;
     use std::collections::HashMap;
@@ -96,15 +96,15 @@ mod tests {
 
     async fn battle_game_state() -> Arc<GameState> {
         let game_state = Arc::new(GameState::load(None).unwrap());
-        let mut departing = Entity::new(1, EntityType::Player, test_location());
+        let mut departing = Character::new(1, CharacterType::Player, test_location());
         departing.active_effects = vec![battle_scoped_effect()];
-        let mut surviving = Entity::new(2, EntityType::Player, test_location());
+        let mut surviving = Character::new(2, CharacterType::Player, test_location());
         surviving.active_effects = vec![battle_scoped_effect()];
         {
-            let mut entities = game_state.active_entities.write().await;
+            let mut entities = game_state.active_characters.write().await;
             entities.insert(1, departing);
             entities.insert(2, surviving);
-            entities.insert(3, Entity::new(3, EntityType::Enemy, test_location()));
+            entities.insert(3, Character::new(3, CharacterType::Enemy, test_location()));
         }
         {
             let mut players = game_state.active_players.write().await;
@@ -152,7 +152,7 @@ mod tests {
         assert!(rx.try_recv().is_err(), "expected exactly one message");
 
         // Battle-scoped effects are cleared from both survivors and departed entities.
-        let entities = game_state.active_entities.read().await;
+        let entities = game_state.active_characters.read().await;
         assert!(entities[&1].active_effects.is_empty());
         assert!(entities[&2].active_effects.is_empty());
     }

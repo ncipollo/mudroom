@@ -55,18 +55,18 @@ pub async fn upsert(pool: &SqlitePool, ability: &Ability) -> Result<(), Persiste
     Ok(())
 }
 
-pub async fn find_by_entity(
+pub async fn find_by_character(
     pool: &SqlitePool,
-    entity_id: i64,
+    character_id: i64,
 ) -> Result<Vec<Ability>, PersistenceError> {
     let rows: Vec<AbilityRow> = sqlx::query_as(
         "SELECT a.id, a.name, a.description, a.effects_json, a.costs_json, \
              a.modifiers_json, a.engagement_types_json, a.role, a.targets_json, a.action_text \
              FROM abilities a \
-             JOIN entity_abilities ea ON a.id = ea.ability_id \
-             WHERE ea.entity_id = ?",
+             JOIN character_abilities ea ON a.id = ea.ability_id \
+             WHERE ea.character_id = ?",
     )
-    .bind(entity_id)
+    .bind(character_id)
     .fetch_all(pool)
     .await?;
 
@@ -123,18 +123,18 @@ pub async fn find_by_entity(
         .collect())
 }
 
-pub async fn set_entity_abilities(
+pub async fn set_character_abilities(
     pool: &SqlitePool,
-    entity_id: i64,
+    character_id: i64,
     ability_ids: &[&str],
 ) -> Result<(), PersistenceError> {
-    sqlx::query("DELETE FROM entity_abilities WHERE entity_id = ?")
-        .bind(entity_id)
+    sqlx::query("DELETE FROM character_abilities WHERE character_id = ?")
+        .bind(character_id)
         .execute(pool)
         .await?;
     for ability_id in ability_ids {
-        sqlx::query("INSERT INTO entity_abilities (entity_id, ability_id) VALUES (?, ?)")
-            .bind(entity_id)
+        sqlx::query("INSERT INTO character_abilities (character_id, ability_id) VALUES (?, ?)")
+            .bind(character_id)
             .bind(ability_id)
             .execute(pool)
             .await?;
@@ -165,9 +165,9 @@ mod tests {
         Effect, EffectDescription, EffectScope, EffectType, TriggerInfo,
     };
     use crate::game::engagement::EngagementType;
-    use crate::game::{Dungeon, Entity, EntityType, Location, Room, World};
+    use crate::game::{Character, CharacterType, Dungeon, Location, Room, World};
     use crate::persistence::database::Database;
-    use crate::persistence::{dungeon_repo, entity_repo, room_repo, world_repo};
+    use crate::persistence::{character_repo, dungeon_repo, room_repo, world_repo};
 
     async fn setup(db: &Database) -> i64 {
         let world = World::new("w1".to_string());
@@ -183,8 +183,8 @@ mod tests {
             dungeon_id: "d1".to_string(),
             room_id: "r1".to_string(),
         };
-        let entity = Entity::new(0, EntityType::Player, loc);
-        entity_repo::insert(db.pool(), &entity).await.unwrap()
+        let character = Character::new(0, CharacterType::Player, loc);
+        character_repo::insert(db.pool(), &character).await.unwrap()
     }
 
     fn attack_ability() -> Ability {
@@ -227,16 +227,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn upsert_and_find_by_entity() {
+    async fn upsert_and_find_by_character() {
         let db = Database::connect_in_memory().await.unwrap();
-        let entity_id = setup(&db).await;
+        let character_id = setup(&db).await;
         let ability = attack_ability();
         upsert(db.pool(), &ability).await.unwrap();
-        set_entity_abilities(db.pool(), entity_id, &["attack"])
+        set_character_abilities(db.pool(), character_id, &["attack"])
             .await
             .unwrap();
 
-        let abilities = find_by_entity(db.pool(), entity_id).await.unwrap();
+        let abilities = find_by_character(db.pool(), character_id).await.unwrap();
         assert_eq!(abilities.len(), 1);
         assert_eq!(abilities[0].id, "attack");
         assert_eq!(abilities[0].effects.len(), 1);
@@ -247,14 +247,14 @@ mod tests {
     #[tokio::test]
     async fn upsert_preserves_defend_role() {
         let db = Database::connect_in_memory().await.unwrap();
-        let entity_id = setup(&db).await;
+        let character_id = setup(&db).await;
         let ability = defend_ability();
         upsert(db.pool(), &ability).await.unwrap();
-        set_entity_abilities(db.pool(), entity_id, &["defend"])
+        set_character_abilities(db.pool(), character_id, &["defend"])
             .await
             .unwrap();
 
-        let abilities = find_by_entity(db.pool(), entity_id).await.unwrap();
+        let abilities = find_by_character(db.pool(), character_id).await.unwrap();
         assert_eq!(abilities.len(), 1);
         assert_eq!(abilities[0].role, AbilityRole::Defend);
     }
@@ -262,49 +262,51 @@ mod tests {
     #[tokio::test]
     async fn upsert_is_idempotent() {
         let db = Database::connect_in_memory().await.unwrap();
-        let entity_id = setup(&db).await;
+        let character_id = setup(&db).await;
         let ability = attack_ability();
         upsert(db.pool(), &ability).await.unwrap();
         upsert(db.pool(), &ability).await.unwrap();
-        set_entity_abilities(db.pool(), entity_id, &["attack"])
+        set_character_abilities(db.pool(), character_id, &["attack"])
             .await
             .unwrap();
 
-        let abilities = find_by_entity(db.pool(), entity_id).await.unwrap();
+        let abilities = find_by_character(db.pool(), character_id).await.unwrap();
         assert_eq!(abilities.len(), 1);
     }
 
     #[tokio::test]
-    async fn set_entity_abilities_replaces_existing() {
+    async fn set_character_abilities_replaces_existing() {
         let db = Database::connect_in_memory().await.unwrap();
-        let entity_id = setup(&db).await;
+        let character_id = setup(&db).await;
         let ability = attack_ability();
         upsert(db.pool(), &ability).await.unwrap();
 
-        set_entity_abilities(db.pool(), entity_id, &["attack"])
+        set_character_abilities(db.pool(), character_id, &["attack"])
             .await
             .unwrap();
-        set_entity_abilities(db.pool(), entity_id, &[])
+        set_character_abilities(db.pool(), character_id, &[])
             .await
             .unwrap();
 
-        let abilities = find_by_entity(db.pool(), entity_id).await.unwrap();
+        let abilities = find_by_character(db.pool(), character_id).await.unwrap();
         assert!(abilities.is_empty());
     }
 
     #[tokio::test]
-    async fn cascade_delete_on_entity_delete() {
+    async fn cascade_delete_on_character_delete() {
         let db = Database::connect_in_memory().await.unwrap();
-        let entity_id = setup(&db).await;
+        let character_id = setup(&db).await;
         let ability = attack_ability();
         upsert(db.pool(), &ability).await.unwrap();
-        set_entity_abilities(db.pool(), entity_id, &["attack"])
+        set_character_abilities(db.pool(), character_id, &["attack"])
             .await
             .unwrap();
 
-        entity_repo::delete(db.pool(), entity_id).await.unwrap();
+        character_repo::delete(db.pool(), character_id)
+            .await
+            .unwrap();
 
-        let abilities = find_by_entity(db.pool(), entity_id).await.unwrap();
+        let abilities = find_by_character(db.pool(), character_id).await.unwrap();
         assert!(abilities.is_empty());
     }
 }

@@ -94,17 +94,17 @@ mod tests {
             "worlds",
             "dungeons",
             "rooms",
-            "entities",
+            "characters",
             "attributes",
             "interactions",
             "players",
             "server_state",
             "factions",
-            "entity_factions",
+            "character_factions",
             "resource_definitions",
-            "entity_resources",
+            "character_resources",
             "abilities",
-            "entity_abilities",
+            "character_abilities",
         ] {
             assert!(table_exists(pool, table).await, "missing table: {table}");
         }

@@ -1,6 +1,6 @@
 use crate::game::component::description::Description;
 use crate::game::config::ability_config::AbilityReference;
-use crate::game::config::entity_config::StartingAttribute;
+use crate::game::config::character_config::StartingAttribute;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::error::Error;

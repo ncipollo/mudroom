@@ -1,6 +1,6 @@
 name = "Electric Shot"
 description = "A charged burst of electrical energy."
-action_text = "{{entity}} unleashes a bolt of lightning at {{target}}"
+action_text = "{{character}} unleashes a bolt of lightning at {{target}}"
 engagement_types = ["battle"]
 costs = []
 role = "attack"

@@ -1,8 +1,8 @@
+use crate::game::character::Character;
 use crate::game::component::AttributeCategory;
 use crate::game::config::AttributeConfig;
-use crate::game::entity::Entity;
 
-/// Tracks the turn order for an engagement. Sorted by entity ID ascending when using `new`;
+/// Tracks the turn order for an engagement. Sorted by character ID ascending when using `new`;
 /// use `new_from_entities` to sort by Speed attribute descending.
 pub struct TurnOrder {
     order: Vec<i64>,
@@ -20,8 +20,8 @@ impl TurnOrder {
     }
 
     /// Build a turn order from entities sorted by Speed attribute descending. Entities with
-    /// higher total speed go first; ties are broken by ascending entity ID.
-    pub fn new_from_entities(entities: &[&Entity], config: &AttributeConfig) -> Self {
+    /// higher total speed go first; ties are broken by ascending character ID.
+    pub fn new_from_entities(entities: &[&Character], config: &AttributeConfig) -> Self {
         let speed_def_ids: Vec<&str> = config
             .attributes
             .iter()
@@ -31,13 +31,13 @@ impl TurnOrder {
 
         let mut entity_speeds: Vec<(i64, i64)> = entities
             .iter()
-            .map(|entity| {
+            .map(|character| {
                 let speed: i64 = speed_def_ids
                     .iter()
-                    .filter_map(|&def_id| entity.attributes.get(def_id))
+                    .filter_map(|&def_id| character.attributes.get(def_id))
                     .map(|attr| attr.current_value)
                     .sum();
-                (entity.id, speed)
+                (character.id, speed)
             })
             .collect();
 
@@ -114,11 +114,11 @@ mod tests {
 
     #[test]
     fn new_from_entities_sorts_by_speed_descending() {
+        use crate::game::character::{Character, CharacterType};
         use crate::game::component::location::Location;
         use crate::game::component::{
             Attribute, AttributeCategory, AttributeDefinition, AttributeType,
         };
-        use crate::game::entity::{Entity, EntityType};
 
         let config = AttributeConfig {
             attributes: vec![AttributeDefinition {
@@ -139,19 +139,19 @@ mod tests {
             room_id: "r".to_string(),
         };
 
-        let mut slow = Entity::new(1, EntityType::Enemy, loc.clone());
+        let mut slow = Character::new(1, CharacterType::Enemy, loc.clone());
         slow.attributes.insert(
             "speed".to_string(),
             Attribute::new("speed".to_string(), 0, 100, 5),
         );
 
-        let mut fast = Entity::new(2, EntityType::Enemy, loc.clone());
+        let mut fast = Character::new(2, CharacterType::Enemy, loc.clone());
         fast.attributes.insert(
             "speed".to_string(),
             Attribute::new("speed".to_string(), 0, 100, 20),
         );
 
-        let mut medium = Entity::new(3, EntityType::Enemy, loc);
+        let mut medium = Character::new(3, CharacterType::Enemy, loc);
         medium.attributes.insert(
             "speed".to_string(),
             Attribute::new("speed".to_string(), 0, 100, 10),
@@ -163,11 +163,11 @@ mod tests {
 
     #[test]
     fn new_from_entities_tie_breaks_by_entity_id_ascending() {
+        use crate::game::character::{Character, CharacterType};
         use crate::game::component::location::Location;
         use crate::game::component::{
             Attribute, AttributeCategory, AttributeDefinition, AttributeType,
         };
-        use crate::game::entity::{Entity, EntityType};
 
         let config = AttributeConfig {
             attributes: vec![AttributeDefinition {
@@ -188,13 +188,13 @@ mod tests {
             room_id: "r".to_string(),
         };
 
-        let mut e5 = Entity::new(5, EntityType::Enemy, loc.clone());
+        let mut e5 = Character::new(5, CharacterType::Enemy, loc.clone());
         e5.attributes.insert(
             "speed".to_string(),
             Attribute::new("speed".to_string(), 0, 100, 10),
         );
 
-        let mut e3 = Entity::new(3, EntityType::Enemy, loc);
+        let mut e3 = Character::new(3, CharacterType::Enemy, loc);
         e3.attributes.insert(
             "speed".to_string(),
             Attribute::new("speed".to_string(), 0, 100, 10),
@@ -206,8 +206,8 @@ mod tests {
 
     #[test]
     fn new_from_entities_falls_back_to_entity_id_when_no_speed_attr() {
+        use crate::game::character::{Character, CharacterType};
         use crate::game::component::location::Location;
-        use crate::game::entity::{Entity, EntityType};
 
         let config = AttributeConfig { attributes: vec![] };
 
@@ -217,8 +217,8 @@ mod tests {
             room_id: "r".to_string(),
         };
 
-        let e3 = Entity::new(3, EntityType::Enemy, loc.clone());
-        let e1 = Entity::new(1, EntityType::Enemy, loc);
+        let e3 = Character::new(3, CharacterType::Enemy, loc.clone());
+        let e1 = Character::new(1, CharacterType::Enemy, loc);
 
         let order = TurnOrder::new_from_entities(&[&e3, &e1], &config);
         assert_eq!(order.order(), &[1, 3]);

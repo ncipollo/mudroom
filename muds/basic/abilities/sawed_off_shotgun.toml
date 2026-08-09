@@ -1,6 +1,6 @@
 name = "Sawed-Off Shotgun"
 description = "A devastating close-range blast."
-action_text = "{{entity}} blasts {{target}} with a sawed-off shotgun"
+action_text = "{{character}} blasts {{target}} with a sawed-off shotgun"
 engagement_types = ["battle"]
 costs = []
 role = "attack"

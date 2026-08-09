@@ -7,7 +7,7 @@ type EffectRow = (i64, String, String, String, String);
 
 pub async fn insert(
     pool: &SqlitePool,
-    entity_id: i64,
+    character_id: i64,
     effect: &Effect,
 ) -> Result<(), PersistenceError> {
     let effect_type_json =
@@ -18,9 +18,9 @@ pub async fn insert(
         serde_json::to_string(&effect.description).map_err(PersistenceError::Json)?;
 
     sqlx::query(
-        "INSERT INTO entity_effects (entity_id, name, effect_type_json, trigger_info_json, description_json) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO character_effects (character_id, name, effect_type_json, trigger_info_json, description_json) VALUES (?, ?, ?, ?, ?)",
     )
-    .bind(entity_id)
+    .bind(character_id)
     .bind(&effect.name)
     .bind(effect_type_json)
     .bind(trigger_info_json)
@@ -30,14 +30,14 @@ pub async fn insert(
     Ok(())
 }
 
-pub async fn find_by_entity(
+pub async fn find_by_character(
     pool: &SqlitePool,
-    entity_id: i64,
+    character_id: i64,
 ) -> Result<Vec<Effect>, PersistenceError> {
     let rows: Vec<EffectRow> = sqlx::query_as(
-        "SELECT id, name, effect_type_json, trigger_info_json, description_json FROM entity_effects WHERE entity_id = ?",
+        "SELECT id, name, effect_type_json, trigger_info_json, description_json FROM character_effects WHERE character_id = ?",
     )
-    .bind(entity_id)
+    .bind(character_id)
     .fetch_all(pool)
     .await?;
 
@@ -62,9 +62,12 @@ pub async fn find_by_entity(
         .collect()
 }
 
-pub async fn delete_by_entity(pool: &SqlitePool, entity_id: i64) -> Result<(), PersistenceError> {
-    sqlx::query("DELETE FROM entity_effects WHERE entity_id = ?")
-        .bind(entity_id)
+pub async fn delete_by_character(
+    pool: &SqlitePool,
+    character_id: i64,
+) -> Result<(), PersistenceError> {
+    sqlx::query("DELETE FROM character_effects WHERE character_id = ?")
+        .bind(character_id)
         .execute(pool)
         .await?;
     Ok(())
@@ -74,9 +77,9 @@ pub async fn delete_by_entity(pool: &SqlitePool, entity_id: i64) -> Result<(), P
 mod tests {
     use super::*;
     use crate::game::component::effect::{EffectDescription, EffectType, TriggerInfo};
-    use crate::game::{Description, Dungeon, Entity, EntityType, Location, Room, World};
+    use crate::game::{Character, CharacterType, Description, Dungeon, Location, Room, World};
     use crate::persistence::database::Database;
-    use crate::persistence::{dungeon_repo, entity_repo, room_repo, world_repo};
+    use crate::persistence::{character_repo, dungeon_repo, room_repo, world_repo};
 
     async fn setup(db: &Database) -> i64 {
         let world = World::new("w1".to_string());
@@ -92,8 +95,8 @@ mod tests {
             dungeon_id: "d1".to_string(),
             room_id: "r1".to_string(),
         };
-        let entity = Entity::new(0, EntityType::Character, loc);
-        entity_repo::insert(db.pool(), &entity).await.unwrap()
+        let character = Character::new(0, CharacterType::Character, loc);
+        character_repo::insert(db.pool(), &character).await.unwrap()
     }
 
     fn make_effect() -> Effect {
@@ -113,44 +116,50 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn insert_and_find_by_entity() {
+    async fn insert_and_find_by_character() {
         let db = Database::connect_in_memory().await.unwrap();
-        let entity_id = setup(&db).await;
+        let character_id = setup(&db).await;
         let effect = make_effect();
-        insert(db.pool(), entity_id, &effect).await.unwrap();
+        insert(db.pool(), character_id, &effect).await.unwrap();
 
-        let found = find_by_entity(db.pool(), entity_id).await.unwrap();
+        let found = find_by_character(db.pool(), character_id).await.unwrap();
         assert_eq!(found.len(), 1);
         assert_eq!(found[0], effect);
     }
 
     #[tokio::test]
-    async fn find_by_entity_returns_empty_for_unknown() {
+    async fn find_by_character_returns_empty_for_unknown() {
         let db = Database::connect_in_memory().await.unwrap();
-        let found = find_by_entity(db.pool(), 999).await.unwrap();
+        let found = find_by_character(db.pool(), 999).await.unwrap();
         assert!(found.is_empty());
     }
 
     #[tokio::test]
-    async fn delete_by_entity_removes_effects() {
+    async fn delete_by_character_removes_effects() {
         let db = Database::connect_in_memory().await.unwrap();
-        let entity_id = setup(&db).await;
-        insert(db.pool(), entity_id, &make_effect()).await.unwrap();
-        delete_by_entity(db.pool(), entity_id).await.unwrap();
+        let character_id = setup(&db).await;
+        insert(db.pool(), character_id, &make_effect())
+            .await
+            .unwrap();
+        delete_by_character(db.pool(), character_id).await.unwrap();
 
-        let found = find_by_entity(db.pool(), entity_id).await.unwrap();
+        let found = find_by_character(db.pool(), character_id).await.unwrap();
         assert!(found.is_empty());
     }
 
     #[tokio::test]
-    async fn cascade_delete_on_entity_delete() {
+    async fn cascade_delete_on_character_delete() {
         let db = Database::connect_in_memory().await.unwrap();
-        let entity_id = setup(&db).await;
-        insert(db.pool(), entity_id, &make_effect()).await.unwrap();
+        let character_id = setup(&db).await;
+        insert(db.pool(), character_id, &make_effect())
+            .await
+            .unwrap();
 
-        entity_repo::delete(db.pool(), entity_id).await.unwrap();
+        character_repo::delete(db.pool(), character_id)
+            .await
+            .unwrap();
 
-        let found = find_by_entity(db.pool(), entity_id).await.unwrap();
+        let found = find_by_character(db.pool(), character_id).await.unwrap();
         assert!(found.is_empty());
     }
 }

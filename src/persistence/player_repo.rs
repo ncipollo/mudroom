@@ -113,9 +113,9 @@ pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), PersistenceError> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::{Description, Dungeon, Entity, EntityType, Location, Room, World};
+    use crate::game::{Character, CharacterType, Description, Dungeon, Location, Room, World};
     use crate::persistence::database::Database;
-    use crate::persistence::{dungeon_repo, entity_repo, room_repo, world_repo};
+    use crate::persistence::{character_repo, dungeon_repo, room_repo, world_repo};
 
     async fn setup(db: &Database) -> i64 {
         let world = World::new("w1".to_string());
@@ -132,8 +132,8 @@ mod tests {
             dungeon_id: "d1".to_string(),
             room_id: "r1".to_string(),
         };
-        let entity = Entity::new(0, EntityType::Player, location);
-        entity_repo::insert(db.pool(), &entity).await.unwrap()
+        let character = Character::new(0, CharacterType::Player, location);
+        character_repo::insert(db.pool(), &character).await.unwrap()
     }
 
     #[tokio::test]

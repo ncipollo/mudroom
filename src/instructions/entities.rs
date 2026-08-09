@@ -1,11 +1,11 @@
 pub fn render() -> String {
     r#"mudroom instructions entities — entities/*.toml file reference
 
-Entity config files define the NPCs, creatures, and objects that populate the
+Character config files define the NPCs, creatures, and objects that populate the
 world: their type, persona, dialog, starting attributes, and combat behavior.
 
-Location: <mud-dir>/entities/<entity-id>.toml — one file per entity.
-The entity ID defaults to the file path relative to the mud dir, without the
+Location: <mud-dir>/entities/<character-id>.toml — one file per character.
+The character ID defaults to the file path relative to the mud dir, without the
 ".toml" extension (e.g. "entities/innkeeper.toml" -> "entities/innkeeper"),
 unless overridden by the `id` field. Room files reference entities by this ID
 in their `entities` array, e.g. entities = ["entities/innkeeper"].
@@ -26,20 +26,20 @@ Example (muds/basic/entities/innkeeper.toml):
 
 Top-level fields:
 
-  id             Optional. Overrides the derived entity ID.
+  id             Optional. Overrides the derived character ID.
   name           Optional. Display name. Defaults to a name derived from the
                  filename if omitted.
-  entity_type    Required. One of "character", "enemy", "object".
-  description    Optional. Flavor text describing the entity.
+  entity_type    Required. One of "character", "enemy".
+  description    Optional. Flavor text describing the character.
   persona        Optional. See [persona] below.
   attributes     Optional list of [[attributes]] tables. See below.
-  innate_abilities  Optional list of ability IDs the entity always has
+  innate_abilities  Optional list of ability IDs the character always has
                  available in combat, without needing to learn them, e.g.
                  innate_abilities = ["swing_ax", "scream_nonsense", "defend"].
-  factions       Optional list of faction IDs this entity belongs to.
+  factions       Optional list of faction IDs this character belongs to.
   faction_relations  Optional. See [faction_relations.factions] below.
   battle_ai      Optional. See [battle_ai] below.
-  entity_effects Optional list of standing effects applied to the entity
+  entity_effects Optional list of standing effects applied to the character
                  (advanced; same effect structure used by abilities).
 
 [persona] sub-table:
@@ -47,7 +47,7 @@ Top-level fields:
   type           Required. "standard" or "agent".
 
   type = "standard" — a scripted dialog tree:
-    dialog_file  Path to a Markdown dialog tree, relative to the entity file's
+    dialog_file  Path to a Markdown dialog tree, relative to the character file's
                  directory, e.g. dialog_file = "innkeeper_dialog.md".
     dialog_tree  Alternative to dialog_file: an inline [persona.dialog_tree]
                  table with the same structure the Markdown file parses into.
@@ -55,7 +55,7 @@ Top-level fields:
   type = "agent" — an LLM-driven persona:
     agent_type   Optional. Selects the agent provider/behavior. Defaults to
                  "default".
-    persona_file Path to a Markdown persona file, relative to the entity
+    persona_file Path to a Markdown persona file, relative to the character
                  file's directory, e.g. persona_file = "mysterious_man.md".
                  See `mudroom instructions mud-config` for the persona file
                  format (front matter, preamble, conditional sections).
@@ -69,14 +69,14 @@ Top-level fields:
 
 [faction_relations.factions] sub-table:
 
-  Maps a faction ID to this entity's relation towards it: "hostile",
+  Maps a faction ID to this character's relation towards it: "hostile",
   "unfriendly", "friendly", or "non_interactive" (default when unset).
 
 [battle_ai] sub-table:
 
   ai_type        Optional. "none" (default) or "simple_random".
 
-Combat entity example (muds/basic/entities/zombie.toml):
+Combat character example (muds/basic/entities/zombie.toml):
 
   entity_type = "enemy"
   factions = ["enemy"]

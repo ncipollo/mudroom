@@ -44,9 +44,9 @@ pub async fn delete_by_entity(pool: &SqlitePool, entity_id: i64) -> Result<(), P
 mod tests {
     use super::*;
     use crate::game::component::interaction::{Direction, Movement};
-    use crate::game::{Description, Dungeon, Entity, EntityType, Location, Room, World};
+    use crate::game::{Character, CharacterType, Description, Dungeon, Location, Room, World};
     use crate::persistence::database::Database;
-    use crate::persistence::{dungeon_repo, entity_repo, room_repo, world_repo};
+    use crate::persistence::{character_repo, dungeon_repo, room_repo, world_repo};
 
     async fn setup(db: &Database) -> i64 {
         let world = World::new("w1".to_string());
@@ -62,8 +62,8 @@ mod tests {
             dungeon_id: "d1".to_string(),
             room_id: "r1".to_string(),
         };
-        let entity = Entity::new(0, EntityType::Player, loc);
-        entity_repo::insert(db.pool(), &entity).await.unwrap()
+        let character = Character::new(0, CharacterType::Player, loc);
+        character_repo::insert(db.pool(), &character).await.unwrap()
     }
 
     #[tokio::test]
@@ -104,7 +104,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn cascade_delete_on_entity_delete() {
+    async fn cascade_delete_on_character_delete() {
         let db = Database::connect_in_memory().await.unwrap();
         let entity_id = setup(&db).await;
         insert(
@@ -115,7 +115,7 @@ mod tests {
         .await
         .unwrap();
 
-        entity_repo::delete(db.pool(), entity_id).await.unwrap();
+        character_repo::delete(db.pool(), entity_id).await.unwrap();
 
         let found = find_by_entity(db.pool(), entity_id).await.unwrap();
         assert!(found.is_empty());

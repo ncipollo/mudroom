@@ -280,7 +280,7 @@ mod tests {
             modifiers: vec![],
             role: AbilityRole::Attack,
             targets: vec![AbilityTargetType::Opponent],
-            action_text: Some("{{entity}} swings ax at {{target}} for {{effect}}".to_string()),
+            action_text: Some("{{character}} swings ax at {{target}} for {{effect}}".to_string()),
         };
         let json = serde_json::to_string(&ability).unwrap();
         let restored: Ability = serde_json::from_str(&json).unwrap();

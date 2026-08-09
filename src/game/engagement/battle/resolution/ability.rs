@@ -2,10 +2,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::game::GameState;
+use crate::game::character::Character;
 use crate::game::config::AttributeConfig;
 use crate::game::engagement::TurnOrder;
 use crate::game::engagement::battle::{BattleMessage, QueuedAbility};
-use crate::game::entity::Entity;
 use crate::game::narration::{TextResolver, VariableMap, effect_text};
 
 use super::effect::resolve_effects;
@@ -19,7 +19,7 @@ pub(in crate::game::engagement::battle) async fn apply_battle_effects(
     entity_names: &HashMap<i64, String>,
     messages: &mut Vec<BattleMessage>,
 ) {
-    let mut entities = game_state.active_entities.write().await;
+    let mut entities = game_state.active_characters.write().await;
     let speed_sorted_casters = speed_sort_casters(
         &resolution_queue
             .iter()
@@ -62,10 +62,10 @@ pub(in crate::game::engagement::battle) async fn apply_battle_effects(
 
 fn speed_sort_casters(
     caster_ids: &[i64],
-    entities: &HashMap<i64, Entity>,
+    entities: &HashMap<i64, Character>,
     config: &AttributeConfig,
 ) -> Vec<i64> {
-    let entity_refs: Vec<&Entity> = caster_ids
+    let entity_refs: Vec<&Character> = caster_ids
         .iter()
         .collect::<std::collections::HashSet<_>>()
         .into_iter()
@@ -100,7 +100,7 @@ fn ability_cast_messages(
 
     let cast_message = if let Some(action_text) = &qa.ability.action_text {
         let vars = VariableMap::new()
-            .insert("entity", &caster_name)
+            .insert("character", &caster_name)
             .insert("target", &target_name);
         BattleMessage::Meta(TextResolver::resolve(action_text, &vars))
     } else {
@@ -208,7 +208,7 @@ mod tests {
     fn with_action_text_no_effects_returns_single_meta() {
         let qa = QueuedAbility {
             caster_id: 1,
-            ability: make_ability(Some("{{entity}} strikes {{target}}!")),
+            ability: make_ability(Some("{{character}} strikes {{target}}!")),
             target_id: 2,
         };
         let msgs = ability_cast_messages(&qa, &make_names());
@@ -220,7 +220,7 @@ mod tests {
 
     #[test]
     fn with_action_text_and_hp_effect_emits_separate_indented_line() {
-        let mut ability = make_ability(Some("{{entity}} hits {{target}}"));
+        let mut ability = make_ability(Some("{{character}} hits {{target}}"));
         ability.effects = vec![hp_effect(-10, None)];
         let qa = QueuedAbility {
             caster_id: 1,
@@ -239,7 +239,7 @@ mod tests {
 
     #[test]
     fn with_action_text_and_custom_effect_text_uses_resolved_text() {
-        let mut ability = make_ability(Some("{{entity}} swings ax at {{target}}"));
+        let mut ability = make_ability(Some("{{character}} swings ax at {{target}}"));
         ability.effects = vec![hp_effect(-15, Some("Axe chops for {{abs_value}}"))];
         let qa = QueuedAbility {
             caster_id: 1,
