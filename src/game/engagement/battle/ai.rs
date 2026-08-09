@@ -5,8 +5,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::game::GameState;
+use crate::game::character::Character;
 use crate::game::config::BattleAiType;
-use crate::game::entity::Character;
 
 use super::BattlePhase;
 
@@ -90,13 +90,13 @@ pub fn pick_random<T>(items: &[T]) -> Option<&T> {
 mod tests {
     use std::collections::HashMap;
 
+    use crate::game::character::{Character, CharacterType};
     use crate::game::component::effect::{
         Effect, EffectDescription, EffectScope, EffectType, TriggerInfo,
     };
     use crate::game::component::{Ability, AbilityRole, AbilityTargetType, Description, Location};
     use crate::game::config::BattleAiConfig;
     use crate::game::engagement::EngagementType;
-    use crate::game::entity::{Character, CharacterType};
 
     use super::*;
 

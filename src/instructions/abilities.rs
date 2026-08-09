@@ -28,7 +28,7 @@ fn fields_section() -> String {
   description       string, optional  Short description.
   action_text       string, optional  Narration template shown when the
                                        ability is used, e.g.
-                                       "{{entity}} swings ax at {{target}}".
+                                       "{{character}} swings ax at {{target}}".
   engagement_types  array of strings   Engagement types this ability can be
                                        used in. See "engagement_types" below.
   costs             array of tables    Resources consumed to use the ability.

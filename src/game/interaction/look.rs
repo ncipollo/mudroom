@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
+use crate::game::character::CharacterType;
 use crate::game::component::description::Description;
 use crate::game::config::theme_config;
-use crate::game::entity::CharacterType;
 use crate::game::player::Player;
 use crate::game::{GameState, messaging};
 use crate::persistence::Database;

@@ -3,12 +3,12 @@ use std::sync::Arc;
 
 use tracing;
 
+use crate::game::character::Character;
 use crate::game::component::attribute_definition::AttributeType;
 use crate::game::component::faction_relations::FactionRelation;
 use crate::game::engagement::battle::{
     BattlePhase, attribute_snapshot, entity_innate_battle_abilities,
 };
-use crate::game::entity::Character;
 use crate::game::messaging::{BattleParticipantInfo, BattleStartedMessage};
 use crate::game::player::Player;
 use crate::game::{GameState, messaging};

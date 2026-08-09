@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
+use crate::game::character::Character;
 use crate::game::component::{Ability, Attribute, Cost};
-use crate::game::entity::Character;
 
 use super::QueuedAbility;
 
@@ -125,6 +125,7 @@ impl ActionQueue {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::game::character::CharacterType;
     use crate::game::component::AbilityRole;
     use crate::game::component::Description;
     use crate::game::component::Location;
@@ -132,7 +133,6 @@ mod tests {
         Effect, EffectDescription, EffectScope, EffectType, TriggerInfo,
     };
     use crate::game::engagement::EngagementType;
-    use crate::game::entity::CharacterType;
 
     fn attack_ability(cost: Option<(&str, i64)>) -> Ability {
         Ability {

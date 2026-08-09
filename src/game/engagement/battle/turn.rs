@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
+use crate::game::character::Character;
 use crate::game::component::{Ability, Attribute};
-use crate::game::entity::Character;
 
 use super::action_queue::ActionQueue;
 use super::{BattleMessage, BattlePhase, BattleTick, QueuedAbility};

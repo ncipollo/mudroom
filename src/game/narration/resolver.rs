@@ -36,19 +36,19 @@ mod tests {
 
     fn vars() -> VariableMap {
         VariableMap::new()
-            .insert("entity", "Alice")
+            .insert("character", "Alice")
             .insert("target", "Bob")
     }
 
     #[test]
     fn resolves_known_vars() {
-        let result = TextResolver::resolve("{{entity}} attacks {{target}}!", &vars());
+        let result = TextResolver::resolve("{{character}} attacks {{target}}!", &vars());
         assert_eq!(result, "Alice attacks Bob!");
     }
 
     #[test]
     fn unknown_var_left_as_literal() {
-        let result = TextResolver::resolve("{{entity}} hits for {{effect}}", &vars());
+        let result = TextResolver::resolve("{{character}} hits for {{effect}}", &vars());
         assert_eq!(result, "Alice hits for {{effect}}");
     }
 
@@ -66,7 +66,7 @@ mod tests {
 
     #[test]
     fn unclosed_brace_left_as_is() {
-        let result = TextResolver::resolve("{{entity}} and {{unclosed", &vars());
+        let result = TextResolver::resolve("{{character}} and {{unclosed", &vars());
         assert_eq!(result, "Alice and {{unclosed");
     }
 }

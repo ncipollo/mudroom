@@ -1,6 +1,6 @@
+use crate::game::character::Character;
 use crate::game::component::{Ability, AbilityRole};
 use crate::game::engagement::EngagementType;
-use crate::game::entity::Character;
 
 fn battle_abilities(character: &Character) -> Vec<Ability> {
     character
@@ -39,9 +39,9 @@ pub fn battle_defend_abilities(character: &Character) -> Vec<Ability> {
 
 #[cfg(test)]
 mod tests {
+    use crate::game::character::CharacterType;
     use crate::game::component::Description;
     use crate::game::component::Location;
-    use crate::game::entity::CharacterType;
 
     use super::*;
 

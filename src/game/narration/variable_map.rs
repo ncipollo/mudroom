@@ -25,9 +25,9 @@ mod tests {
     #[test]
     fn builder_inserts_and_retrieves() {
         let vars = VariableMap::new()
-            .insert("entity", "Alice")
+            .insert("character", "Alice")
             .insert("target", "Bob");
-        assert_eq!(vars.get("entity"), Some("Alice"));
+        assert_eq!(vars.get("character"), Some("Alice"));
         assert_eq!(vars.get("target"), Some("Bob"));
     }
 

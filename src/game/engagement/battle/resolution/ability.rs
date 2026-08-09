@@ -2,10 +2,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::game::GameState;
+use crate::game::character::Character;
 use crate::game::config::AttributeConfig;
 use crate::game::engagement::TurnOrder;
 use crate::game::engagement::battle::{BattleMessage, QueuedAbility};
-use crate::game::entity::Character;
 use crate::game::narration::{TextResolver, VariableMap, effect_text};
 
 use super::effect::resolve_effects;
