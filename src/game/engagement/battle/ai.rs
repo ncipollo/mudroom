@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use crate::game::GameState;
 use crate::game::config::BattleAiType;
-use crate::game::entity::Entity;
+use crate::game::entity::Character;
 
 use super::BattlePhase;
 
@@ -28,7 +28,7 @@ pub async fn run_battle_ai(game_state: &Arc<GameState>) {
 
 async fn run_ai_for_context(game_state: &Arc<GameState>, ctx: &BattleAiContext) {
     let decisions = {
-        let entities = game_state.active_entities.read().await;
+        let entities = game_state.active_characters.read().await;
         collect_decisions(ctx, &entities)
     };
     for decision in decisions {
@@ -48,7 +48,7 @@ async fn run_ai_for_context(game_state: &Arc<GameState>, ctx: &BattleAiContext) 
     }
 }
 
-fn collect_decisions(ctx: &BattleAiContext, entities: &HashMap<i64, Entity>) -> Vec<AiDecision> {
+fn collect_decisions(ctx: &BattleAiContext, entities: &HashMap<i64, Character>) -> Vec<AiDecision> {
     match &ctx.phase {
         BattlePhase::DeclareAttacks { .. } => ctx
             .planning_ids
@@ -64,17 +64,17 @@ fn collect_decisions(ctx: &BattleAiContext, entities: &HashMap<i64, Entity>) -> 
     }
 }
 
-fn route_attack(entity: &Entity, targets: &[i64]) -> Option<AiDecision> {
-    match entity.battle_ai.ai_type {
+fn route_attack(character: &Character, targets: &[i64]) -> Option<AiDecision> {
+    match character.battle_ai.ai_type {
         BattleAiType::None => None,
-        BattleAiType::SimpleRandom => Some(simple_random::plan_attack(entity, targets)),
+        BattleAiType::SimpleRandom => Some(simple_random::plan_attack(character, targets)),
     }
 }
 
-fn route_defend(entity: &Entity) -> Option<AiDecision> {
-    match entity.battle_ai.ai_type {
+fn route_defend(character: &Character) -> Option<AiDecision> {
+    match character.battle_ai.ai_type {
         BattleAiType::None => None,
-        BattleAiType::SimpleRandom => Some(simple_random::plan_defend(entity)),
+        BattleAiType::SimpleRandom => Some(simple_random::plan_defend(character)),
     }
 }
 
@@ -96,7 +96,7 @@ mod tests {
     use crate::game::component::{Ability, AbilityRole, AbilityTargetType, Description, Location};
     use crate::game::config::BattleAiConfig;
     use crate::game::engagement::EngagementType;
-    use crate::game::entity::{Entity, EntityType};
+    use crate::game::entity::{Character, CharacterType};
 
     use super::*;
 
@@ -132,8 +132,8 @@ mod tests {
         }
     }
 
-    fn make_entity(id: i64, ai_type: BattleAiType) -> Entity {
-        let mut e = Entity::new(id, EntityType::Enemy, test_location());
+    fn make_entity(id: i64, ai_type: BattleAiType) -> Character {
+        let mut e = Character::new(id, CharacterType::Enemy, test_location());
         e.battle_ai = BattleAiConfig { ai_type };
         e.innate_abilities = vec![
             make_ability("attack", AbilityRole::Attack, AbilityTargetType::Opponent),
@@ -142,7 +142,7 @@ mod tests {
         e
     }
 
-    fn make_entities(list: Vec<Entity>) -> HashMap<i64, Entity> {
+    fn make_entities(list: Vec<Character>) -> HashMap<i64, Character> {
         list.into_iter().map(|e| (e.id, e)).collect()
     }
 
@@ -195,11 +195,11 @@ mod tests {
 
     #[test]
     fn collect_decisions_simple_random_no_attack_abilities_skips() {
-        let mut entity = Entity::new(1, EntityType::Enemy, test_location());
-        entity.battle_ai = BattleAiConfig {
+        let mut character = Character::new(1, CharacterType::Enemy, test_location());
+        character.battle_ai = BattleAiConfig {
             ai_type: BattleAiType::SimpleRandom,
         };
-        let entities = make_entities(vec![entity]);
+        let entities = make_entities(vec![character]);
         let ctx = planning_ctx(vec![1], vec![2]);
         let decisions = collect_decisions(&ctx, &entities);
         assert_eq!(decisions.len(), 1);
@@ -208,11 +208,11 @@ mod tests {
 
     #[test]
     fn collect_decisions_simple_random_no_defend_abilities_skips() {
-        let mut entity = Entity::new(2, EntityType::Enemy, test_location());
-        entity.battle_ai = BattleAiConfig {
+        let mut character = Character::new(2, CharacterType::Enemy, test_location());
+        character.battle_ai = BattleAiConfig {
             ai_type: BattleAiType::SimpleRandom,
         };
-        let entities = make_entities(vec![entity]);
+        let entities = make_entities(vec![character]);
         let ctx = response_ctx(vec![1], vec![2]);
         let decisions = collect_decisions(&ctx, &entities);
         assert_eq!(decisions.len(), 1);

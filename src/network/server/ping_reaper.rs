@@ -55,7 +55,7 @@ async fn reap_stale_connections(
 mod tests {
     use super::*;
     use crate::game::component::Location;
-    use crate::game::entity::{Entity, EntityType};
+    use crate::game::entity::{Character, CharacterType};
     use crate::game::interaction;
     use crate::game::player::Player;
     use crate::network::event::NetworkEvent;
@@ -74,9 +74,9 @@ mod tests {
     async fn battle_game_state(client_id: &str) -> Arc<GameState> {
         let game_state = Arc::new(GameState::load(None).unwrap());
         {
-            let mut entities = game_state.active_entities.write().await;
-            entities.insert(1, Entity::new(1, EntityType::Player, test_location()));
-            entities.insert(2, Entity::new(2, EntityType::Enemy, test_location()));
+            let mut entities = game_state.active_characters.write().await;
+            entities.insert(1, Character::new(1, CharacterType::Player, test_location()));
+            entities.insert(2, Character::new(2, CharacterType::Enemy, test_location()));
         }
         game_state.active_players.write().await.insert(
             client_id.to_string(),

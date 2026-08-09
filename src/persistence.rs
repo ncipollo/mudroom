@@ -1,9 +1,9 @@
 pub mod ability_repo;
 pub mod attribute_repo;
+pub mod character_effect_repo;
+pub mod character_repo;
 pub mod database;
 pub mod dungeon_repo;
-pub mod entity_effect_repo;
-pub mod entity_repo;
 pub mod error;
 pub mod faction_relations_repo;
 pub mod faction_repo;

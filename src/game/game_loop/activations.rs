@@ -19,7 +19,7 @@ async fn apply_activation(
     db: &Database,
     activation: PendingActivation,
 ) {
-    let room_id = activation.entity.location.room_id.clone();
+    let room_id = activation.character.location.room_id.clone();
     let entity_id = activation.player.entity_id;
     let client_id = activation.client_id.clone();
     let player = activation.player.clone();
@@ -48,10 +48,10 @@ async fn register_in_game_state(
     activation: PendingActivation,
 ) {
     game_state
-        .active_entities
+        .active_characters
         .write()
         .await
-        .insert(activation.entity.id, activation.entity);
+        .insert(activation.character.id, activation.character);
 
     evict_stale_client_registrations(
         game_state,
@@ -65,7 +65,7 @@ async fn register_in_game_state(
         .await
         .insert(activation.client_id, activation.player);
 
-    if let Err(e) = game_state.sync_active_entities(db.pool()).await {
+    if let Err(e) = game_state.sync_active_characters(db.pool()).await {
         tracing::error!(error = %e, "Failed to sync active entities on player activation");
     }
 }
@@ -73,9 +73,9 @@ async fn register_in_game_state(
 /// Removes any existing `active_players` entry for `entity_id` registered under a different
 /// client_id. A reconnect under a new client_id (e.g. a new process) can otherwise leave a stale
 /// entry behind if the old client_id's disconnect was never processed — leaving two entries
-/// pointing at the same entity. That stale entry would be indistinguishable, by entity-scoped
+/// pointing at the same character. That stale entry would be indistinguishable, by character-scoped
 /// activation epoch alone, from the fresh one when a disconnect eventually gets dispatched for
-/// it, risking exactly the entity it aliases getting torn down out from under the live client.
+/// it, risking exactly the character it aliases getting torn down out from under the live client.
 async fn evict_stale_client_registrations(
     game_state: &Arc<GameState>,
     entity_id: i64,
@@ -88,7 +88,7 @@ async fn evict_stale_client_registrations(
         .retain(|client_id, player| player.entity_id != entity_id || client_id == new_client_id);
 }
 
-/// Bumps the entity's activation epoch and discards any already-queued stale disconnects. The
+/// Bumps the character's activation epoch and discards any already-queued stale disconnects. The
 /// epoch bump is the authoritative guard: any `PlayerDisconnected` queued by a still-in-flight
 /// SSE cleanup task (captured under the prior epoch) is stale even if it lands in the mailbox
 /// after the discard below already ran — see `dispatch_player_disconnected`.
@@ -124,7 +124,7 @@ async fn discard_stale_disconnects(game_state: &Arc<GameState>, entity_id: i64) 
     discarded
 }
 
-/// If the entity is still a participant in an active battle (e.g. the disconnect teardown was
+/// If the character is still a participant in an active battle (e.g. the disconnect teardown was
 /// skipped because the player rejoined), resend `BattleStarted` so the client re-enters battle
 /// mode with the current state.
 async fn reconcile_battle_state(game_state: &Arc<GameState>, player: &Player) {
@@ -163,7 +163,7 @@ async fn reconcile_battle_state(game_state: &Arc<GameState>, player: &Player) {
 mod tests {
     use super::*;
     use crate::game::component::Location;
-    use crate::game::entity::{Entity, EntityType};
+    use crate::game::entity::{Character, CharacterType};
     use crate::game::messaging::Message;
     use crate::game::player::Player;
     use std::collections::HashMap;
@@ -178,7 +178,7 @@ mod tests {
 
     fn test_activation(client_id: &str) -> PendingActivation {
         PendingActivation {
-            entity: Entity::new(1, EntityType::Player, test_location()),
+            character: Character::new(1, CharacterType::Player, test_location()),
             player: Player {
                 id: 1,
                 client_id: client_id.to_string(),
@@ -194,7 +194,7 @@ mod tests {
         let game_state = Arc::new(GameState::load(None).unwrap());
         let db = Database::connect_in_memory().await.unwrap();
         // Simulate a reconnect under a new client_id (e.g. a new process) while the old
-        // client_id's registration for the same entity was never cleaned up.
+        // client_id's registration for the same character was never cleaned up.
         game_state.active_players.write().await.insert(
             "old-client".to_string(),
             Player {
@@ -207,7 +207,7 @@ mod tests {
         let activation = test_activation("new-client");
         game_state
             .push_pending_activation(
-                activation.entity,
+                activation.character,
                 activation.player,
                 "new-client".to_string(),
             )
@@ -241,7 +241,7 @@ mod tests {
         game_state.mailboxes.push(1, Interaction::Look).await;
         game_state
             .push_pending_activation(
-                test_activation("m:1").entity,
+                test_activation("m:1").character,
                 test_activation("m:1").player,
                 "m:1".to_string(),
             )
@@ -261,7 +261,7 @@ mod tests {
             "other interactions should be preserved, got {remaining:?}"
         );
         assert!(game_state.active_players.read().await.contains_key("m:1"));
-        assert!(game_state.active_entities.read().await.contains_key(&1));
+        assert!(game_state.active_characters.read().await.contains_key(&1));
     }
 
     #[tokio::test]
@@ -269,10 +269,10 @@ mod tests {
         let game_state = Arc::new(GameState::load(None).unwrap());
         let db = Database::connect_in_memory().await.unwrap();
         game_state
-            .active_entities
+            .active_characters
             .write()
             .await
-            .insert(2, Entity::new(2, EntityType::Enemy, test_location()));
+            .insert(2, Character::new(2, CharacterType::Enemy, test_location()));
         let mut participants = HashMap::new();
         participants.insert("player".to_string(), vec![1]);
         participants.insert("enemy".to_string(), vec![2]);
@@ -287,7 +287,7 @@ mod tests {
         let mut rx = game_state.message_tx.subscribe();
         let activation = test_activation("m:1");
         game_state
-            .push_pending_activation(activation.entity, activation.player, "m:1".to_string())
+            .push_pending_activation(activation.character, activation.player, "m:1".to_string())
             .await;
 
         process(&game_state, &db).await;
@@ -308,7 +308,7 @@ mod tests {
         let mut rx = game_state.message_tx.subscribe();
         let activation = test_activation("m:1");
         game_state
-            .push_pending_activation(activation.entity, activation.player, "m:1".to_string())
+            .push_pending_activation(activation.character, activation.player, "m:1".to_string())
             .await;
 
         process(&game_state, &db).await;
@@ -322,7 +322,7 @@ mod tests {
         let db = Database::connect_in_memory().await.unwrap();
         let activation = test_activation("m:1");
         game_state
-            .push_pending_activation(activation.entity, activation.player, "m:1".to_string())
+            .push_pending_activation(activation.character, activation.player, "m:1".to_string())
             .await;
 
         process(&game_state, &db).await;

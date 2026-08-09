@@ -8,13 +8,13 @@ use tracing::info;
 
 use crate::game::component::{Ability, Attribute};
 use crate::game::config::class_config::ClassConfig;
-use crate::game::{Entity, EntityType, Location, Player};
+use crate::game::{Character, CharacterType, Location, Player};
 use crate::network::event::{
     ClassInfo, ClassListResponse, NetworkEvent, PlayerInfo, PlayerListResponse,
 };
 use crate::network::server::state::{AppState, PlayerCreateBody, PlayerListBody, PlayerSelectBody};
 use crate::network::session::ConnectionKey;
-use crate::persistence::{ability_repo, entity_repo, player_repo};
+use crate::persistence::{ability_repo, character_repo, player_repo};
 
 fn machine_id(client_id: &str) -> String {
     ConnectionKey::parse(client_id)
@@ -69,11 +69,11 @@ pub async fn player_create_handler(
         dungeon_id: spawn.dungeon_id.clone(),
         room_id: spawn.room_id.clone(),
     };
-    let mut entity = Entity::new(0, EntityType::Player, location);
-    entity.name = body.name.clone();
+    let mut character = Character::new(0, CharacterType::Player, location);
+    character.name = body.name.clone();
     let (attributes, innate_abilities) = resolve_class_data(&state, &body)?;
-    entity.attributes = attributes;
-    let entity_id = entity_repo::insert(pool, &entity)
+    character.attributes = attributes;
+    let entity_id = character_repo::insert(pool, &character)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     apply_class_abilities(pool, entity_id, &innate_abilities).await?;
@@ -115,13 +115,13 @@ async fn activate_player(
     player: &Player,
 ) -> Result<(), StatusCode> {
     let pool = state.db.pool();
-    let mut entity = entity_repo::find_by_id(pool, player.entity_id)
+    let mut character = character_repo::find_by_id(pool, player.entity_id)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .ok_or(StatusCode::NOT_FOUND)?;
-    entity.name = player.name.clone();
+    character.name = player.name.clone();
 
-    register_player_in_game_state(state, client_id, player, entity).await;
+    register_player_in_game_state(state, client_id, player, character).await;
     notify_player_selected(state, client_id, player).await;
     Ok(())
 }
@@ -130,11 +130,11 @@ async fn register_player_in_game_state(
     state: &AppState,
     client_id: &str,
     player: &Player,
-    entity: Entity,
+    character: Character,
 ) {
     state
         .game_state
-        .push_pending_activation(entity, player.clone(), client_id.to_string())
+        .push_pending_activation(character, player.clone(), client_id.to_string())
         .await;
 }
 
@@ -198,7 +198,7 @@ async fn apply_class_abilities(
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     }
     let ids: Vec<&str> = abilities.iter().map(|a| a.id.as_str()).collect();
-    ability_repo::set_entity_abilities(pool, entity_id, &ids)
+    ability_repo::set_character_abilities(pool, entity_id, &ids)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(())

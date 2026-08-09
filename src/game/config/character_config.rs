@@ -17,10 +17,9 @@ fn default_agent_type() -> String {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum EntityTypeConfig {
+pub enum CharacterTypeConfig {
     Character,
     Enemy,
-    Object,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -65,11 +64,11 @@ pub struct StartingAttribute {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EntityConfig {
+pub struct CharacterConfig {
     pub id: Option<String>,
     #[serde(default)]
     pub name: Option<String>,
-    pub entity_type: EntityTypeConfig,
+    pub entity_type: CharacterTypeConfig,
     #[serde(default)]
     pub description: Description,
     pub persona: Option<PersonaConfig>,
@@ -87,9 +86,9 @@ pub struct EntityConfig {
     pub battle_ai: BattleAiConfig,
 }
 
-pub fn load_entity_config(path: &Path) -> Result<EntityConfig, Box<dyn Error>> {
+pub fn load_character_config(path: &Path) -> Result<CharacterConfig, Box<dyn Error>> {
     let content = std::fs::read_to_string(path)?;
-    let mut config: EntityConfig = toml::from_str(&content)?;
+    let mut config: CharacterConfig = toml::from_str(&content)?;
     match &mut config.persona {
         Some(PersonaConfig::Standard {
             dialog_file: Some(dialog_path),
@@ -116,9 +115,9 @@ pub fn load_entity_config(path: &Path) -> Result<EntityConfig, Box<dyn Error>> {
     Ok(config)
 }
 
-pub fn load_entity_configs(
+pub fn load_character_configs(
     config_dir: &Path,
-) -> Result<HashMap<String, EntityConfig>, Box<dyn Error>> {
+) -> Result<HashMap<String, CharacterConfig>, Box<dyn Error>> {
     let mut configs = HashMap::new();
     let entities_dir = config_dir.join("entities");
     if !entities_dir.exists() {
@@ -130,7 +129,7 @@ pub fn load_entity_configs(
         .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("toml"))
     {
         let path = entry.path();
-        let mut config = load_entity_config(path)?;
+        let mut config = load_character_config(path)?;
         let id = if let Some(id) = config.id.clone() {
             id
         } else {
@@ -139,7 +138,7 @@ pub fn load_entity_configs(
         };
         config.id = Some(id.clone());
         if config.name.is_none() {
-            config.name = Some(config_path::entity_name_from_path(path));
+            config.name = Some(config_path::character_name_from_path(path));
         }
         configs.insert(id, config);
     }
@@ -180,8 +179,8 @@ min_value = 0
 max_value = 100
 current_value = 100
 "#;
-        let config: EntityConfig = toml::from_str(toml).unwrap();
-        assert!(matches!(config.entity_type, EntityTypeConfig::Character));
+        let config: CharacterConfig = toml::from_str(toml).unwrap();
+        assert!(matches!(config.entity_type, CharacterTypeConfig::Character));
         assert_eq!(config.attributes.len(), 1);
         assert_eq!(config.attributes[0].definition_id, "hp");
         if let Some(PersonaConfig::Standard {
@@ -212,7 +211,7 @@ text = "Welcome!"
 [[persona.dialog_tree.responses]]
 text = "Goodbye."
 "#;
-        let config: EntityConfig = toml::from_str(toml).unwrap();
+        let config: CharacterConfig = toml::from_str(toml).unwrap();
         if let Some(PersonaConfig::Standard {
             dialog_tree: Some(tree),
             ..
@@ -250,9 +249,9 @@ text = "Enjoy your stay!"
 [[persona.dialog_tree.responses.reply.responses]]
 text = "Never mind."
 "#;
-        let config: EntityConfig = toml::from_str(toml).unwrap();
+        let config: CharacterConfig = toml::from_str(toml).unwrap();
         let serialized = toml::to_string(&config).unwrap();
-        let config2: EntityConfig = toml::from_str(&serialized).unwrap();
+        let config2: CharacterConfig = toml::from_str(&serialized).unwrap();
         if let Some(PersonaConfig::Standard {
             dialog_tree: Some(tree),
             ..
@@ -273,38 +272,27 @@ text = "Never mind."
     }
 
     #[test]
-    fn object_config_round_trip() {
-        let toml = r#"
-entity_type = "object"
-"#;
-        let config: EntityConfig = toml::from_str(toml).unwrap();
-        assert!(matches!(config.entity_type, EntityTypeConfig::Object));
-        assert!(config.attributes.is_empty());
-        assert!(config.entity_effects.is_empty());
-    }
-
-    #[test]
-    fn load_entity_configs_returns_empty_when_no_entities_dir() {
+    fn load_character_configs_returns_empty_when_no_entities_dir() {
         let tmp = TempDir::new().unwrap();
-        let configs = load_entity_configs(tmp.path()).unwrap();
+        let configs = load_character_configs(tmp.path()).unwrap();
         assert!(configs.is_empty());
     }
 
     #[test]
-    fn load_entity_configs_finds_toml_files() {
+    fn load_character_configs_finds_toml_files() {
         let tmp = TempDir::new().unwrap();
         write_file(
             tmp.path(),
             "entities/innkeeper.toml",
             r#"entity_type = "character""#,
         );
-        let configs = load_entity_configs(tmp.path()).unwrap();
+        let configs = load_character_configs(tmp.path()).unwrap();
         assert_eq!(configs.len(), 1);
         assert!(configs.contains_key("entities/innkeeper"));
     }
 
     #[test]
-    fn load_entity_configs_uses_id_field_when_present() {
+    fn load_character_configs_uses_id_field_when_present() {
         let tmp = TempDir::new().unwrap();
         write_file(
             tmp.path(),
@@ -314,7 +302,7 @@ id = "custom_id"
 entity_type = "character"
 "#,
         );
-        let configs = load_entity_configs(tmp.path()).unwrap();
+        let configs = load_character_configs(tmp.path()).unwrap();
         assert!(configs.contains_key("custom_id"));
     }
 }

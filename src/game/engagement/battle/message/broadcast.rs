@@ -19,7 +19,7 @@ pub(in crate::game::engagement::battle) async fn build_battle_update(
     game_state: &Arc<GameState>,
     params: BattleUpdateParams,
 ) -> BattleUpdateMessage {
-    let entities = game_state.active_entities.read().await;
+    let entities = game_state.active_characters.read().await;
     let hp_attr_id = messaging::hp_attribute_id(&game_state.attribute_config);
 
     let participant_infos = params
@@ -29,11 +29,11 @@ pub(in crate::game::engagement::battle) async fn build_battle_update(
             let infos = ids
                 .iter()
                 .map(|&id| {
-                    let entity = entities.get(&id);
-                    let name = entity
+                    let character = entities.get(&id);
+                    let name = character
                         .map(|e| e.name.clone())
-                        .unwrap_or_else(|| format!("Entity {id}"));
-                    let (hp_current, hp_max) = entity
+                        .unwrap_or_else(|| format!("Character {id}"));
+                    let (hp_current, hp_max) = character
                         .and_then(|e| e.attributes.get(&hp_attr_id))
                         .map(|a| (a.current_value, a.max_value))
                         .unwrap_or((0, 0));
@@ -62,13 +62,13 @@ pub(in crate::game::engagement::battle) async fn build_battle_update(
 }
 
 /// Sends a player-customized copy of `update` (with `available_abilities` filled in for that
-/// player's entity) to every participant in `player_pairs`.
+/// player's character) to every participant in `player_pairs`.
 pub(in crate::game::engagement::battle) async fn broadcast_update(
     game_state: &Arc<GameState>,
     player_pairs: &[(i64, i64)],
     update: &BattleUpdateMessage,
 ) {
-    let entities = game_state.active_entities.read().await;
+    let entities = game_state.active_characters.read().await;
     for &(pid, entity_id) in player_pairs {
         let available_abilities = entities
             .get(&entity_id)
@@ -84,7 +84,7 @@ pub(in crate::game::engagement::battle) async fn broadcast_update(
 mod tests {
     use super::*;
     use crate::game::component::Location;
-    use crate::game::entity::{Entity, EntityType};
+    use crate::game::entity::{Character, CharacterType};
 
     fn test_location() -> Location {
         Location {
@@ -109,13 +109,17 @@ mod tests {
     #[tokio::test]
     async fn build_battle_update_fills_in_known_participant_hp() {
         let game_state = Arc::new(GameState::load(None).unwrap());
-        let mut entity = Entity::new(1, EntityType::Player, test_location());
-        entity.name = "Hero".to_string();
-        entity.attributes.insert(
+        let mut character = Character::new(1, CharacterType::Player, test_location());
+        character.name = "Hero".to_string();
+        character.attributes.insert(
             "hp".to_string(),
             crate::game::component::Attribute::new("hp".to_string(), 0, 100, 42),
         );
-        game_state.active_entities.write().await.insert(1, entity);
+        game_state
+            .active_characters
+            .write()
+            .await
+            .insert(1, character);
 
         let mut participants = HashMap::new();
         participants.insert("player".to_string(), vec![1]);
@@ -138,7 +142,7 @@ mod tests {
         let update = build_battle_update(&game_state, params(participants)).await;
 
         let infos = update.participants.get("player").unwrap();
-        assert_eq!(infos[0].name, "Entity 99");
+        assert_eq!(infos[0].name, "Character 99");
         assert_eq!(infos[0].hp_current, 0);
         assert_eq!(infos[0].hp_max, 0);
     }

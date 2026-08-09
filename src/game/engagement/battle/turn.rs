@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::game::component::{Ability, Attribute};
-use crate::game::entity::Entity;
+use crate::game::entity::Character;
 
 use super::action_queue::ActionQueue;
 use super::{BattleMessage, BattlePhase, BattleTick, QueuedAbility};
@@ -91,8 +91,8 @@ impl BattleEngagement {
             .queue(caster_id, ability, target_id, entity_attrs)
     }
 
-    pub fn refund_all_costs(&self, entities: &mut HashMap<i64, Entity>) {
-        self.action_queue.refund_all(entities);
+    pub fn refund_all_costs(&self, characters: &mut HashMap<i64, Character>) {
+        self.action_queue.refund_all(characters);
     }
 
     pub fn add_entity(&mut self, faction: &str, entity_id: i64) {

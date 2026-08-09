@@ -29,14 +29,14 @@ impl Tool for InspectEntity {
         ToolDefinition {
             name: "inspect_entity".to_string(),
             description:
-                "Inspect another entity in the current room. Returns their description and location."
+                "Inspect another character in the current room. Returns their description and location."
                     .to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
                     "entity_id": {
                         "type": "integer",
-                        "description": "The numeric ID of the entity to inspect"
+                        "description": "The numeric ID of the character to inspect"
                     },
                     "name": {
                         "type": "string",
@@ -48,7 +48,7 @@ impl Tool for InspectEntity {
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        let entities = self.game_state.active_entities.read().await;
+        let entities = self.game_state.active_characters.read().await;
 
         let npc = entities
             .get(&self.npc_entity_id)
@@ -81,16 +81,16 @@ impl Tool for InspectEntity {
         });
 
         match target {
-            Some(entity) => Ok(json!({
-                "entity_id": entity.id,
-                "description": entity.description.text.as_deref().unwrap_or("unknown"),
+            Some(character) => Ok(json!({
+                "entity_id": character.id,
+                "description": character.description.text.as_deref().unwrap_or("unknown"),
                 "location": {
-                    "world_id": entity.location.world_id,
-                    "dungeon_id": entity.location.dungeon_id,
-                    "room_id": entity.location.room_id,
+                    "world_id": character.location.world_id,
+                    "dungeon_id": character.location.dungeon_id,
+                    "room_id": character.location.room_id,
                 }
             })),
-            None => Err(AgentError::Tool("Entity not found in room".to_string())),
+            None => Err(AgentError::Tool("Character not found in room".to_string())),
         }
     }
 }
@@ -102,7 +102,7 @@ mod tests {
     use crate::agent::tools::inspect_entity::{InspectArgs, InspectEntity};
     use crate::game::Location;
     use crate::game::component::description::Description;
-    use crate::game::entity::{Entity, EntityType};
+    use crate::game::entity::{Character, CharacterType};
     use crate::game::game_state::GameState;
     use rig::tool::Tool;
 
@@ -114,10 +114,10 @@ mod tests {
         }
     }
 
-    async fn state_with_entities(entities: Vec<Entity>) -> Arc<GameState> {
+    async fn state_with_entities(entities: Vec<Character>) -> Arc<GameState> {
         let state = Arc::new(GameState::load(None).unwrap());
         {
-            let mut map = state.active_entities.write().await;
+            let mut map = state.active_characters.write().await;
             for e in entities {
                 map.insert(e.id, e);
             }
@@ -127,8 +127,8 @@ mod tests {
 
     #[tokio::test]
     async fn finds_entity_by_id() {
-        let npc = Entity::new(1, EntityType::Character, room_location());
-        let mut player = Entity::new(2, EntityType::Character, room_location());
+        let npc = Character::new(1, CharacterType::Character, room_location());
+        let mut player = Character::new(2, CharacterType::Character, room_location());
         player.description = Description::new(Some("the player".to_string()));
         let state = state_with_entities(vec![npc, player]).await;
 
@@ -150,8 +150,8 @@ mod tests {
 
     #[tokio::test]
     async fn finds_entity_by_name() {
-        let npc = Entity::new(1, EntityType::Character, room_location());
-        let mut player = Entity::new(2, EntityType::Character, room_location());
+        let npc = Character::new(1, CharacterType::Character, room_location());
+        let mut player = Character::new(2, CharacterType::Character, room_location());
         player.description = Description::new(Some("grizzled merchant".to_string()));
         let state = state_with_entities(vec![npc, player]).await;
 
@@ -172,8 +172,8 @@ mod tests {
 
     #[tokio::test]
     async fn errors_when_not_in_room() {
-        let npc = Entity::new(1, EntityType::Character, room_location());
-        let mut other = Entity::new(2, EntityType::Character, room_location());
+        let npc = Character::new(1, CharacterType::Character, room_location());
+        let mut other = Character::new(2, CharacterType::Character, room_location());
         other.location.room_id = "other_room".to_string();
         other.description = Description::new(Some("stranger".to_string()));
         let state = state_with_entities(vec![npc, other]).await;

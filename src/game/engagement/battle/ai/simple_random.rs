@@ -1,37 +1,37 @@
 use crate::game::engagement::battle::abilities::{
     battle_attack_abilities, battle_defend_abilities,
 };
-use crate::game::entity::Entity;
+use crate::game::entity::Character;
 
 use super::decision::AiDecision;
 use super::pick_random;
 
-pub fn plan_attack(entity: &Entity, targets: &[i64]) -> AiDecision {
+pub fn plan_attack(character: &Character, targets: &[i64]) -> AiDecision {
     let Some(&target_id) = pick_random(targets) else {
-        return AiDecision::Skip(entity.id);
+        return AiDecision::Skip(character.id);
     };
-    let attacks = battle_attack_abilities(entity);
+    let attacks = battle_attack_abilities(character);
     match pick_random(&attacks).cloned() {
         Some(ability) => AiDecision::Action(Box::new((
-            entity.id,
+            character.id,
             ability,
             target_id,
-            entity.attributes.clone(),
+            character.attributes.clone(),
         ))),
-        None => AiDecision::Skip(entity.id),
+        None => AiDecision::Skip(character.id),
     }
 }
 
-pub fn plan_defend(entity: &Entity) -> AiDecision {
-    let defends = battle_defend_abilities(entity);
+pub fn plan_defend(character: &Character) -> AiDecision {
+    let defends = battle_defend_abilities(character);
     match pick_random(&defends).cloned() {
         Some(ability) => AiDecision::Action(Box::new((
-            entity.id,
+            character.id,
             ability,
-            entity.id,
-            entity.attributes.clone(),
+            character.id,
+            character.attributes.clone(),
         ))),
-        None => AiDecision::Skip(entity.id),
+        None => AiDecision::Skip(character.id),
     }
 }
 
@@ -46,7 +46,7 @@ mod tests {
         Effect, EffectDescription, EffectScope, EffectType, TriggerInfo,
     };
     use crate::game::engagement::EngagementType;
-    use crate::game::entity::EntityType;
+    use crate::game::entity::CharacterType;
 
     fn test_location() -> Location {
         Location {
@@ -80,46 +80,46 @@ mod tests {
         }
     }
 
-    fn make_enemy(id: i64) -> Entity {
-        Entity::new(id, EntityType::Enemy, test_location())
+    fn make_enemy(id: i64) -> Character {
+        Character::new(id, CharacterType::Enemy, test_location())
     }
 
     #[test]
     fn plan_attack_returns_action_with_target() {
-        let mut entity = make_enemy(1);
-        entity.innate_abilities = vec![make_ability("slash", AbilityRole::Attack)];
+        let mut character = make_enemy(1);
+        character.innate_abilities = vec![make_ability("slash", AbilityRole::Attack)];
         let targets = vec![2_i64];
-        let decision = plan_attack(&entity, &targets);
+        let decision = plan_attack(&character, &targets);
         assert!(matches!(decision, AiDecision::Action(b) if b.0 == 1 && b.2 == 2));
     }
 
     #[test]
     fn plan_attack_skips_when_no_attack_abilities() {
-        let entity = make_enemy(1);
+        let character = make_enemy(1);
         let targets = vec![2_i64];
         assert!(matches!(
-            plan_attack(&entity, &targets),
+            plan_attack(&character, &targets),
             AiDecision::Skip(1)
         ));
     }
 
     #[test]
     fn plan_attack_skips_when_no_targets() {
-        let entity = make_enemy(1);
-        assert!(matches!(plan_attack(&entity, &[]), AiDecision::Skip(1)));
+        let character = make_enemy(1);
+        assert!(matches!(plan_attack(&character, &[]), AiDecision::Skip(1)));
     }
 
     #[test]
     fn plan_defend_returns_action_targeting_self() {
-        let mut entity = make_enemy(1);
-        entity.innate_abilities = vec![make_ability("shield", AbilityRole::Defend)];
-        let decision = plan_defend(&entity);
+        let mut character = make_enemy(1);
+        character.innate_abilities = vec![make_ability("shield", AbilityRole::Defend)];
+        let decision = plan_defend(&character);
         assert!(matches!(decision, AiDecision::Action(b) if b.0 == 1 && b.2 == 1));
     }
 
     #[test]
     fn plan_defend_skips_when_no_defend_abilities() {
-        let entity = make_enemy(1);
-        assert!(matches!(plan_defend(&entity), AiDecision::Skip(1)));
+        let character = make_enemy(1);
+        assert!(matches!(plan_defend(&character), AiDecision::Skip(1)));
     }
 }

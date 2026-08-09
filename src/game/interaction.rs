@@ -87,7 +87,7 @@ async fn dispatch_interaction(
     }
 }
 
-/// Tears down a truly disconnected player. Skips teardown if the entity's activation epoch has
+/// Tears down a truly disconnected player. Skips teardown if the character's activation epoch has
 /// advanced past the one this `PlayerDisconnected` was queued under — the player already
 /// reactivated. Epoch-based rather than client_id-based because `ClientSession` reuses the same
 /// id across reconnects, so it's correct regardless of how late the disconnect lands.
@@ -191,16 +191,16 @@ async fn dispatch_queue_ability(
     target_id: i64,
 ) {
     let (ability_opt, attrs) = {
-        let entities = game_state.active_entities.read().await;
-        let Some(entity) = entities.get(&player.entity_id) else {
+        let entities = game_state.active_characters.read().await;
+        let Some(character) = entities.get(&player.entity_id) else {
             return;
         };
-        let ability = entity
+        let ability = character
             .innate_abilities
             .iter()
             .find(|a| a.id == ability_id)
             .cloned();
-        (ability, entity.attributes.clone())
+        (ability, character.attributes.clone())
     };
     let Some(ability) = ability_opt else {
         return;
@@ -235,7 +235,7 @@ async fn dispatch_conversation(
 
 async fn dispatch_join_battle(game_state: &Arc<GameState>, player: &Player) {
     let room_id = {
-        let entities = game_state.active_entities.read().await;
+        let entities = game_state.active_characters.read().await;
         entities
             .get(&player.entity_id)
             .map(|e| e.location.room_id.clone())
@@ -254,7 +254,7 @@ async fn dispatch_join_battle(game_state: &Arc<GameState>, player: &Player) {
     };
 
     let faction = {
-        let entities = game_state.active_entities.read().await;
+        let entities = game_state.active_characters.read().await;
         entities
             .get(&player.entity_id)
             .and_then(|e| e.factions.iter().next().cloned())
@@ -312,7 +312,7 @@ async fn dispatch_leave_battle(game_state: &Arc<GameState>, player: &Player) {
 mod tests {
     use super::*;
     use crate::game::component::Location;
-    use crate::game::entity::{Entity, EntityType};
+    use crate::game::entity::{Character, CharacterType};
     use std::collections::HashMap;
 
     fn test_location() -> Location {
@@ -335,9 +335,9 @@ mod tests {
     async fn battle_state(registered_client_id: &str) -> Arc<GameState> {
         let game_state = Arc::new(GameState::load(None).unwrap());
         {
-            let mut entities = game_state.active_entities.write().await;
-            entities.insert(1, Entity::new(1, EntityType::Player, test_location()));
-            entities.insert(2, Entity::new(2, EntityType::Enemy, test_location()));
+            let mut entities = game_state.active_characters.write().await;
+            entities.insert(1, Character::new(1, CharacterType::Player, test_location()));
+            entities.insert(2, Character::new(2, CharacterType::Enemy, test_location()));
         }
         game_state.active_players.write().await.insert(
             registered_client_id.to_string(),
@@ -378,7 +378,7 @@ mod tests {
 
         process(&game_state, &db, 0).await;
 
-        assert!(game_state.active_entities.read().await.contains_key(&1));
+        assert!(game_state.active_characters.read().await.contains_key(&1));
         assert!(
             game_state
                 .active_players
@@ -409,7 +409,7 @@ mod tests {
 
         process(&game_state, &db, 0).await;
 
-        assert!(!game_state.active_entities.read().await.contains_key(&1));
+        assert!(!game_state.active_characters.read().await.contains_key(&1));
         assert!(game_state.active_players.read().await.is_empty());
         assert_eq!(
             game_state.engagements.battles.find_for_entity(1).await,

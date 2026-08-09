@@ -2,7 +2,7 @@ use sqlx::SqlitePool;
 use std::error::Error;
 
 use crate::game::{Universe, World};
-use crate::persistence::{dungeon_repo, entity_repo, room_repo, server_state_repo, world_repo};
+use crate::persistence::{character_repo, dungeon_repo, room_repo, server_state_repo, world_repo};
 
 pub const LAST_MAP_LOAD_KEY: &str = "last_map_load_date";
 
@@ -70,7 +70,7 @@ async fn cleanup_stale_dungeons(
         let db_rooms = room_repo::find_by_dungeon(pool, &db_dungeon.id).await?;
         for db_room in db_rooms {
             if !universe_dungeon.rooms.contains_key(&db_room.id) {
-                entity_repo::delete_by_room(pool, &db_room.id).await?;
+                character_repo::delete_by_room(pool, &db_room.id).await?;
                 room_repo::delete(pool, &db_room.id).await?;
             }
         }
@@ -81,7 +81,7 @@ async fn cleanup_stale_dungeons(
 async fn delete_dungeon_cascade(pool: &SqlitePool, dungeon_id: &str) -> Result<(), Box<dyn Error>> {
     let rooms = room_repo::find_by_dungeon(pool, dungeon_id).await?;
     for room in rooms {
-        entity_repo::delete_by_room(pool, &room.id).await?;
+        character_repo::delete_by_room(pool, &room.id).await?;
         room_repo::delete(pool, &room.id).await?;
     }
     Ok(())

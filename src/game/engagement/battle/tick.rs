@@ -10,7 +10,7 @@ use super::{BattleMessage, BattlePhase, BattleTick, QueuedAbility};
 use super::{attribute_snapshot, death, timer, victory};
 
 /// Advances all active battle engagements one tick and handles the full lifecycle:
-/// phase state machine → effect resolution → dead-entity removal → engagement conclusion.
+/// phase state machine → effect resolution → dead-character removal → engagement conclusion.
 /// This is the single entry point for battle processing; no battle-specific logic escapes
 /// into the engagement orchestration layer.
 pub async fn process_ticks(game_state: &Arc<GameState>, max_engage_ticks: u64) {
@@ -81,7 +81,7 @@ async fn handle_tick(game_state: &Arc<GameState>, result: BattleTick, max_engage
 
 /// Runs the work gated on `completed_phase`: attribute resets (`ResetAttributes`), over-time
 /// effect application (`ApplyEffects`), ability effect resolution (`ResolveAbilities`), or
-/// dead-entity detection and removal (`ResolveEntityState`). Returns the messages and dead entity
+/// dead-character detection and removal (`ResolveEntityState`). Returns the messages and dead character
 /// ids produced, if any.
 async fn dispatch_phase_work(
     game_state: &Arc<GameState>,
@@ -135,14 +135,14 @@ async fn collect_entity_names(
     game_state: &Arc<GameState>,
     entity_ids: &[i64],
 ) -> HashMap<i64, String> {
-    let entities = game_state.active_entities.read().await;
+    let entities = game_state.active_characters.read().await;
     entity_ids
         .iter()
         .map(|&eid| {
             let name = entities
                 .get(&eid)
                 .map(|e| e.name.clone())
-                .unwrap_or_else(|| format!("Entity {eid}"));
+                .unwrap_or_else(|| format!("Character {eid}"));
             (eid, name)
         })
         .collect()
@@ -168,7 +168,7 @@ mod tests {
     use crate::game::component::effect::{
         Effect, EffectDescription, EffectScope, EffectType, TriggerInfo,
     };
-    use crate::game::entity::{Entity, EntityType};
+    use crate::game::entity::{Character, CharacterType};
 
     fn test_location() -> Location {
         Location {
@@ -181,14 +181,14 @@ mod tests {
     /// `AttributeShield` effects are re-resolved (and re-pushed onto `active_effects`) every time
     /// they're passed through `resolve_effects`, which makes the count of `active_effects` a
     /// reliable observable proxy for "how many times has this over-time effect actually fired."
-    fn warded_entity(id: i64, name: &str) -> Entity {
-        let mut entity = Entity::new(id, EntityType::Player, test_location());
-        entity.name = name.to_string();
-        entity.attributes.insert(
+    fn warded_entity(id: i64, name: &str) -> Character {
+        let mut character = Character::new(id, CharacterType::Player, test_location());
+        character.name = name.to_string();
+        character.attributes.insert(
             "hp".to_string(),
             Attribute::new("hp".to_string(), 0, 100, 100),
         );
-        entity.active_effects.push(Effect {
+        character.active_effects.push(Effect {
             name: "warding".to_string(),
             effect_type: EffectType::AttributeShield {
                 attribute_id: "hp".to_string(),
@@ -202,38 +202,38 @@ mod tests {
             description: EffectDescription::default(),
             scope: EffectScope::Battle,
         });
-        entity
+        character
     }
 
-    fn plain_entity(id: i64, name: &str) -> Entity {
-        let mut entity = Entity::new(id, EntityType::Enemy, test_location());
-        entity.name = name.to_string();
-        entity.attributes.insert(
+    fn plain_entity(id: i64, name: &str) -> Character {
+        let mut character = Character::new(id, CharacterType::Enemy, test_location());
+        character.name = name.to_string();
+        character.attributes.insert(
             "hp".to_string(),
             Attribute::new("hp".to_string(), 0, 100, 100),
         );
-        entity
+        character
     }
 
-    fn entity_with_strength(id: i64, name: &str) -> Entity {
-        let mut entity = Entity::new(id, EntityType::Player, test_location());
-        entity.name = name.to_string();
-        entity.attributes.insert(
+    fn entity_with_strength(id: i64, name: &str) -> Character {
+        let mut character = Character::new(id, CharacterType::Player, test_location());
+        character.name = name.to_string();
+        character.attributes.insert(
             "hp".to_string(),
             Attribute::new("hp".to_string(), 0, 100, 100),
         );
-        entity.attributes.insert(
+        character.attributes.insert(
             "strength".to_string(),
             Attribute::new("strength".to_string(), 1, 20, 10),
         );
-        entity
+        character
     }
 
     #[tokio::test]
     async fn apply_effects_fires_once_per_turn_while_dwelling_in_declare_phases() {
         let game_state = Arc::new(GameState::load(None).unwrap());
         {
-            let mut entities = game_state.active_entities.write().await;
+            let mut entities = game_state.active_characters.write().await;
             entities.insert(1, warded_entity(1, "Hero"));
             entities.insert(2, plain_entity(2, "Goblin"));
         }
@@ -258,7 +258,7 @@ mod tests {
             process_ticks(&game_state, max_engage_ticks).await;
         }
 
-        let entities = game_state.active_entities.read().await;
+        let entities = game_state.active_characters.read().await;
         // The over-time effect is resolved and re-pushed onto active_effects each time it
         // fires; if it fired once, the count grows from 1 to 2 — not once per dwelling tick.
         assert_eq!(entities[&1].active_effects.len(), 2);
@@ -268,7 +268,7 @@ mod tests {
     async fn reset_attributes_phase_restores_battle_start_and_leaves_hp_alone() {
         let game_state = Arc::new(GameState::load(None).unwrap());
         {
-            let mut entities = game_state.active_entities.write().await;
+            let mut entities = game_state.active_characters.write().await;
             entities.insert(1, entity_with_strength(1, "Hero"));
             entities.insert(2, plain_entity(2, "Goblin"));
         }
@@ -289,10 +289,14 @@ mod tests {
 
         // Simulate a mid-turn effect write, exactly as `resolution/effect.rs` would do.
         {
-            let mut entities = game_state.active_entities.write().await;
-            let entity = entities.get_mut(&1).unwrap();
-            entity.attributes.get_mut("strength").unwrap().current_value = 3;
-            entity.attributes.get_mut("hp").unwrap().current_value = 40;
+            let mut entities = game_state.active_characters.write().await;
+            let character = entities.get_mut(&1).unwrap();
+            character
+                .attributes
+                .get_mut("strength")
+                .unwrap()
+                .current_value = 3;
+            character.attributes.get_mut("hp").unwrap().current_value = 40;
         }
 
         // AnnounceState -> ApplyEffects -> DeclareAttacks -> DeclareDefense -> ResolveAbilities
@@ -302,7 +306,7 @@ mod tests {
             process_ticks(&game_state, max_engage_ticks).await;
         }
 
-        let entities = game_state.active_entities.read().await;
+        let entities = game_state.active_characters.read().await;
         assert_eq!(entities[&1].attributes["strength"].current_value, 10);
         assert_eq!(entities[&1].attributes["hp"].current_value, 40);
     }

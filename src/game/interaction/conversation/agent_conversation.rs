@@ -42,7 +42,7 @@ impl<'a> AgentConversationStarter<'a> {
             .await;
 
         {
-            let mut entities = self.game_state.active_entities.write().await;
+            let mut entities = self.game_state.active_characters.write().await;
             if let Some(npc) = entities.get_mut(&self.npc_entity_id) {
                 let mut state = AgentConversationState::default();
                 state.contexts.insert(
@@ -117,7 +117,7 @@ async fn append_exchange(
     player_message: &str,
     agent_response: &str,
 ) {
-    let mut entities = game_state.active_entities.write().await;
+    let mut entities = game_state.active_characters.write().await;
     if let Some(npc) = entities.get_mut(&npc_entity_id)
         && let Some(ai) = npc.ai.as_mut()
         && let Some(state) = ai.agent_conversation_state.as_mut()

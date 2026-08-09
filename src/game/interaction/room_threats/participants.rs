@@ -2,19 +2,19 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::game::GameState;
-use crate::game::entity::Entity;
+use crate::game::entity::Character;
 
 pub(super) async fn build_participants(
     game_state: &Arc<GameState>,
     player_entity_id: i64,
     hostile_ids: &[i64],
 ) -> (Vec<String>, HashMap<String, Vec<i64>>) {
-    let entities = game_state.active_entities.read().await;
+    let entities = game_state.active_characters.read().await;
 
     let mut participants: HashMap<String, Vec<i64>> = HashMap::new();
     for &entity_id in std::iter::once(&player_entity_id).chain(hostile_ids.iter()) {
-        if let Some(entity) = entities.get(&entity_id) {
-            for faction in &entity.factions {
+        if let Some(character) = entities.get(&entity_id) {
+            for faction in &character.factions {
                 participants
                     .entry(faction.clone())
                     .or_default()
@@ -28,7 +28,7 @@ pub(super) async fn build_participants(
 }
 
 pub(super) fn ordered_factions(
-    entities: &HashMap<i64, Entity>,
+    entities: &HashMap<i64, Character>,
     player_entity_id: i64,
     participants: &HashMap<String, Vec<i64>>,
 ) -> Vec<String> {
@@ -53,7 +53,7 @@ mod tests {
     use super::*;
     use crate::game::GameState;
     use crate::game::component::location::Location;
-    use crate::game::entity::{Entity, EntityType};
+    use crate::game::entity::{Character, CharacterType};
 
     fn test_location() -> Location {
         Location {
@@ -63,10 +63,10 @@ mod tests {
         }
     }
 
-    fn make_entity(id: i64, entity_type: EntityType, factions: &[&str]) -> Entity {
-        let mut entity = Entity::new(id, entity_type, test_location());
-        entity.factions = factions.iter().map(|s| s.to_string()).collect();
-        entity
+    fn make_entity(id: i64, entity_type: CharacterType, factions: &[&str]) -> Character {
+        let mut character = Character::new(id, entity_type, test_location());
+        character.factions = factions.iter().map(|s| s.to_string()).collect();
+        character
     }
 
     // ordered_factions tests
@@ -74,8 +74,8 @@ mod tests {
     #[test]
     fn ordered_factions_player_faction_comes_first() {
         let mut entities = HashMap::new();
-        entities.insert(1, make_entity(1, EntityType::Player, &["player"]));
-        entities.insert(2, make_entity(2, EntityType::Enemy, &["enemy"]));
+        entities.insert(1, make_entity(1, CharacterType::Player, &["player"]));
+        entities.insert(2, make_entity(2, CharacterType::Enemy, &["enemy"]));
 
         let mut participants = HashMap::new();
         participants.insert("player".to_string(), vec![1]);
@@ -89,7 +89,7 @@ mod tests {
     #[test]
     fn ordered_factions_no_duplicates() {
         let mut entities = HashMap::new();
-        entities.insert(1, make_entity(1, EntityType::Player, &["player"]));
+        entities.insert(1, make_entity(1, CharacterType::Player, &["player"]));
 
         let mut participants = HashMap::new();
         participants.insert("player".to_string(), vec![1]);
@@ -101,7 +101,7 @@ mod tests {
 
     #[test]
     fn ordered_factions_absent_player_returns_all_participant_keys() {
-        let entities: HashMap<i64, Entity> = HashMap::new();
+        let entities: HashMap<i64, Character> = HashMap::new();
 
         let mut participants = HashMap::new();
         participants.insert("enemy".to_string(), vec![2]);
@@ -113,7 +113,7 @@ mod tests {
     #[test]
     fn ordered_factions_multiple_non_player_factions_all_included() {
         let mut entities = HashMap::new();
-        entities.insert(1, make_entity(1, EntityType::Player, &["player"]));
+        entities.insert(1, make_entity(1, CharacterType::Player, &["player"]));
 
         let mut participants = HashMap::new();
         participants.insert("player".to_string(), vec![1]);
@@ -133,9 +133,9 @@ mod tests {
     async fn build_participants_player_in_own_faction_bucket() {
         let state = Arc::new(GameState::load(None).unwrap());
         {
-            let mut entities = state.active_entities.write().await;
-            entities.insert(1, make_entity(1, EntityType::Player, &["player"]));
-            entities.insert(2, make_entity(2, EntityType::Enemy, &["enemy"]));
+            let mut entities = state.active_characters.write().await;
+            entities.insert(1, make_entity(1, CharacterType::Player, &["player"]));
+            entities.insert(2, make_entity(2, CharacterType::Enemy, &["enemy"]));
         }
 
         let (_, participants) = build_participants(&state, 1, &[2]).await;
@@ -146,9 +146,9 @@ mod tests {
     async fn build_participants_hostile_in_their_faction_bucket() {
         let state = Arc::new(GameState::load(None).unwrap());
         {
-            let mut entities = state.active_entities.write().await;
-            entities.insert(1, make_entity(1, EntityType::Player, &["player"]));
-            entities.insert(2, make_entity(2, EntityType::Enemy, &["enemy"]));
+            let mut entities = state.active_characters.write().await;
+            entities.insert(1, make_entity(1, CharacterType::Player, &["player"]));
+            entities.insert(2, make_entity(2, CharacterType::Enemy, &["enemy"]));
         }
 
         let (_, participants) = build_participants(&state, 1, &[2]).await;
@@ -159,9 +159,9 @@ mod tests {
     async fn build_participants_player_faction_is_first() {
         let state = Arc::new(GameState::load(None).unwrap());
         {
-            let mut entities = state.active_entities.write().await;
-            entities.insert(1, make_entity(1, EntityType::Player, &["player"]));
-            entities.insert(2, make_entity(2, EntityType::Enemy, &["enemy"]));
+            let mut entities = state.active_characters.write().await;
+            entities.insert(1, make_entity(1, CharacterType::Player, &["player"]));
+            entities.insert(2, make_entity(2, CharacterType::Enemy, &["enemy"]));
         }
 
         let (factions, _) = build_participants(&state, 1, &[2]).await;
@@ -172,8 +172,8 @@ mod tests {
     async fn build_participants_missing_entity_skipped() {
         let state = Arc::new(GameState::load(None).unwrap());
         {
-            let mut entities = state.active_entities.write().await;
-            entities.insert(1, make_entity(1, EntityType::Player, &["player"]));
+            let mut entities = state.active_characters.write().await;
+            entities.insert(1, make_entity(1, CharacterType::Player, &["player"]));
         }
 
         let (factions, participants) = build_participants(&state, 1, &[99]).await;
@@ -186,9 +186,12 @@ mod tests {
     async fn build_participants_entity_with_multiple_factions_appears_in_each() {
         let state = Arc::new(GameState::load(None).unwrap());
         {
-            let mut entities = state.active_entities.write().await;
-            entities.insert(1, make_entity(1, EntityType::Player, &["player"]));
-            entities.insert(2, make_entity(2, EntityType::Enemy, &["enemy", "bandit"]));
+            let mut entities = state.active_characters.write().await;
+            entities.insert(1, make_entity(1, CharacterType::Player, &["player"]));
+            entities.insert(
+                2,
+                make_entity(2, CharacterType::Enemy, &["enemy", "bandit"]),
+            );
         }
 
         let (_, participants) = build_participants(&state, 1, &[2]).await;

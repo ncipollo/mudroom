@@ -2,23 +2,23 @@ use std::sync::Arc;
 
 use crate::game::component::description::Description;
 use crate::game::config::theme_config;
-use crate::game::entity::EntityType;
+use crate::game::entity::CharacterType;
 use crate::game::player::Player;
 use crate::game::{GameState, messaging};
 use crate::persistence::Database;
 use crate::persistence::room_repo;
 
 pub async fn process(game_state: &Arc<GameState>, db: &Database, player: &Player) {
-    let (location, entity_descriptions) = {
-        let entities = game_state.active_entities.read().await;
-        let location = match entities.get(&player.entity_id) {
-            Some(e) => e.location.clone(),
+    let (location, character_descriptions) = {
+        let characters = game_state.active_characters.read().await;
+        let location = match characters.get(&player.entity_id) {
+            Some(c) => c.location.clone(),
             None => return,
         };
-        let descriptions: Vec<(EntityType, Description)> = entities
+        let descriptions: Vec<(CharacterType, Description)> = characters
             .values()
-            .filter(|e| e.id != player.entity_id && e.location == location)
-            .map(|e| (e.entity_type.clone(), e.description.clone()))
+            .filter(|c| c.id != player.entity_id && c.location == location)
+            .map(|c| (c.character_type.clone(), c.description.clone()))
             .collect();
         (location, descriptions)
     };
@@ -31,21 +31,20 @@ pub async fn process(game_state: &Arc<GameState>, db: &Database, player: &Player
         messaging::message_room_description(&game_state.message_tx, player.id, &room, theme);
     }
 
-    for (entity_type, description) in entity_descriptions {
+    for (character_type, description) in character_descriptions {
         let theme =
             theme_config::resolve_theme_id(&game_state.themes, description.theme.as_deref());
         let content = description
             .text
-            .unwrap_or_else(|| format!("A {} is here.", entity_type_label(&entity_type)));
+            .unwrap_or_else(|| format!("A {} is here.", character_type_label(&character_type)));
         messaging::message_themed(&game_state.message_tx, player.id, content, theme);
     }
 }
 
-fn entity_type_label(entity_type: &EntityType) -> &'static str {
-    match entity_type {
-        EntityType::Character => "character",
-        EntityType::Enemy => "enemy",
-        EntityType::Object => "object",
-        EntityType::Player => "player",
+fn character_type_label(character_type: &CharacterType) -> &'static str {
+    match character_type {
+        CharacterType::Character => "character",
+        CharacterType::Enemy => "enemy",
+        CharacterType::Player => "player",
     }
 }

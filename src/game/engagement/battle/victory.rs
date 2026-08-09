@@ -29,10 +29,10 @@ pub(super) async fn handle_battle_ended(
 }
 
 async fn clear_active_effects(game_state: &Arc<GameState>, entity_ids: &[i64]) {
-    let mut entities = game_state.active_entities.write().await;
+    let mut entities = game_state.active_characters.write().await;
     for &id in entity_ids {
-        if let Some(entity) = entities.get_mut(&id) {
-            entity
+        if let Some(character) = entities.get_mut(&id) {
+            character
                 .active_effects
                 .retain(|e| e.scope != EffectScope::Battle);
         }
@@ -47,7 +47,7 @@ mod tests {
     use crate::game::component::attribute_definition::ResetCondition;
     use crate::game::component::effect::{Effect, EffectDescription, EffectType, TriggerInfo};
     use crate::game::component::{Attribute, Location};
-    use crate::game::entity::{Entity, EntityType};
+    use crate::game::entity::{Character, CharacterType};
     use tokio::sync::broadcast;
 
     fn test_location() -> Location {
@@ -82,25 +82,25 @@ mod tests {
         effect
     }
 
-    async fn game_state_with_entity(entity: Entity) -> Arc<GameState> {
+    async fn game_state_with_entity(character: Character) -> Arc<GameState> {
         let game_state = Arc::new(GameState::load(None).unwrap());
         game_state
-            .active_entities
+            .active_characters
             .write()
             .await
-            .insert(entity.id, entity);
+            .insert(character.id, character);
         game_state
     }
 
     #[tokio::test]
     async fn clear_active_effects_removes_only_battle_scoped_effects() {
-        let mut entity = Entity::new(1, EntityType::Player, test_location());
-        entity.active_effects = vec![battle_scoped_effect(), world_scoped_effect()];
-        let game_state = game_state_with_entity(entity).await;
+        let mut character = Character::new(1, CharacterType::Player, test_location());
+        character.active_effects = vec![battle_scoped_effect(), world_scoped_effect()];
+        let game_state = game_state_with_entity(character).await;
 
         clear_active_effects(&game_state, &[1]).await;
 
-        let entities = game_state.active_entities.read().await;
+        let entities = game_state.active_characters.read().await;
         assert_eq!(entities[&1].active_effects.len(), 1);
         assert_eq!(entities[&1].active_effects[0].scope, EffectScope::World);
     }
@@ -113,14 +113,14 @@ mod tests {
 
     #[tokio::test]
     async fn handle_battle_ended_clears_effects_and_notifies_players() {
-        let mut entity = Entity::new(1, EntityType::Player, test_location());
-        entity.active_effects = vec![battle_scoped_effect()];
-        let game_state = game_state_with_entity(entity).await;
+        let mut character = Character::new(1, CharacterType::Player, test_location());
+        character.active_effects = vec![battle_scoped_effect()];
+        let game_state = game_state_with_entity(character).await;
         let mut receiver = game_state.message_tx.subscribe();
 
         handle_battle_ended(&game_state, 42, &[1], &[7]).await;
 
-        let entities = game_state.active_entities.read().await;
+        let entities = game_state.active_characters.read().await;
         assert!(entities[&1].active_effects.is_empty());
         drop(entities);
 
@@ -133,12 +133,12 @@ mod tests {
 
     #[tokio::test]
     async fn handle_battle_ended_resets_end_of_engagement_and_leaves_hp() {
-        let mut entity = Entity::new(1, EntityType::Player, test_location());
-        entity.attributes.insert(
+        let mut character = Character::new(1, CharacterType::Player, test_location());
+        character.attributes.insert(
             "hp".to_string(),
             Attribute::new("hp".to_string(), 0, 100, 100),
         );
-        entity.attributes.insert(
+        character.attributes.insert(
             "strength".to_string(),
             Attribute::new("strength".to_string(), 1, 20, 10),
         );
@@ -156,10 +156,10 @@ mod tests {
         }
         let game_state = Arc::new(game_state);
         game_state
-            .active_entities
+            .active_characters
             .write()
             .await
-            .insert(entity.id, entity);
+            .insert(character.id, character);
         let mut participants = HashMap::new();
         participants.insert("player".to_string(), vec![1]);
         let engagement_id = game_state
@@ -170,15 +170,19 @@ mod tests {
         attribute_snapshot::capture_battle_start(&game_state, engagement_id, &[1]).await;
 
         {
-            let mut entities = game_state.active_entities.write().await;
-            let entity = entities.get_mut(&1).unwrap();
-            entity.attributes.get_mut("strength").unwrap().current_value = 3;
-            entity.attributes.get_mut("hp").unwrap().current_value = 40;
+            let mut entities = game_state.active_characters.write().await;
+            let character = entities.get_mut(&1).unwrap();
+            character
+                .attributes
+                .get_mut("strength")
+                .unwrap()
+                .current_value = 3;
+            character.attributes.get_mut("hp").unwrap().current_value = 40;
         }
 
         handle_battle_ended(&game_state, engagement_id, &[1], &[]).await;
 
-        let entities = game_state.active_entities.read().await;
+        let entities = game_state.active_characters.read().await;
         assert_eq!(entities[&1].attributes["strength"].current_value, 10);
         assert_eq!(entities[&1].attributes["hp"].current_value, 40);
     }

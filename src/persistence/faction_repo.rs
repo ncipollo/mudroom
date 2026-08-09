@@ -28,16 +28,16 @@ pub async fn find_all(pool: &SqlitePool) -> Result<Vec<Faction>, PersistenceErro
         .collect())
 }
 
-pub async fn find_by_entity(
+pub async fn find_by_character(
     pool: &SqlitePool,
-    entity_id: i64,
+    character_id: i64,
 ) -> Result<Vec<Faction>, PersistenceError> {
     let rows: Vec<(String, String, String)> = sqlx::query_as(
         "SELECT f.id, f.name, f.description FROM factions f \
-         JOIN entity_factions ef ON f.id = ef.faction_id \
-         WHERE ef.entity_id = ?",
+         JOIN character_factions ef ON f.id = ef.faction_id \
+         WHERE ef.character_id = ?",
     )
-    .bind(entity_id)
+    .bind(character_id)
     .fetch_all(pool)
     .await?;
     Ok(rows
@@ -50,18 +50,18 @@ pub async fn find_by_entity(
         .collect())
 }
 
-pub async fn set_entity_factions(
+pub async fn set_character_factions(
     pool: &SqlitePool,
-    entity_id: i64,
+    character_id: i64,
     faction_ids: &[String],
 ) -> Result<(), PersistenceError> {
-    sqlx::query("DELETE FROM entity_factions WHERE entity_id = ?")
-        .bind(entity_id)
+    sqlx::query("DELETE FROM character_factions WHERE character_id = ?")
+        .bind(character_id)
         .execute(pool)
         .await?;
     for faction_id in faction_ids {
-        sqlx::query("INSERT INTO entity_factions (entity_id, faction_id) VALUES (?, ?)")
-            .bind(entity_id)
+        sqlx::query("INSERT INTO character_factions (character_id, faction_id) VALUES (?, ?)")
+            .bind(character_id)
             .bind(faction_id)
             .execute(pool)
             .await?;
@@ -72,9 +72,9 @@ pub async fn set_entity_factions(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::{Description, Dungeon, Entity, EntityType, Location, Room, World};
+    use crate::game::{Character, CharacterType, Description, Dungeon, Location, Room, World};
     use crate::persistence::database::Database;
-    use crate::persistence::{dungeon_repo, entity_repo, room_repo, world_repo};
+    use crate::persistence::{character_repo, dungeon_repo, room_repo, world_repo};
 
     async fn setup(db: &Database) -> i64 {
         let world = World::new("w1".to_string());
@@ -90,8 +90,8 @@ mod tests {
             dungeon_id: "d1".to_string(),
             room_id: "r1".to_string(),
         };
-        let entity = Entity::new(0, EntityType::Player, loc);
-        entity_repo::insert(db.pool(), &entity).await.unwrap()
+        let character = Character::new(0, CharacterType::Player, loc);
+        character_repo::insert(db.pool(), &character).await.unwrap()
     }
 
     fn player_faction() -> Faction {
@@ -121,23 +121,23 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn set_and_find_by_entity() {
+    async fn set_and_find_by_character() {
         let db = Database::connect_in_memory().await.unwrap();
-        let entity_id = setup(&db).await;
+        let character_id = setup(&db).await;
         upsert(db.pool(), &player_faction()).await.unwrap();
-        set_entity_factions(db.pool(), entity_id, &["player".to_string()])
+        set_character_factions(db.pool(), character_id, &["player".to_string()])
             .await
             .unwrap();
 
-        let factions = find_by_entity(db.pool(), entity_id).await.unwrap();
+        let factions = find_by_character(db.pool(), character_id).await.unwrap();
         assert_eq!(factions.len(), 1);
         assert_eq!(factions[0].id, "player");
     }
 
     #[tokio::test]
-    async fn set_entity_factions_replaces_existing() {
+    async fn set_character_factions_replaces_existing() {
         let db = Database::connect_in_memory().await.unwrap();
-        let entity_id = setup(&db).await;
+        let character_id = setup(&db).await;
         upsert(db.pool(), &player_faction()).await.unwrap();
         upsert(
             db.pool(),
@@ -150,30 +150,32 @@ mod tests {
         .await
         .unwrap();
 
-        set_entity_factions(db.pool(), entity_id, &["player".to_string()])
+        set_character_factions(db.pool(), character_id, &["player".to_string()])
             .await
             .unwrap();
-        set_entity_factions(db.pool(), entity_id, &["monster".to_string()])
+        set_character_factions(db.pool(), character_id, &["monster".to_string()])
             .await
             .unwrap();
 
-        let factions = find_by_entity(db.pool(), entity_id).await.unwrap();
+        let factions = find_by_character(db.pool(), character_id).await.unwrap();
         assert_eq!(factions.len(), 1);
         assert_eq!(factions[0].id, "monster");
     }
 
     #[tokio::test]
-    async fn cascade_delete_on_entity_delete() {
+    async fn cascade_delete_on_character_delete() {
         let db = Database::connect_in_memory().await.unwrap();
-        let entity_id = setup(&db).await;
+        let character_id = setup(&db).await;
         upsert(db.pool(), &player_faction()).await.unwrap();
-        set_entity_factions(db.pool(), entity_id, &["player".to_string()])
+        set_character_factions(db.pool(), character_id, &["player".to_string()])
             .await
             .unwrap();
 
-        entity_repo::delete(db.pool(), entity_id).await.unwrap();
+        character_repo::delete(db.pool(), character_id)
+            .await
+            .unwrap();
 
-        let factions = find_by_entity(db.pool(), entity_id).await.unwrap();
+        let factions = find_by_character(db.pool(), character_id).await.unwrap();
         assert!(factions.is_empty());
     }
 }

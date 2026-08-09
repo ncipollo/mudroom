@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::game::component::{Ability, Attribute, Cost};
-use crate::game::entity::Entity;
+use crate::game::entity::Character;
 
 use super::QueuedAbility;
 
@@ -19,7 +19,7 @@ impl ActionQueue {
         Self::default()
     }
 
-    /// Queue an ability for the caster targeting the given entity. Validates and tracks resource
+    /// Queue an ability for the caster targeting the given character. Validates and tracks resource
     /// costs for potential refund. Returns false if the caster lacks sufficient resources.
     pub fn queue(
         &mut self,
@@ -103,11 +103,11 @@ impl ActionQueue {
         self.pending_costs.clear();
     }
 
-    pub fn refund_all(&self, entities: &mut HashMap<i64, Entity>) {
+    pub fn refund_all(&self, entities: &mut HashMap<i64, Character>) {
         for (entity_id, costs) in &self.pending_costs {
-            if let Some(entity) = entities.get_mut(entity_id) {
+            if let Some(character) = entities.get_mut(entity_id) {
                 for (attr_id, amount) in costs {
-                    if let Some(attr) = entity.attributes.get_mut(attr_id) {
+                    if let Some(attr) = character.attributes.get_mut(attr_id) {
                         attr.current_value = (attr.current_value + amount).min(attr.max_value);
                     }
                 }
@@ -132,7 +132,7 @@ mod tests {
         Effect, EffectDescription, EffectScope, EffectType, TriggerInfo,
     };
     use crate::game::engagement::EngagementType;
-    use crate::game::entity::EntityType;
+    use crate::game::entity::CharacterType;
 
     fn attack_ability(cost: Option<(&str, i64)>) -> Ability {
         Ability {
@@ -242,12 +242,12 @@ mod tests {
         assert_eq!(queue.unacted(&[3]), vec![3]);
 
         let mut entities = HashMap::new();
-        let mut entity = Entity::new(1, EntityType::Player, test_location());
-        entity.attributes.insert(
+        let mut character = Character::new(1, CharacterType::Player, test_location());
+        character.attributes.insert(
             "mp".to_string(),
             Attribute::new("mp".to_string(), 0, 20, 10),
         );
-        entities.insert(1, entity);
+        entities.insert(1, character);
         queue.refund_all(&mut entities); // pending_costs cleared, so no refund happens
         assert_eq!(entities[&1].attributes["mp"].current_value, 10);
     }
@@ -263,12 +263,12 @@ mod tests {
         queue.queue(1, attack_ability(Some(("mp", 10))), 2, &attrs);
 
         let mut entities = HashMap::new();
-        let mut entity = Entity::new(1, EntityType::Player, test_location());
-        entity.attributes.insert(
+        let mut character = Character::new(1, CharacterType::Player, test_location());
+        character.attributes.insert(
             "mp".to_string(),
             Attribute::new("mp".to_string(), 0, 20, 10),
         );
-        entities.insert(1, entity);
+        entities.insert(1, character);
 
         queue.refund_all(&mut entities);
         assert_eq!(entities[&1].attributes["mp"].current_value, 20);

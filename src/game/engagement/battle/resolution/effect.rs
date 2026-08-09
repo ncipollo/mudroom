@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::game::component::effect::{Effect, EffectType, TriggerInfo};
 use crate::game::engagement::battle::BattleMessage;
-use crate::game::entity::Entity;
+use crate::game::entity::Character;
 
 #[derive(Default)]
 struct ResolutionContext {
@@ -15,35 +15,43 @@ struct ResolutionContext {
 pub(super) fn resolve_effects(
     target_id: i64,
     mut effects: Vec<Effect>,
-    entities: &mut HashMap<i64, Entity>,
+    entities: &mut HashMap<i64, Character>,
 ) -> Vec<BattleMessage> {
-    let Some(entity) = entities.get_mut(&target_id) else {
+    let Some(character) = entities.get_mut(&target_id) else {
         return vec![];
     };
     effects.sort_by_key(|e| e.effect_type.resolution_order());
     let mut context = ResolutionContext::default();
     for effect in &effects {
-        resolve_effect(effect, entity, &mut context);
+        resolve_effect(effect, character, &mut context);
     }
     vec![]
 }
 
-fn resolve_effect(effect: &Effect, entity: &mut Entity, context: &mut ResolutionContext) {
+fn resolve_effect(effect: &Effect, character: &mut Character, context: &mut ResolutionContext) {
     match &effect.effect_type {
-        EffectType::AttributeShield { .. } => apply_attribute_shield(effect, entity, context),
-        EffectType::AttributeUpdate { .. } => apply_attribute_update(effect, entity, context),
-        EffectType::EntitySpawn { .. } => apply_entity_spawn(effect, entity, context),
+        EffectType::AttributeShield { .. } => apply_attribute_shield(effect, character, context),
+        EffectType::AttributeUpdate { .. } => apply_attribute_update(effect, character, context),
+        EffectType::EntitySpawn { .. } => apply_entity_spawn(effect, character, context),
     }
 }
 
-fn apply_attribute_shield(effect: &Effect, entity: &mut Entity, context: &mut ResolutionContext) {
+fn apply_attribute_shield(
+    effect: &Effect,
+    character: &mut Character,
+    context: &mut ResolutionContext,
+) {
     match effect.trigger_info {
         TriggerInfo::Once => context.once_shields.push(effect.clone()),
-        TriggerInfo::OverTime { .. } => entity.active_effects.push(effect.clone()),
+        TriggerInfo::OverTime { .. } => character.active_effects.push(effect.clone()),
     }
 }
 
-fn apply_attribute_update(effect: &Effect, entity: &mut Entity, context: &mut ResolutionContext) {
+fn apply_attribute_update(
+    effect: &Effect,
+    character: &mut Character,
+    context: &mut ResolutionContext,
+) {
     let EffectType::AttributeUpdate {
         attribute_id,
         value,
@@ -55,12 +63,12 @@ fn apply_attribute_update(effect: &Effect, entity: &mut Entity, context: &mut Re
         return;
     }
     let adjusted = absorb_with_shields(&mut context.once_shields, attribute_id, *value);
-    if let Some(attr) = entity.attributes.get_mut(attribute_id) {
+    if let Some(attr) = character.attributes.get_mut(attribute_id) {
         attr.current_value = (attr.current_value + adjusted)
             .max(attr.min_value)
             .min(attr.max_value);
         tracing::info!(
-            entity_id = entity.id,
+            entity_id = character.id,
             attribute_id = %attribute_id,
             pending_value = attr.current_value,
             "Pending attribute impacted"
@@ -68,7 +76,8 @@ fn apply_attribute_update(effect: &Effect, entity: &mut Entity, context: &mut Re
     }
 }
 
-fn apply_entity_spawn(_effect: &Effect, _entity: &mut Entity, _context: &mut ResolutionContext) {}
+fn apply_entity_spawn(_effect: &Effect, _entity: &mut Character, _context: &mut ResolutionContext) {
+}
 
 fn absorb_with_shields(once_shields: &mut Vec<Effect>, attribute_id: &str, value: i64) -> i64 {
     if value >= 0 {
@@ -112,7 +121,7 @@ mod tests {
     use crate::game::component::Location;
     use crate::game::component::effect::{EffectDescription, EffectScope};
     use crate::game::engagement::EngagementType;
-    use crate::game::entity::EntityType;
+    use crate::game::entity::CharacterType;
 
     fn test_location() -> Location {
         Location {
@@ -167,11 +176,13 @@ mod tests {
         }
     }
 
-    fn single_entity(hp: i64) -> HashMap<i64, Entity> {
+    fn single_entity(hp: i64) -> HashMap<i64, Character> {
         let mut entities = HashMap::new();
-        let mut entity = Entity::new(1, EntityType::Player, test_location());
-        entity.attributes.insert("hp".to_string(), hp_attribute(hp));
-        entities.insert(1, entity);
+        let mut character = Character::new(1, CharacterType::Player, test_location());
+        character
+            .attributes
+            .insert("hp".to_string(), hp_attribute(hp));
+        entities.insert(1, character);
         entities
     }
 
@@ -185,9 +196,9 @@ mod tests {
             &mut entities,
         );
 
-        let entity = entities.get(&1).unwrap();
-        assert_eq!(entity.attributes["hp"].current_value, 95);
-        assert!(entity.active_effects.is_empty());
+        let character = entities.get(&1).unwrap();
+        assert_eq!(character.attributes["hp"].current_value, 95);
+        assert!(character.active_effects.is_empty());
     }
 
     #[test]
@@ -204,10 +215,10 @@ mod tests {
 
         resolve_effects(1, vec![over_time_shield, damage_effect(-10)], &mut entities);
 
-        let entity = entities.get(&1).unwrap();
+        let character = entities.get(&1).unwrap();
         // OverTime shield pushed to active_effects but not applied — full damage lands
-        assert_eq!(entity.attributes["hp"].current_value, 90);
-        assert_eq!(entity.active_effects.len(), 1);
+        assert_eq!(character.attributes["hp"].current_value, 90);
+        assert_eq!(character.active_effects.len(), 1);
     }
 
     #[test]
@@ -217,11 +228,11 @@ mod tests {
 
         resolve_effects(1, effects, &mut entities);
 
-        let entity = entities.get(&1).unwrap();
-        assert_eq!(entity.attributes["hp"].current_value, 60);
+        let character = entities.get(&1).unwrap();
+        assert_eq!(character.attributes["hp"].current_value, 60);
         // Shield is still present since heals don't trigger it
         // (shield was in same-pass effects, not active_effects — it's simply not consumed)
-        assert!(entity.active_effects.is_empty());
+        assert!(character.active_effects.is_empty());
     }
 
     #[test]
@@ -233,10 +244,10 @@ mod tests {
 
         resolve_effects(1, effects, &mut entities);
 
-        let entity = entities.get(&1).unwrap();
+        let character = entities.get(&1).unwrap();
         // Shield absorbed 5, 5 damage gets through
-        assert_eq!(entity.attributes["hp"].current_value, 95);
-        assert!(entity.active_effects.is_empty());
+        assert_eq!(character.attributes["hp"].current_value, 95);
+        assert!(character.active_effects.is_empty());
     }
 
     #[test]
@@ -246,9 +257,9 @@ mod tests {
 
         resolve_effects(1, effects, &mut entities);
 
-        let entity = entities.get(&1).unwrap();
-        assert_eq!(entity.attributes["hp"].current_value, 100);
-        assert!(entity.active_effects.is_empty());
+        let character = entities.get(&1).unwrap();
+        assert_eq!(character.attributes["hp"].current_value, 100);
+        assert!(character.active_effects.is_empty());
     }
 
     #[test]
@@ -262,11 +273,11 @@ mod tests {
 
         resolve_effects(1, effects, &mut entities);
 
-        let entity = entities.get(&1).unwrap();
+        let character = entities.get(&1).unwrap();
         // Shield absorbs 5 from first hit (3 remaining), then 3 from second (exhausted),
         // leaving 2 damage through
-        assert_eq!(entity.attributes["hp"].current_value, 98);
-        assert!(entity.active_effects.is_empty());
+        assert_eq!(character.attributes["hp"].current_value, 98);
+        assert!(character.active_effects.is_empty());
     }
 
     #[test]
@@ -276,13 +287,13 @@ mod tests {
 
         resolve_effects(1, effects, &mut entities);
 
-        let entity = entities.get(&1).unwrap();
-        assert_eq!(entity.attributes["hp"].current_value, 100);
+        let character = entities.get(&1).unwrap();
+        assert_eq!(character.attributes["hp"].current_value, 100);
     }
 
     #[test]
     fn unknown_target_is_noop() {
-        let mut entities: HashMap<i64, Entity> = HashMap::new();
+        let mut entities: HashMap<i64, Character> = HashMap::new();
         let messages = resolve_effects(99, vec![damage_effect(-10)], &mut entities);
         assert!(messages.is_empty());
     }
@@ -302,9 +313,9 @@ mod tests {
 
         resolve_effects(1, vec![over_time_shield], &mut entities);
 
-        let entity = entities.get(&1).unwrap();
-        assert_eq!(entity.active_effects.len(), 1);
-        assert_eq!(entity.attributes["hp"].current_value, 100);
+        let character = entities.get(&1).unwrap();
+        assert_eq!(character.active_effects.len(), 1);
+        assert_eq!(character.attributes["hp"].current_value, 100);
     }
 
     #[test]

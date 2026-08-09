@@ -1,7 +1,7 @@
 /// Handles resolved actions for [`crate::game::EngagementType::Conversation`] engagements.
 ///
 /// A conversation engagement has two entities: a player and an NPC. Only the player takes
-/// turns; the NPC's entity id is tracked for dialog-state lookups but never appears in the
+/// turns; the NPC's character id is tracked for dialog-state lookups but never appears in the
 /// turn order.
 ///
 /// Each time the player's turn resolves there are two possible outcomes:
@@ -143,7 +143,7 @@ async fn get_current_dialog(
     npc_entity_id: i64,
     engagement_id: i64,
 ) -> Option<DialogLine> {
-    let entities = game_state.active_entities.read().await;
+    let entities = game_state.active_characters.read().await;
     entities
         .get(&npc_entity_id)
         .and_then(|e| e.ai.as_ref())
@@ -176,7 +176,7 @@ async fn advance_dialog(
     let reply_responses = reply.responses.clone();
 
     {
-        let mut entities = game_state.active_entities.write().await;
+        let mut entities = game_state.active_characters.write().await;
         if let Some(npc) = entities.get_mut(&npc_entity_id)
             && let Some(ai) = npc.ai.as_mut()
             && let Some(state) = ai.simple_conversation_state.as_mut()
@@ -209,7 +209,7 @@ async fn resend_current_dialog(
     engagement_id: i64,
 ) {
     let dialog = {
-        let entities = game_state.active_entities.read().await;
+        let entities = game_state.active_characters.read().await;
         entities
             .get(&npc_entity_id)
             .and_then(|e| e.ai.as_ref())
@@ -238,7 +238,7 @@ async fn remove_npc_conversation_state(
     npc_entity_id: i64,
     engagement_id: i64,
 ) {
-    let mut entities = game_state.active_entities.write().await;
+    let mut entities = game_state.active_characters.write().await;
     if let Some(npc) = entities.get_mut(&npc_entity_id)
         && let Some(ai) = npc.ai.as_mut()
     {
@@ -251,7 +251,7 @@ async fn remove_npc_conversation_state(
     }
 }
 
-/// Determine which entity is the player and which is the NPC.
+/// Determine which character is the player and which is the NPC.
 /// The player is the one whose turn resolved (entity_id in the resolved action).
 async fn find_player_and_npc(
     game_state: &Arc<GameState>,
@@ -263,7 +263,7 @@ async fn find_player_and_npc(
         .iter()
         .find(|&&id| id != player_entity_id)
         .copied()?;
-    // Verify the player entity actually has an active player record
+    // Verify the player character actually has an active player record
     let players = game_state.active_players.read().await;
     let is_player = players.values().any(|p| p.entity_id == player_entity_id);
     if is_player {

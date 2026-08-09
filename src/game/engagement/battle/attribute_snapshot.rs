@@ -5,9 +5,9 @@ use crate::game::GameState;
 use crate::game::component::Attribute;
 use crate::game::component::attribute_definition::ResetCondition;
 use crate::game::config::AttributeConfig;
-use crate::game::entity::Entity;
+use crate::game::entity::Character;
 
-/// Per-entity attribute values as of some snapshot point, keyed by entity id.
+/// Per-character attribute values as of some snapshot point, keyed by character id.
 pub type AttributeSnapshot = HashMap<i64, HashMap<String, Attribute>>;
 
 /// Per-engagement attribute snapshots used to restore live attribute values on a schedule driven
@@ -38,7 +38,7 @@ pub async fn capture_battle_start(
 }
 
 /// Runs the `ResetAttributes` phase's attribute work for one faction turn: resets every
-/// `EachEngagementTurn` attribute on every given entity back to its `battle_start` value, then
+/// `EachEngagementTurn` attribute on every given character back to its `battle_start` value, then
 /// recaptures `turn_start` from the (now-reset) live values. Only call this when the current
 /// battle tick has just completed a `ResetAttributes` phase.
 pub(super) async fn reset_turn_start_attributes(
@@ -58,7 +58,7 @@ pub(super) async fn reset_turn_start_attributes(
     let reset_ids = reset_condition_ids(config, &ResetCondition::EachEngagementTurn);
 
     let turn_start = {
-        let mut entities = game_state.active_entities.write().await;
+        let mut entities = game_state.active_characters.write().await;
         reset_attributes(&mut entities, entity_ids, &battle_start, &reset_ids);
         snapshot_locked(&entities, entity_ids)
     };
@@ -87,7 +87,7 @@ fn log_reset_attributes(
             engagement_id,
             entity_id,
             pending_attributes = ?pairs,
-            "Pending attributes reset for entity"
+            "Pending attributes reset for character"
         );
     }
 }
@@ -101,7 +101,7 @@ fn attribute_pairs(attrs: &HashMap<String, Attribute>, ids: &[&str]) -> Vec<(Str
     pairs
 }
 
-/// Resets every `EndOfEngagement` attribute on every given entity back to its `battle_start`
+/// Resets every `EndOfEngagement` attribute on every given character back to its `battle_start`
 /// value. Only call this when a battle has just reached `BattlePhase::Concluded`, before the
 /// engagement is removed from `Battles`.
 pub(super) async fn reset_end_of_engagement_attributes(
@@ -120,7 +120,7 @@ pub(super) async fn reset_end_of_engagement_attributes(
     };
     let reset_ids = reset_condition_ids(config, &ResetCondition::EndOfEngagement);
 
-    let mut entities = game_state.active_entities.write().await;
+    let mut entities = game_state.active_characters.write().await;
     reset_attributes(&mut entities, entity_ids, &battle_start, &reset_ids);
 }
 
@@ -128,11 +128,11 @@ async fn read_attribute_snapshot(
     game_state: &Arc<GameState>,
     entity_ids: &[i64],
 ) -> AttributeSnapshot {
-    let entities = game_state.active_entities.read().await;
+    let entities = game_state.active_characters.read().await;
     snapshot_locked(&entities, entity_ids)
 }
 
-fn snapshot_locked(entities: &HashMap<i64, Entity>, entity_ids: &[i64]) -> AttributeSnapshot {
+fn snapshot_locked(entities: &HashMap<i64, Character>, entity_ids: &[i64]) -> AttributeSnapshot {
     entity_ids
         .iter()
         .filter_map(|&id| entities.get(&id).map(|e| (id, e.attributes.clone())))
@@ -152,22 +152,23 @@ fn reset_condition_ids<'a>(
 }
 
 fn reset_attributes(
-    entities: &mut HashMap<i64, Entity>,
+    entities: &mut HashMap<i64, Character>,
     entity_ids: &[i64],
     battle_start: &AttributeSnapshot,
     reset_ids: &[&str],
 ) {
     for &id in entity_ids {
-        let Some(entity) = entities.get_mut(&id) else {
+        let Some(character) = entities.get_mut(&id) else {
             continue;
         };
         let Some(start_attrs) = battle_start.get(&id) else {
             continue;
         };
         for &attr_id in reset_ids {
-            if let (Some(current), Some(start)) =
-                (entity.attributes.get_mut(attr_id), start_attrs.get(attr_id))
-            {
+            if let (Some(current), Some(start)) = (
+                character.attributes.get_mut(attr_id),
+                start_attrs.get(attr_id),
+            ) {
                 *current = start.clone();
             }
         }
@@ -178,7 +179,7 @@ fn reset_attributes(
 mod tests {
     use super::*;
     use crate::game::component::Location;
-    use crate::game::entity::EntityType;
+    use crate::game::entity::CharacterType;
 
     fn test_location() -> Location {
         Location {
@@ -188,17 +189,17 @@ mod tests {
         }
     }
 
-    fn entity_with_attrs(id: i64, hp: i64, strength: i64) -> Entity {
-        let mut entity = Entity::new(id, EntityType::Player, test_location());
-        entity.attributes.insert(
+    fn entity_with_attrs(id: i64, hp: i64, strength: i64) -> Character {
+        let mut character = Character::new(id, CharacterType::Player, test_location());
+        character.attributes.insert(
             "hp".to_string(),
             Attribute::new("hp".to_string(), 0, 100, hp),
         );
-        entity.attributes.insert(
+        character.attributes.insert(
             "strength".to_string(),
             Attribute::new("strength".to_string(), 1, 20, strength),
         );
-        entity
+        character
     }
 
     /// `AttributeConfig::default_config` has no `EndOfEngagement` attributes (only `Never` and
@@ -211,14 +212,14 @@ mod tests {
         config
     }
 
-    async fn game_state_with_battle(entity: Entity) -> (Arc<GameState>, i64) {
-        let entity_id = entity.id;
+    async fn game_state_with_battle(character: Character) -> (Arc<GameState>, i64) {
+        let entity_id = character.id;
         let game_state = Arc::new(GameState::load(None).unwrap());
         game_state
-            .active_entities
+            .active_characters
             .write()
             .await
-            .insert(entity_id, entity);
+            .insert(entity_id, character);
         let mut participants = HashMap::new();
         participants.insert("player".to_string(), vec![entity_id]);
         let engagement_id = game_state
@@ -236,7 +237,7 @@ mod tests {
         capture_battle_start(&game_state, engagement_id, &[1]).await;
 
         game_state
-            .active_entities
+            .active_characters
             .write()
             .await
             .get_mut(&1)
@@ -262,10 +263,14 @@ mod tests {
         capture_battle_start(&game_state, engagement_id, &[1]).await;
 
         {
-            let mut entities = game_state.active_entities.write().await;
-            let entity = entities.get_mut(&1).unwrap();
-            entity.attributes.get_mut("strength").unwrap().current_value = 3;
-            entity.attributes.get_mut("hp").unwrap().current_value = 40;
+            let mut entities = game_state.active_characters.write().await;
+            let character = entities.get_mut(&1).unwrap();
+            character
+                .attributes
+                .get_mut("strength")
+                .unwrap()
+                .current_value = 3;
+            character.attributes.get_mut("hp").unwrap().current_value = 40;
         }
 
         reset_turn_start_attributes(
@@ -276,7 +281,7 @@ mod tests {
         )
         .await;
 
-        let entities = game_state.active_entities.read().await;
+        let entities = game_state.active_characters.read().await;
         assert_eq!(entities[&1].attributes["strength"].current_value, 10);
         assert_eq!(entities[&1].attributes["hp"].current_value, 40);
     }
@@ -287,7 +292,7 @@ mod tests {
             game_state_with_battle(entity_with_attrs(1, 100, 10)).await;
         capture_battle_start(&game_state, engagement_id, &[1]).await;
         game_state
-            .active_entities
+            .active_characters
             .write()
             .await
             .get_mut(&1)
@@ -317,10 +322,14 @@ mod tests {
         capture_battle_start(&game_state, engagement_id, &[1]).await;
 
         {
-            let mut entities = game_state.active_entities.write().await;
-            let entity = entities.get_mut(&1).unwrap();
-            entity.attributes.get_mut("strength").unwrap().current_value = 3;
-            entity.attributes.get_mut("hp").unwrap().current_value = 40;
+            let mut entities = game_state.active_characters.write().await;
+            let character = entities.get_mut(&1).unwrap();
+            character
+                .attributes
+                .get_mut("strength")
+                .unwrap()
+                .current_value = 3;
+            character.attributes.get_mut("hp").unwrap().current_value = 40;
         }
 
         reset_end_of_engagement_attributes(
@@ -331,7 +340,7 @@ mod tests {
         )
         .await;
 
-        let entities = game_state.active_entities.read().await;
+        let entities = game_state.active_characters.read().await;
         assert_eq!(entities[&1].attributes["strength"].current_value, 10);
         assert_eq!(entities[&1].attributes["hp"].current_value, 40);
     }
@@ -350,7 +359,7 @@ mod tests {
         )
         .await;
 
-        let entities = game_state.active_entities.read().await;
+        let entities = game_state.active_characters.read().await;
         assert_eq!(entities[&1].attributes["strength"].current_value, 10);
     }
 }

@@ -12,18 +12,28 @@ use crate::game::component::description::Description;
 use crate::game::component::effect::Effect;
 use crate::game::config::BattleAiConfig;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum EntityType {
-    Player,
-    Character,
-    Enemy,
-    Object,
+/// Shared identity of anything that exists in the world.
+///
+/// Concrete world actors (characters, and in the future items, etc.) implement
+/// this trait to expose their identity fields.
+pub trait Entity {
+    fn id(&self) -> i64;
+    fn name(&self) -> &str;
+    fn description(&self) -> &Description;
+    fn location(&self) -> &Location;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Entity {
+pub enum CharacterType {
+    Player,
+    Character,
+    Enemy,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Character {
     pub id: i64,
-    pub entity_type: EntityType,
+    pub character_type: CharacterType,
     pub location: Location,
     pub attributes: HashMap<String, Attribute>,
     pub interactions: Vec<Interaction>,
@@ -46,23 +56,41 @@ pub struct Entity {
     pub active_effects: Vec<Effect>,
 }
 
-impl Entity {
-    pub fn new(id: i64, entity_type: EntityType, location: Location) -> Self {
+impl Entity for Character {
+    fn id(&self) -> i64 {
+        self.id
+    }
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn description(&self) -> &Description {
+        &self.description
+    }
+
+    fn location(&self) -> &Location {
+        &self.location
+    }
+}
+
+impl Character {
+    pub fn new(id: i64, character_type: CharacterType, location: Location) -> Self {
         let mut factions = HashSet::new();
-        if matches!(entity_type, EntityType::Player) {
+        if matches!(character_type, CharacterType::Player) {
             factions.insert("player".to_string());
         }
-        if matches!(entity_type, EntityType::Enemy) {
+        if matches!(character_type, CharacterType::Enemy) {
             factions.insert("enemy".to_string());
         }
-        let faction_relations = match entity_type {
-            EntityType::Player => FactionRelations::default_for_player(),
-            EntityType::Enemy => FactionRelations::default_for_enemy(),
+        let faction_relations = match character_type {
+            CharacterType::Player => FactionRelations::default_for_player(),
+            CharacterType::Enemy => FactionRelations::default_for_enemy(),
             _ => FactionRelations::default(),
         };
         Self {
             id,
-            entity_type,
+            character_type,
             location,
             attributes: HashMap::new(),
             interactions: Vec::new(),
@@ -93,63 +121,74 @@ mod tests {
     }
 
     #[test]
-    fn entity_new_stores_location() {
+    fn character_new_stores_location() {
         let loc = test_location();
-        let entity = Entity::new(1, EntityType::Player, loc);
-        assert_eq!(entity.location.world_id, "w1");
-        assert_eq!(entity.location.dungeon_id, "d1");
-        assert_eq!(entity.location.room_id, "r1");
+        let character = Character::new(1, CharacterType::Player, loc);
+        assert_eq!(character.location.world_id, "w1");
+        assert_eq!(character.location.dungeon_id, "d1");
+        assert_eq!(character.location.room_id, "r1");
     }
 
     #[test]
-    fn player_entity_has_player_faction() {
-        let entity = Entity::new(1, EntityType::Player, test_location());
-        assert!(entity.factions.contains("player"));
-        assert_eq!(entity.factions.len(), 1);
+    fn character_implements_entity_trait() {
+        let mut character = Character::new(1, CharacterType::Player, test_location());
+        character.name = "Aragorn".to_string();
+        character.description = Description::new(Some("A ranger.".to_string()));
+        assert_eq!(character.id(), character.id);
+        assert_eq!(character.name(), "Aragorn");
+        assert_eq!(character.description().text.as_deref(), Some("A ranger."));
+        assert_eq!(character.location().world_id, "w1");
     }
 
     #[test]
-    fn enemy_entity_has_enemy_faction() {
-        let entity = Entity::new(2, EntityType::Enemy, test_location());
-        assert!(entity.factions.contains("enemy"));
-        assert_eq!(entity.factions.len(), 1);
+    fn player_character_has_player_faction() {
+        let character = Character::new(1, CharacterType::Player, test_location());
+        assert!(character.factions.contains("player"));
+        assert_eq!(character.factions.len(), 1);
     }
 
     #[test]
-    fn non_player_entity_has_empty_factions() {
-        let entity = Entity::new(2, EntityType::Character, test_location());
-        assert!(entity.factions.is_empty());
+    fn enemy_character_has_enemy_faction() {
+        let character = Character::new(2, CharacterType::Enemy, test_location());
+        assert!(character.factions.contains("enemy"));
+        assert_eq!(character.factions.len(), 1);
     }
 
     #[test]
-    fn player_entity_has_default_faction_relations() {
-        let entity = Entity::new(1, EntityType::Player, test_location());
+    fn non_player_character_has_empty_factions() {
+        let character = Character::new(2, CharacterType::Character, test_location());
+        assert!(character.factions.is_empty());
+    }
+
+    #[test]
+    fn player_character_has_default_faction_relations() {
+        let character = Character::new(1, CharacterType::Player, test_location());
         assert_eq!(
-            entity.faction_relations.player_relation(),
+            character.faction_relations.player_relation(),
             &FactionRelation::Friendly
         );
         assert_eq!(
-            entity.faction_relations.enemy_relation(),
+            character.faction_relations.enemy_relation(),
             &FactionRelation::Hostile
         );
     }
 
     #[test]
-    fn enemy_entity_has_default_faction_relations() {
-        let entity = Entity::new(2, EntityType::Enemy, test_location());
+    fn enemy_character_has_default_faction_relations() {
+        let character = Character::new(2, CharacterType::Enemy, test_location());
         assert_eq!(
-            entity.faction_relations.player_relation(),
+            character.faction_relations.player_relation(),
             &FactionRelation::Hostile
         );
         assert_eq!(
-            entity.faction_relations.enemy_relation(),
+            character.faction_relations.enemy_relation(),
             &FactionRelation::NonInteractive
         );
     }
 
     #[test]
-    fn character_entity_has_empty_faction_relations() {
-        let entity = Entity::new(3, EntityType::Character, test_location());
-        assert!(entity.faction_relations.factions.is_empty());
+    fn character_has_empty_faction_relations() {
+        let character = Character::new(3, CharacterType::Character, test_location());
+        assert!(character.faction_relations.factions.is_empty());
     }
 }
