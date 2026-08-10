@@ -11,6 +11,7 @@ pub mod map;
 pub mod messaging;
 pub mod narration;
 pub mod player;
+pub mod world_loot;
 
 pub use character::Character;
 pub use character::CharacterType;
@@ -63,3 +64,4 @@ pub use map::World;
 pub use messaging::PlayerMessage;
 pub use messaging::message;
 pub use player::Player;
+pub use world_loot::WorldLoot;

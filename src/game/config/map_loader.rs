@@ -1,11 +1,13 @@
 mod ability_cache;
 mod character_sync;
 mod definition_sync;
+mod item_cache;
 mod universe_sync;
 
 pub use ability_cache::{build_ability_cache as load_abilities, sync_abilities_into_db};
 pub use character_sync::load_characters_into_db;
 pub use definition_sync::{load_factions_into_db, load_resources_into_db};
+pub use item_cache::{build_item_cache as load_items, sync_items_into_db};
 pub use universe_sync::{load_map_into_db, should_auto_load};
 
 use sqlx::SqlitePool;
@@ -31,6 +33,8 @@ pub async fn sync_universe_config(
         let ability_cache = ability_cache::build_ability_cache(config_dir)?;
         sync_abilities_into_db(pool, &ability_cache).await?;
         load_characters_into_db(pool, &universe, &character_configs, &ability_cache).await?;
+        let item_cache = item_cache::build_item_cache(config_dir)?;
+        sync_items_into_db(pool, &item_cache).await?;
     }
     Ok(())
 }

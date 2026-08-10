@@ -7,10 +7,10 @@ use tokio::sync::RwLock;
 use tokio::sync::broadcast;
 
 use crate::game::character::Character;
-use crate::game::component::Ability;
+use crate::game::component::{Ability, ItemDefinition};
 use crate::game::config::{
     AttributeConfig, CharacterConfig, ClassConfig, FactionConfig, MudConfig, ResourceConfig,
-    ThemeConfig, load_abilities, load_character_configs, load_classes, load_themes,
+    ThemeConfig, load_abilities, load_character_configs, load_classes, load_items, load_themes,
 };
 use crate::game::engagement::Engagements;
 use crate::game::mailbox::Mailboxes;
@@ -34,6 +34,7 @@ pub struct GameState {
     pub resource_config: ResourceConfig,
     pub mud_config: MudConfig,
     pub abilities: HashMap<String, Ability>,
+    pub item_definitions: HashMap<String, ItemDefinition>,
     pub character_configs: HashMap<String, CharacterConfig>,
     pub classes: HashMap<String, ClassConfig>,
     pub themes: HashMap<String, ThemeConfig>,
@@ -82,6 +83,7 @@ impl GameState {
         let character_configs = load_dir_config(config_dir, load_character_configs);
         let classes = load_dir_config(config_dir, load_classes);
         let abilities = load_dir_config(config_dir, load_abilities);
+        let item_definitions = load_dir_config(config_dir, load_items);
         let themes = load_dir_config(config_dir, load_themes);
 
         let (message_tx, _) = broadcast::channel::<PlayerMessage>(512);
@@ -94,6 +96,7 @@ impl GameState {
             resource_config,
             mud_config,
             abilities,
+            item_definitions,
             character_configs,
             classes,
             themes,
