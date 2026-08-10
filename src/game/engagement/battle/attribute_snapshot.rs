@@ -2,10 +2,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::game::GameState;
-use crate::game::character::Character;
 use crate::game::component::Attribute;
 use crate::game::component::attribute_definition::ResetCondition;
 use crate::game::config::AttributeConfig;
+use crate::game::entity::character::Character;
 
 /// Per-character attribute values as of some snapshot point, keyed by character id.
 pub type AttributeSnapshot = HashMap<i64, HashMap<String, Attribute>>;
@@ -178,8 +178,8 @@ fn reset_attributes(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::character::CharacterType;
     use crate::game::component::Location;
+    use crate::game::entity::character::CharacterType;
 
     fn test_location() -> Location {
         Location {

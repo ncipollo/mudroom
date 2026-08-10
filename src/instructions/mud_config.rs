@@ -22,6 +22,7 @@ fn directory_layout() -> String {
     abilities/            # one .toml per ability
     classes/               # one .toml per class
     entities/              # one .toml per entity
+    items/                 # one .toml per item
     maps/
       <world_id>/
         <dungeon_id>/
@@ -103,6 +104,7 @@ fn related_topics() -> String {
   mudroom instructions attributes  — attributes.toml reference
   mudroom instructions classes     — classes/*.toml reference
   mudroom instructions entities    — entities/*.toml reference
+  mudroom instructions items       — items/*.toml reference
   mudroom instructions maps        — maps/<world>/<dungeon>/<room>.toml reference"#
         .to_string()
 }
@@ -119,6 +121,7 @@ mod tests {
         assert!(text.contains("abilities/"));
         assert!(text.contains("classes/"));
         assert!(text.contains("entities/"));
+        assert!(text.contains("items/"));
         assert!(text.contains("maps/"));
         assert!(text.contains("<room_id>.toml"));
     }
@@ -153,6 +156,7 @@ mod tests {
         assert!(text.contains("mudroom instructions attributes"));
         assert!(text.contains("mudroom instructions classes"));
         assert!(text.contains("mudroom instructions entities"));
+        assert!(text.contains("mudroom instructions items"));
         assert!(text.contains("mudroom instructions maps"));
     }
 }

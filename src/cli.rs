@@ -73,6 +73,8 @@ pub enum InstructionsTopic {
     Classes,
     /// Entity config file (entities/*.toml) reference
     Entities,
+    /// Item config file (items/*.toml) reference
+    Items,
     /// Map and room config file (maps/<world>/<dungeon>/<room>.toml) reference
     Maps,
 }

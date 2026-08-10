@@ -101,8 +101,8 @@ mod tests {
 
     use crate::agent::tools::inspect_entity::{InspectArgs, InspectEntity};
     use crate::game::Location;
-    use crate::game::character::{Character, CharacterType};
     use crate::game::component::description::Description;
+    use crate::game::entity::character::{Character, CharacterType};
     use crate::game::game_state::GameState;
     use rig::tool::Tool;
 

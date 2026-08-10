@@ -2,9 +2,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::game::GameState;
-use crate::game::character::Character;
 use crate::game::component::AttributeType;
 use crate::game::config::AttributeConfig;
+use crate::game::entity::character::Character;
 
 /// Detects which of the given entities have died (an HP-type attribute at or below its minimum).
 /// Only call this when the current battle tick has just completed the `ResolveEntityState` phase.
@@ -43,9 +43,9 @@ fn is_entity_dead(entity_id: i64, entities: &HashMap<i64, Character>, hp_def_ids
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::character::CharacterType;
     use crate::game::component::Attribute;
     use crate::game::component::Location;
+    use crate::game::entity::character::CharacterType;
 
     fn test_location() -> Location {
         Location {

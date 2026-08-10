@@ -311,8 +311,8 @@ async fn dispatch_leave_battle(game_state: &Arc<GameState>, player: &Player) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::character::{Character, CharacterType};
     use crate::game::component::Location;
+    use crate::game::entity::character::{Character, CharacterType};
     use std::collections::HashMap;
 
     fn test_location() -> Location {

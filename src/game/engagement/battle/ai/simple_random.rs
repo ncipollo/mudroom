@@ -1,7 +1,7 @@
-use crate::game::character::Character;
 use crate::game::engagement::battle::abilities::{
     battle_attack_abilities, battle_defend_abilities,
 };
+use crate::game::entity::character::Character;
 
 use super::decision::AiDecision;
 use super::pick_random;
@@ -38,7 +38,6 @@ pub fn plan_defend(character: &Character) -> AiDecision {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::character::CharacterType;
     use crate::game::component::Ability;
     use crate::game::component::AbilityRole;
     use crate::game::component::Description;
@@ -47,6 +46,7 @@ mod tests {
         Effect, EffectDescription, EffectScope, EffectType, TriggerInfo,
     };
     use crate::game::engagement::EngagementType;
+    use crate::game::entity::character::CharacterType;
 
     fn test_location() -> Location {
         Location {

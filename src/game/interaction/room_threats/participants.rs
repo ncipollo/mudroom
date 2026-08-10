@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::game::GameState;
-use crate::game::character::Character;
+use crate::game::entity::character::Character;
 
 pub(super) async fn build_participants(
     game_state: &Arc<GameState>,
@@ -52,8 +52,8 @@ mod tests {
 
     use super::*;
     use crate::game::GameState;
-    use crate::game::character::{Character, CharacterType};
     use crate::game::component::location::Location;
+    use crate::game::entity::character::{Character, CharacterType};
 
     fn test_location() -> Location {
         Location {

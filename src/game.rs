@@ -1,4 +1,3 @@
-pub mod character;
 pub mod component;
 pub mod config;
 pub mod engagement;
@@ -12,8 +11,6 @@ pub mod messaging;
 pub mod narration;
 pub mod player;
 
-pub use character::Character;
-pub use character::CharacterType;
 pub use component::Ability;
 pub use component::Attribute;
 pub use component::AttributeCategory;
@@ -53,6 +50,9 @@ pub use engagement::ResolvedAction;
 pub use engagement::TurnAction;
 pub use engagement::TurnOrder;
 pub use entity::Entity;
+pub use entity::character::Character;
+pub use entity::character::CharacterType;
+pub use entity::world_loot::WorldLoot;
 pub use game_state::GameState;
 pub use mailbox::Mailboxes;
 pub use map::Dungeon;

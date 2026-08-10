@@ -44,10 +44,10 @@ mod tests {
     use std::collections::HashMap;
 
     use super::*;
-    use crate::game::character::{Character, CharacterType};
     use crate::game::component::attribute_definition::ResetCondition;
     use crate::game::component::effect::{Effect, EffectDescription, EffectType, TriggerInfo};
     use crate::game::component::{Attribute, Location};
+    use crate::game::entity::character::{Character, CharacterType};
     use tokio::sync::broadcast;
 
     fn test_location() -> Location {

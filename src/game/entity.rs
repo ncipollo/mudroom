@@ -1,3 +1,6 @@
+pub mod character;
+pub mod world_loot;
+
 use crate::game::component::Location;
 use crate::game::component::description::Description;
 

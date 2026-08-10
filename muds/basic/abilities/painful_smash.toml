@@ -1,0 +1,13 @@
+name = "Painful Smash"
+description = "A brutal smash with a spiked bat."
+action_text = "{{character}} smashes {{target}} with a spiked bat"
+engagement_types = ["battle"]
+costs = []
+role = "attack"
+targets = ["opponent"]
+
+[[effects]]
+name = "smash_damage"
+trigger_info = { type = "once" }
+effect_type = { type = "attribute_update", attribute_id = "hp", value = -18 }
+description = { text = "The spiked bat smashes for {{abs_value}}" }

@@ -1,0 +1,11 @@
+name = "Medicine"
+description = "A restorative brew brewed from crushed medicinal herbs."
+use_type = "used"
+item_type = "consumable"
+
+[[use_effects]]
+type = "apply_effect"
+name = "heal_hp"
+trigger_info = { type = "once" }
+effect_type = { type = "attribute_update", attribute_id = "hp", value = 20 }
+description = { text = "Restores {{value}} HP" }

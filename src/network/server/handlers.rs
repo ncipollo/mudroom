@@ -204,8 +204,8 @@ pub async fn maps_reload_handler(State(state): State<Arc<AppState>>) -> &'static
 mod tests {
     use super::*;
     use crate::game::GameState;
-    use crate::game::character::{Character, CharacterType};
     use crate::game::component::Location;
+    use crate::game::entity::character::{Character, CharacterType};
     use crate::game::interaction;
     use crate::game::player::Player;
     use crate::network::session::ServerSession;
