@@ -14,7 +14,7 @@ fn header() -> String {
     r#"mudroom instructions items — item config file reference
 
 Item files live at items/*.toml under a mud's config directory (e.g.
-muds/basic/items/health_tonic.toml). Each file defines one item. The
+muds/basic/items/medicine.toml). Each file defines one item. The
 item's id is derived from its file path relative to the items directory
 (extension stripped) — it is not set in the TOML itself."#
         .to_string()
@@ -73,12 +73,12 @@ fn use_effects_section() -> String {
 fn example_section() -> String {
     r#"Complete annotated examples:
 
-muds/basic/items/health_tonic.toml (used):
+muds/basic/items/medicine.toml (used):
 
-  name = "Health Tonic"
+  name = "Medicine"
   description = "A restorative brew."
   use_type = "used"                       # consumed on use
-  item_type = "medicine"
+  item_type = "consumable"
 
   [[use_effects]]
   type = "apply_effect"                   # applies an Effect on use
@@ -132,7 +132,7 @@ mod tests {
     fn render_includes_worked_example() {
         let text = render();
         assert!(text.contains("Complete annotated examples"));
-        assert!(text.contains("health_tonic.toml"));
+        assert!(text.contains("medicine.toml"));
         assert!(text.contains("leather_vest.toml"));
     }
 }
