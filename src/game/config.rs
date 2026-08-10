@@ -9,6 +9,7 @@ mod dialog_parser;
 pub mod env_resolver;
 pub mod faction_config;
 pub mod game_loop_config;
+pub mod item_config;
 pub mod map_config;
 pub mod map_loader;
 pub mod mud_config;

@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use sqlx::SqlitePool;
 
 use crate::game::GameState;
-use crate::game::character::Character;
+use crate::game::entity::character::Character;
 use crate::persistence::{PersistenceError, character_repo};
 
 pub async fn sync(game_state: &GameState, pool: &SqlitePool) -> Result<(), PersistenceError> {

@@ -3,7 +3,7 @@ pub fn render() -> String {
         header(),
         fields_section(),
         use_type_section(),
-        attribute_bonuses_section(),
+        equipped_bonuses_section(),
         use_effects_section(),
         example_section(),
     ];
@@ -27,20 +27,15 @@ fn fields_section() -> String {
   use_type             string            "used" or "passive". See
                                           "use_type values" below.
   item_type            string            Free-form, mud-defined category
-                                          (e.g. "weapon", "helmet",
-                                          "consumable" — anything).
-  attribute_bonuses    array of tables   Attribute-scaling bonuses granted
-                                          while the item is equipped
-                                          (passive items). Defaults to []
-                                          if omitted. See "attribute_bonuses"
-                                          below.
+                                          (e.g. "weapon", "armor",
+                                          "medicine" — anything).
+  equipped_bonuses     table             What the item grants while
+                                          equipped (passive items). Defaults
+                                          to an empty table if omitted. See
+                                          "equipped_bonuses" below.
   [[use_effects]]      array of tables   What happens when a used item is
                                           consumed. Defaults to [] if
-                                          omitted. See "use_effects" below.
-  equipped_abilities   array of strings  Ability ids granted to the
-                                          character while the item is
-                                          equipped (passive items).
-                                          Defaults to [] if omitted."#
+                                          omitted. See "use_effects" below."#
         .to_string()
 }
 
@@ -51,11 +46,16 @@ fn use_type_section() -> String {
         .to_string()
 }
 
-fn attribute_bonuses_section() -> String {
-    r#"attribute_bonuses entries:
-  { attribute_id = "<id>", operator = "add" | "subtract" | "multiply" | "divide" }
-    Describes an attribute-scaling bonus for the item's attribute_id using
-    the given operator."#
+fn equipped_bonuses_section() -> String {
+    r#"equipped_bonuses fields:
+  attributes   array of tables   Flat attribute adjustments granted while
+                                  the item is equipped, e.g. max health + 10
+                                  or +1 to strength. Each entry is
+                                  { attribute_id = "<id>", amount = <int> }.
+                                  Defaults to [] if omitted.
+  equipped     array of strings  Ability ids granted to the character while
+                                  the item is equipped. Defaults to [] if
+                                  omitted."#
         .to_string()
 }
 
@@ -78,7 +78,7 @@ muds/basic/items/health_tonic.toml (used):
   name = "Health Tonic"
   description = "A restorative brew."
   use_type = "used"                       # consumed on use
-  item_type = "consumable"
+  item_type = "medicine"
 
   [[use_effects]]
   type = "apply_effect"                   # applies an Effect on use
@@ -94,9 +94,9 @@ muds/basic/items/leather_vest.toml (passive):
   use_type = "passive"                    # grants bonuses while equipped
   item_type = "armor"
 
-  [[attribute_bonuses]]
+  [[equipped_bonuses.attributes]]
   attribute_id = "constitution"
-  operator = "add""#
+  amount = 2"#
         .to_string()
 }
 
@@ -109,9 +109,9 @@ mod tests {
         let text = render();
         assert!(text.contains("use_type"));
         assert!(text.contains("item_type"));
-        assert!(text.contains("attribute_bonuses"));
+        assert!(text.contains("equipped_bonuses"));
         assert!(text.contains("[[use_effects]]"));
-        assert!(text.contains("equipped_abilities"));
+        assert!(text.contains("equipped"));
     }
 
     #[test]

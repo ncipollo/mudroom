@@ -1,7 +1,7 @@
 use sqlx::SqlitePool;
 
 use crate::game::component::description::Description;
-use crate::game::component::{ItemDefinition, ItemUseType, UseEffect};
+use crate::game::component::{EquippedBonuses, ItemDefinition, ItemUseType, UseEffect};
 use crate::persistence::error::PersistenceError;
 
 type ItemDefinitionRow = (
@@ -20,10 +20,11 @@ pub async fn upsert_definition(
     def: &ItemDefinition,
 ) -> Result<(), PersistenceError> {
     let use_type_json = serde_json::to_string(&def.use_type).unwrap_or_default();
-    let attribute_bonuses_json = serde_json::to_string(&def.attribute_bonuses).unwrap_or_default();
+    let attribute_bonuses_json =
+        serde_json::to_string(&def.equipped_bonuses.attributes).unwrap_or_default();
     let use_effects_json = serde_json::to_string(&def.use_effects).unwrap_or_default();
     let equipped_abilities_json =
-        serde_json::to_string(&def.equipped_abilities).unwrap_or_default();
+        serde_json::to_string(&def.equipped_bonuses.equipped).unwrap_or_default();
     sqlx::query(
         "INSERT INTO item_definitions \
          (id, name, description, use_type, item_type, attribute_bonuses_json, use_effects_json, equipped_abilities_json) \
@@ -103,9 +104,11 @@ pub async fn find_all_definitions(
                     description: Description::new(description),
                     use_type,
                     item_type,
-                    attribute_bonuses,
+                    equipped_bonuses: EquippedBonuses {
+                        attributes: attribute_bonuses,
+                        equipped: equipped_abilities,
+                    },
                     use_effects,
-                    equipped_abilities,
                 }
             },
         )
@@ -115,8 +118,7 @@ pub async fn find_all_definitions(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::component::Modifier;
-    use crate::game::component::modifier::Operator;
+    use crate::game::component::AttributeBonus;
     use crate::persistence::database::Database;
 
     fn health_tonic() -> ItemDefinition {
@@ -125,10 +127,9 @@ mod tests {
             name: "Health Tonic".to_string(),
             description: Description::new(Some("A restorative brew.".to_string())),
             use_type: ItemUseType::Used,
-            item_type: "consumable".to_string(),
-            attribute_bonuses: vec![],
+            item_type: "medicine".to_string(),
+            equipped_bonuses: EquippedBonuses::default(),
             use_effects: vec![],
-            equipped_abilities: vec![],
         }
     }
 
@@ -139,12 +140,14 @@ mod tests {
             description: Description::new(Some("A simple protective vest.".to_string())),
             use_type: ItemUseType::Passive,
             item_type: "armor".to_string(),
-            attribute_bonuses: vec![Modifier {
-                attribute_id: "defense".to_string(),
-                operator: Operator::Add,
-            }],
+            equipped_bonuses: EquippedBonuses {
+                attributes: vec![AttributeBonus {
+                    attribute_id: "defense".to_string(),
+                    amount: 5,
+                }],
+                equipped: vec![],
+            },
             use_effects: vec![],
-            equipped_abilities: vec![],
         }
     }
 
@@ -158,7 +161,7 @@ mod tests {
         assert_eq!(defs.len(), 2);
         let vest = defs.iter().find(|d| d.id == "leather_vest").unwrap();
         assert_eq!(vest.use_type, ItemUseType::Passive);
-        assert_eq!(vest.attribute_bonuses.len(), 1);
+        assert_eq!(vest.equipped_bonuses.attributes.len(), 1);
     }
 
     #[tokio::test]

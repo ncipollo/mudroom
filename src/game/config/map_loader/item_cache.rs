@@ -5,15 +5,23 @@ use std::path::Path;
 use sqlx::SqlitePool;
 
 use crate::game::component::ItemDefinition;
+use crate::game::config::item_config::load_item;
 use crate::persistence::item_repo;
 
-fn load_item(path: &Path) -> Result<ItemDefinition, Box<dyn Error>> {
-    let content = std::fs::read_to_string(path)?;
-    let item: ItemDefinition = toml::from_str(&content)?;
-    Ok(item)
+/// Upserts every item definition found under `config_dir/items` into the database, keeping
+/// stored rows in sync with the config files.
+pub async fn sync_items_into_db(
+    pool: &SqlitePool,
+    config_dir: &Path,
+) -> Result<(), Box<dyn Error>> {
+    let item_map = build_item_map(config_dir)?;
+    for item in item_map.values() {
+        item_repo::upsert_definition(pool, item).await?;
+    }
+    Ok(())
 }
 
-pub fn build_item_cache(
+pub fn build_item_map(
     config_dir: &Path,
 ) -> Result<HashMap<String, ItemDefinition>, Box<dyn Error>> {
     let mut cache = HashMap::new();
@@ -35,23 +43,13 @@ pub fn build_item_cache(
     Ok(cache)
 }
 
-/// Upserts every item definition in `item_cache` into the database, keeping stored rows
-/// in sync with the config files.
-pub async fn sync_items_into_db(
-    pool: &SqlitePool,
-    item_cache: &HashMap<String, ItemDefinition>,
-) -> Result<(), Box<dyn Error>> {
-    for item in item_cache.values() {
-        item_repo::upsert_definition(pool, item).await?;
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::component::ItemUseType;
+    use crate::game::component::{EquippedBonuses, ItemUseType};
     use crate::persistence::database::Database;
+    use std::fs;
+    use tempfile::TempDir;
 
     fn make_item() -> ItemDefinition {
         ItemDefinition {
@@ -59,10 +57,9 @@ mod tests {
             name: "Health Tonic".to_string(),
             description: crate::game::component::description::Description::default(),
             use_type: ItemUseType::Used,
-            item_type: "consumable".to_string(),
-            attribute_bonuses: vec![],
+            item_type: "medicine".to_string(),
+            equipped_bonuses: EquippedBonuses::default(),
             use_effects: vec![],
-            equipped_abilities: vec![],
         }
     }
 
@@ -75,12 +72,20 @@ mod tests {
             .await
             .unwrap();
 
-        let mut cache = HashMap::new();
-        let mut updated = make_item();
-        updated.name = "Greater Health Tonic".to_string();
-        cache.insert("health_tonic".to_string(), updated);
+        let tmp = TempDir::new().unwrap();
+        let items_dir = tmp.path().join("items");
+        fs::create_dir_all(&items_dir).unwrap();
+        fs::write(
+            items_dir.join("health_tonic.toml"),
+            r#"
+name = "Greater Health Tonic"
+use_type = "used"
+item_type = "medicine"
+"#,
+        )
+        .unwrap();
 
-        sync_items_into_db(db.pool(), &cache).await.unwrap();
+        sync_items_into_db(db.pool(), tmp.path()).await.unwrap();
 
         let row: Option<String> =
             sqlx::query_scalar("SELECT name FROM item_definitions WHERE id = ?")
@@ -92,9 +97,9 @@ mod tests {
     }
 
     #[test]
-    fn build_item_cache_returns_empty_for_missing_dir() {
+    fn build_item_map_returns_empty_for_missing_dir() {
         let dir = std::env::temp_dir().join("mudroom_item_cache_test_missing");
-        let cache = build_item_cache(&dir).unwrap();
+        let cache = build_item_map(&dir).unwrap();
         assert!(cache.is_empty());
     }
 }

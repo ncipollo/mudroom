@@ -54,8 +54,8 @@ async fn reap_stale_connections(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::character::{Character, CharacterType};
     use crate::game::component::Location;
+    use crate::game::entity::character::{Character, CharacterType};
     use crate::game::interaction;
     use crate::game::player::Player;
     use crate::network::event::NetworkEvent;

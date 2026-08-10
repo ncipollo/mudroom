@@ -6,13 +6,13 @@ use sqlx::SqlitePool;
 use tokio::sync::RwLock;
 use tokio::sync::broadcast;
 
-use crate::game::character::Character;
 use crate::game::component::{Ability, ItemDefinition};
 use crate::game::config::{
     AttributeConfig, CharacterConfig, ClassConfig, FactionConfig, MudConfig, ResourceConfig,
     ThemeConfig, load_abilities, load_character_configs, load_classes, load_items, load_themes,
 };
 use crate::game::engagement::Engagements;
+use crate::game::entity::character::Character;
 use crate::game::mailbox::Mailboxes;
 use crate::game::messaging::PlayerMessage;
 use crate::game::player::Player;

@@ -6,12 +6,14 @@ pub mod faction;
 pub mod faction_relations;
 pub mod interaction;
 pub mod item;
-pub mod item_definition;
 pub mod location;
 pub mod modifier;
 pub mod resource_definition;
 
 pub use crate::game::config::ability_config::{Ability, AbilityRole, AbilityTargetType, Cost};
+pub use crate::game::config::item_config::{
+    AttributeBonus, EquippedBonuses, ItemDefinition, ItemUseType, UseEffect,
+};
 pub use attribute::Attribute;
 pub use attribute_definition::AttributeCategory;
 pub use attribute_definition::AttributeDefinition;
@@ -29,7 +31,6 @@ pub use interaction::Direction;
 pub use interaction::Interaction;
 pub use interaction::Movement;
 pub use item::Item;
-pub use item_definition::{ItemDefinition, ItemUseType, UseEffect};
 pub use location::Location;
 pub use modifier::{Modifier, Operator};
 pub use resource_definition::ResourceDefinition;

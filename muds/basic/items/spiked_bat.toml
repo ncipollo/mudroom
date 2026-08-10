@@ -1,0 +1,7 @@
+name = "Spiked Bat"
+description = "A wooden bat studded with jagged spikes."
+use_type = "passive"
+item_type = "weapon"
+
+[equipped_bonuses]
+equipped = ["painful_smash"]

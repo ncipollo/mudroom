@@ -1,7 +1,7 @@
 name = "Health Tonic"
 description = "A restorative brew brewed from crushed medicinal herbs."
 use_type = "used"
-item_type = "consumable"
+item_type = "medicine"
 
 [[use_effects]]
 type = "apply_effect"

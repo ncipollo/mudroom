@@ -1,6 +1,6 @@
-use crate::game::character::Character;
 use crate::game::component::AttributeCategory;
 use crate::game::config::AttributeConfig;
+use crate::game::entity::character::Character;
 
 /// Tracks the turn order for an engagement. Sorted by character ID ascending when using `new`;
 /// use `new_from_entities` to sort by Speed attribute descending.
@@ -114,11 +114,11 @@ mod tests {
 
     #[test]
     fn new_from_entities_sorts_by_speed_descending() {
-        use crate::game::character::{Character, CharacterType};
         use crate::game::component::location::Location;
         use crate::game::component::{
             Attribute, AttributeCategory, AttributeDefinition, AttributeType,
         };
+        use crate::game::entity::character::{Character, CharacterType};
 
         let config = AttributeConfig {
             attributes: vec![AttributeDefinition {
@@ -163,11 +163,11 @@ mod tests {
 
     #[test]
     fn new_from_entities_tie_breaks_by_entity_id_ascending() {
-        use crate::game::character::{Character, CharacterType};
         use crate::game::component::location::Location;
         use crate::game::component::{
             Attribute, AttributeCategory, AttributeDefinition, AttributeType,
         };
+        use crate::game::entity::character::{Character, CharacterType};
 
         let config = AttributeConfig {
             attributes: vec![AttributeDefinition {
@@ -206,8 +206,8 @@ mod tests {
 
     #[test]
     fn new_from_entities_falls_back_to_entity_id_when_no_speed_attr() {
-        use crate::game::character::{Character, CharacterType};
         use crate::game::component::location::Location;
+        use crate::game::entity::character::{Character, CharacterType};
 
         let config = AttributeConfig { attributes: vec![] };
 

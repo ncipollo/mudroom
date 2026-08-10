@@ -162,8 +162,8 @@ async fn reconcile_battle_state(game_state: &Arc<GameState>, player: &Player) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::character::{Character, CharacterType};
     use crate::game::component::Location;
+    use crate::game::entity::character::{Character, CharacterType};
     use crate::game::messaging::Message;
     use crate::game::player::Player;
     use std::collections::HashMap;

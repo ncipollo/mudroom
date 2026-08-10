@@ -2,7 +2,7 @@ use sqlx::SqlitePool;
 
 use crate::game::component::Location;
 use crate::game::component::description::Description;
-use crate::game::world_loot::WorldLoot;
+use crate::game::entity::world_loot::WorldLoot;
 use crate::persistence::error::PersistenceError;
 
 type WorldLootRow = (i64, String, String, String, String);
@@ -63,7 +63,7 @@ pub async fn delete(pool: &SqlitePool, id: i64) -> Result<(), PersistenceError> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::component::{ItemDefinition, ItemUseType};
+    use crate::game::component::{EquippedBonuses, ItemDefinition, ItemUseType};
     use crate::game::{Dungeon, Room, World};
     use crate::persistence::database::Database;
     use crate::persistence::{dungeon_repo, item_repo, room_repo, world_repo};
@@ -91,10 +91,9 @@ mod tests {
             name: "Health Tonic".to_string(),
             description: Description::new(Some("A restorative brew.".to_string())),
             use_type: ItemUseType::Used,
-            item_type: "consumable".to_string(),
-            attribute_bonuses: vec![],
+            item_type: "medicine".to_string(),
+            equipped_bonuses: EquippedBonuses::default(),
             use_effects: vec![],
-            equipped_abilities: vec![],
         };
         item_repo::upsert_definition(db.pool(), &def).await.unwrap();
     }

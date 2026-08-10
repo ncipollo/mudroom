@@ -75,10 +75,10 @@ fn is_over_time_expired(trigger: &TriggerInfo, turn_count: u64) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::character::{Character, CharacterType};
     use crate::game::component::Attribute;
     use crate::game::component::Location;
     use crate::game::component::effect::{EffectDescription, EffectScope, EffectType};
+    use crate::game::entity::character::{Character, CharacterType};
 
     fn test_location() -> Location {
         Location {

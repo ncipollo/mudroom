@@ -83,8 +83,8 @@ pub(in crate::game::engagement::battle) async fn broadcast_update(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::character::{Character, CharacterType};
     use crate::game::component::Location;
+    use crate::game::entity::character::{Character, CharacterType};
 
     fn test_location() -> Location {
         Location {

@@ -19,6 +19,20 @@ pub enum UseEffect {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AttributeBonus {
+    pub attribute_id: String,
+    pub amount: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct EquippedBonuses {
+    #[serde(default)]
+    pub attributes: Vec<AttributeBonus>,
+    #[serde(default)]
+    pub equipped: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ItemDefinition {
     #[serde(default)]
     pub id: String,
@@ -27,11 +41,9 @@ pub struct ItemDefinition {
     pub use_type: ItemUseType,
     pub item_type: String,
     #[serde(default)]
-    pub attribute_bonuses: Vec<Modifier>,
+    pub equipped_bonuses: EquippedBonuses,
     #[serde(default)]
     pub use_effects: Vec<UseEffect>,
-    #[serde(default)]
-    pub equipped_abilities: Vec<String>,
 }
 
 #[cfg(test)]
@@ -81,6 +93,17 @@ mod tests {
     }
 
     #[test]
+    fn attribute_bonus_serde_round_trip() {
+        let bonus = AttributeBonus {
+            attribute_id: "max_health".to_string(),
+            amount: 10,
+        };
+        let json = serde_json::to_string(&bonus).unwrap();
+        let restored: AttributeBonus = serde_json::from_str(&json).unwrap();
+        assert_eq!(bonus, restored);
+    }
+
+    #[test]
     fn item_definition_serde_round_trip() {
         let def = ItemDefinition {
             id: "leather_vest".to_string(),
@@ -88,12 +111,14 @@ mod tests {
             description: Description::new(Some("A simple protective vest.".to_string())),
             use_type: ItemUseType::Passive,
             item_type: "armor".to_string(),
-            attribute_bonuses: vec![Modifier {
-                attribute_id: "defense".to_string(),
-                operator: Operator::Add,
-            }],
+            equipped_bonuses: EquippedBonuses {
+                attributes: vec![AttributeBonus {
+                    attribute_id: "defense".to_string(),
+                    amount: 5,
+                }],
+                equipped: vec![],
+            },
             use_effects: vec![],
-            equipped_abilities: vec![],
         };
         let json = serde_json::to_string(&def).unwrap();
         let restored: ItemDefinition = serde_json::from_str(&json).unwrap();
@@ -106,12 +131,12 @@ mod tests {
             "name": "Health Tonic",
             "description": null,
             "use_type": "used",
-            "item_type": "consumable"
+            "item_type": "medicine"
         }"#;
         let def: ItemDefinition = serde_json::from_str(json).unwrap();
         assert!(def.id.is_empty());
-        assert!(def.attribute_bonuses.is_empty());
+        assert!(def.equipped_bonuses.attributes.is_empty());
+        assert!(def.equipped_bonuses.equipped.is_empty());
         assert!(def.use_effects.is_empty());
-        assert!(def.equipped_abilities.is_empty());
     }
 }

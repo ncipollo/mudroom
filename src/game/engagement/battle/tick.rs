@@ -163,12 +163,12 @@ async fn find_participant_player_ids(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::character::{Character, CharacterType};
     use crate::game::component::Attribute;
     use crate::game::component::Location;
     use crate::game::component::effect::{
         Effect, EffectDescription, EffectScope, EffectType, TriggerInfo,
     };
+    use crate::game::entity::character::{Character, CharacterType};
 
     fn test_location() -> Location {
         Location {
