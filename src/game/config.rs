@@ -29,8 +29,9 @@ pub use class_config::{ClassConfig, load_classes};
 pub use faction_config::FactionConfig;
 pub use game_loop_config::GameLoopConfig;
 pub use map_config::load_map;
+pub(crate) use map_loader::load_items;
 pub use map_loader::{
-    load_abilities, load_characters_into_db, load_factions_into_db, load_items, load_map_into_db,
+    load_abilities, load_characters_into_db, load_factions_into_db, load_map_into_db,
     load_resources_into_db, should_auto_load, sync_universe_config,
 };
 pub use mud_config::{MudConfig, SpawnConfig};

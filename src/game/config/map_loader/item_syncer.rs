@@ -21,7 +21,7 @@ pub async fn sync_items_into_db(
     Ok(())
 }
 
-pub fn build_item_map(
+pub(crate) fn build_item_map(
     config_dir: &Path,
 ) -> Result<HashMap<String, ItemDefinition>, Box<dyn Error>> {
     let mut cache = HashMap::new();
@@ -98,7 +98,7 @@ item_type = "medicine"
 
     #[test]
     fn build_item_map_returns_empty_for_missing_dir() {
-        let dir = std::env::temp_dir().join("mudroom_item_cache_test_missing");
+        let dir = std::env::temp_dir().join("mudroom_item_syncer_test_missing");
         let cache = build_item_map(&dir).unwrap();
         assert!(cache.is_empty());
     }
