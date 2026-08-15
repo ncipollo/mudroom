@@ -7,6 +7,7 @@ use crate::game::component::Ability;
 use crate::game::component::Attribute;
 use crate::game::component::FactionRelations;
 use crate::game::component::Interaction;
+use crate::game::component::Inventory;
 use crate::game::component::Location;
 use crate::game::component::description::Description;
 use crate::game::component::effect::Effect;
@@ -44,6 +45,8 @@ pub struct Character {
     pub faction_relations: FactionRelations,
     #[serde(skip)]
     pub active_effects: Vec<Effect>,
+    #[serde(default)]
+    pub inventory: Inventory,
 }
 
 impl Entity for Character {
@@ -93,6 +96,7 @@ impl Character {
             factions,
             faction_relations,
             active_effects: Vec::new(),
+            inventory: Inventory::default(),
         }
     }
 }
