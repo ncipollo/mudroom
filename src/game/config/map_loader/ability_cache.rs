@@ -70,7 +70,9 @@ mod tests {
     }
 }
 
-pub fn build_ability_cache(config_dir: &Path) -> Result<HashMap<String, Ability>, Box<dyn Error>> {
+pub(super) fn build_ability_cache(
+    config_dir: &Path,
+) -> Result<HashMap<String, Ability>, Box<dyn Error>> {
     let mut cache = HashMap::new();
     let abilities_dir = config_dir.join("abilities");
     if !abilities_dir.exists() {

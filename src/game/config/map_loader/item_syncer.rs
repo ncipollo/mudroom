@@ -21,9 +21,7 @@ pub async fn sync_items_into_db(
     Ok(())
 }
 
-pub(crate) fn build_item_map(
-    config_dir: &Path,
-) -> Result<HashMap<String, ItemDefinition>, Box<dyn Error>> {
+fn build_item_map(config_dir: &Path) -> Result<HashMap<String, ItemDefinition>, Box<dyn Error>> {
     let mut cache = HashMap::new();
     let items_dir = config_dir.join("items");
     if !items_dir.exists() {

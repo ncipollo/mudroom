@@ -14,6 +14,7 @@ pub async fn run(
     if reload_maps || game::should_auto_load(db.pool()).await? {
         load_maps_into_db(&db, config_path_buf.as_deref(), reload_maps, &game_state).await?;
     }
+    game_state.refresh_definition_caches(db.pool()).await?;
     serve_and_wait(server_session, game_state, db).await
 }
 
