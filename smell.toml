@@ -1,0 +1,8 @@
+[[rule]]
+name = "default"
+include = ["*.rs"]
+exclude = ["target/**"]
+max_complexity = 16
+max_methods = 16
+max_lines = 800
+max_declarations = 24
