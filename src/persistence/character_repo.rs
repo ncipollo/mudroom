@@ -7,7 +7,7 @@ use crate::game::component::description::Description;
 use crate::game::config::{BattleAiConfig, BattleAiType};
 use crate::game::{Character, CharacterType, Location};
 use crate::persistence::error::PersistenceError;
-use crate::persistence::{ability_repo, faction_relations_repo, faction_repo};
+use crate::persistence::{ability_repo, faction_relations_repo, faction_repo, inventory_repo};
 
 type CharacterRow = (
     i64,
@@ -112,6 +112,7 @@ pub async fn find_by_id(pool: &SqlitePool, id: i64) -> Result<Option<Character>,
         let mut character = build_character(row);
         load_faction_data(pool, &mut character).await?;
         load_ability_data(pool, &mut character).await?;
+        load_inventory_data(pool, &mut character).await?;
         Ok(Some(character))
     } else {
         Ok(None)
@@ -136,6 +137,7 @@ pub async fn find_by_location(
         let mut character = build_character(row);
         load_faction_data(pool, &mut character).await?;
         load_ability_data(pool, &mut character).await?;
+        load_inventory_data(pool, &mut character).await?;
         characters.push(character);
     }
     Ok(characters)
@@ -159,6 +161,7 @@ pub async fn find_config_characters_by_dungeon(
         let mut character = build_character(row);
         load_faction_data(pool, &mut character).await?;
         load_ability_data(pool, &mut character).await?;
+        load_inventory_data(pool, &mut character).await?;
         characters.push(character);
     }
     Ok(characters)
@@ -259,6 +262,17 @@ async fn load_ability_data(
     let abilities = ability_repo::find_by_character(pool, character.id).await?;
     if !abilities.is_empty() {
         character.innate_abilities = abilities;
+    }
+    Ok(())
+}
+
+async fn load_inventory_data(
+    pool: &SqlitePool,
+    character: &mut Character,
+) -> Result<(), PersistenceError> {
+    let items = inventory_repo::find_equipped_by_character(pool, character.id).await?;
+    if !items.is_empty() {
+        character.inventory.equipped_items = items;
     }
     Ok(())
 }
@@ -860,5 +874,38 @@ mod tests {
         let found = find_by_id(db.pool(), id).await.unwrap().unwrap();
         assert_eq!(found.innate_abilities.len(), 1);
         assert_eq!(found.innate_abilities[0].id, "strike");
+    }
+
+    #[tokio::test]
+    async fn find_by_id_loads_equipped_inventory() {
+        use crate::game::component::{EquippedBonuses, ItemDefinition, ItemUseType};
+        use crate::persistence::{inventory_repo, item_repo};
+
+        let db = Database::connect_in_memory().await.unwrap();
+        setup(&db).await;
+
+        let character = Character::new(0, CharacterType::Player, test_location());
+        let id = insert(db.pool(), &character).await.unwrap();
+
+        let def = ItemDefinition {
+            id: "leather_vest".to_string(),
+            name: "Leather Vest".to_string(),
+            description: Description::default(),
+            use_type: ItemUseType::Passive,
+            item_type: "armor".to_string(),
+            equipped_bonuses: EquippedBonuses::default(),
+            use_effects: vec![],
+        };
+        item_repo::upsert_definition(db.pool(), &def).await.unwrap();
+        inventory_repo::set_character_equipped_items(db.pool(), id, &["leather_vest"])
+            .await
+            .unwrap();
+
+        let found = find_by_id(db.pool(), id).await.unwrap().unwrap();
+        assert_eq!(found.inventory.equipped_items.len(), 1);
+        assert_eq!(
+            found.inventory.equipped_items[0].item_definition_id,
+            "leather_vest"
+        );
     }
 }
