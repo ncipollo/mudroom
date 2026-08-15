@@ -30,27 +30,35 @@ pub async fn run(command: PlayersCommands) -> Result<(), Box<dyn std::error::Err
             player,
             class,
             name,
-        } => {
-            let db = open_players_db(name).await?;
-            let game_state = game::GameState::load(paths::find_config_dir().as_deref())?;
-            let p = player_repo::find_by_name(db.pool(), &player)
-                .await?
-                .ok_or_else(|| format!("player '{player}' not found"))?;
-            let class_config = game_state
-                .classes
-                .get(&class)
-                .ok_or_else(|| format!("class '{class}' not found"))?;
-            let abilities = resolve_abilities(&game_state, class_config)?;
-            let attributes = build_class_attributes(class_config);
-            character_repo::update_attributes(db.pool(), p.entity_id, &attributes).await?;
-            for ability in &abilities {
-                ability_repo::upsert(db.pool(), ability).await?;
-            }
-            let ids: Vec<&str> = abilities.iter().map(|a| a.id.as_str()).collect();
-            ability_repo::set_character_abilities(db.pool(), p.entity_id, &ids).await?;
-            println!("Player '{player}' reset to class '{class}'.");
-        }
+        } => reset_player(player, class, name).await?,
     }
+    Ok(())
+}
+
+async fn reset_player(
+    player: String,
+    class: String,
+    name: Option<String>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let db = open_players_db(name).await?;
+    let game_state = game::GameState::load(paths::find_config_dir().as_deref())?;
+    game_state.refresh_definition_caches(db.pool()).await?;
+    let p = player_repo::find_by_name(db.pool(), &player)
+        .await?
+        .ok_or_else(|| format!("player '{player}' not found"))?;
+    let class_config = game_state
+        .classes
+        .get(&class)
+        .ok_or_else(|| format!("class '{class}' not found"))?;
+    let abilities = resolve_abilities(&game_state, class_config).await?;
+    let attributes = build_class_attributes(class_config);
+    character_repo::update_attributes(db.pool(), p.entity_id, &attributes).await?;
+    for ability in &abilities {
+        ability_repo::upsert(db.pool(), ability).await?;
+    }
+    let ids: Vec<&str> = abilities.iter().map(|a| a.id.as_str()).collect();
+    ability_repo::set_character_abilities(db.pool(), p.entity_id, &ids).await?;
+    println!("Player '{player}' reset to class '{class}'.");
     Ok(())
 }
 
@@ -83,16 +91,16 @@ fn build_class_attributes(class: &ClassConfig) -> HashMap<String, Attribute> {
         .collect()
 }
 
-fn resolve_abilities(
+async fn resolve_abilities(
     game_state: &game::GameState,
     class: &ClassConfig,
 ) -> Result<Vec<Ability>, Box<dyn std::error::Error>> {
+    let ability_cache = game_state.abilities.read().await;
     class
         .innate_abilities
         .iter()
         .map(|r| {
-            game_state
-                .abilities
+            ability_cache
                 .get(&r.0)
                 .cloned()
                 .ok_or_else(|| format!("ability '{}' not found in config", r.0).into())

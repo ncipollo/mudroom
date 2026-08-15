@@ -9,7 +9,7 @@ use tokio::sync::broadcast;
 use crate::game::component::{Ability, ItemDefinition};
 use crate::game::config::{
     AttributeConfig, CharacterConfig, ClassConfig, FactionConfig, MudConfig, ResourceConfig,
-    ThemeConfig, load_abilities, load_character_configs, load_classes, load_items, load_themes,
+    ThemeConfig, load_character_configs, load_classes, load_themes,
 };
 use crate::game::engagement::Engagements;
 use crate::game::entity::character::Character;
@@ -25,6 +25,7 @@ pub struct PendingActivation {
 }
 
 mod character_sync;
+mod definition_cache;
 
 pub struct GameState {
     pub config_path: Option<PathBuf>,
@@ -33,8 +34,8 @@ pub struct GameState {
     pub faction_config: FactionConfig,
     pub resource_config: ResourceConfig,
     pub mud_config: MudConfig,
-    pub abilities: HashMap<String, Ability>,
-    pub item_definitions: HashMap<String, ItemDefinition>,
+    pub abilities: RwLock<HashMap<String, Ability>>,
+    pub item_definitions: RwLock<HashMap<String, ItemDefinition>>,
     pub character_configs: HashMap<String, CharacterConfig>,
     pub classes: HashMap<String, ClassConfig>,
     pub themes: HashMap<String, ThemeConfig>,
@@ -82,8 +83,6 @@ impl GameState {
 
         let character_configs = load_dir_config(config_dir, load_character_configs);
         let classes = load_dir_config(config_dir, load_classes);
-        let abilities = load_dir_config(config_dir, load_abilities);
-        let item_definitions = load_dir_config(config_dir, load_items);
         let themes = load_dir_config(config_dir, load_themes);
 
         let (message_tx, _) = broadcast::channel::<PlayerMessage>(512);
@@ -95,8 +94,8 @@ impl GameState {
             faction_config,
             resource_config,
             mud_config,
-            abilities,
-            item_definitions,
+            abilities: RwLock::new(HashMap::new()),
+            item_definitions: RwLock::new(HashMap::new()),
             character_configs,
             classes,
             themes,
@@ -114,6 +113,15 @@ impl GameState {
 
     pub async fn sync_active_characters(&self, pool: &SqlitePool) -> Result<(), PersistenceError> {
         character_sync::sync(self, pool).await
+    }
+
+    /// Refreshes the `abilities` and `item_definitions` caches from the database, which is the
+    /// durable source of truth kept current by `sync_universe_config`.
+    pub async fn refresh_definition_caches(
+        &self,
+        pool: &SqlitePool,
+    ) -> Result<(), PersistenceError> {
+        definition_cache::refresh(self, pool).await
     }
 
     pub async fn push_pending_activation(

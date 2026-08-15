@@ -4,10 +4,9 @@ mod definition_sync;
 mod item_syncer;
 mod universe_sync;
 
-pub use ability_cache::{build_ability_cache as load_abilities, sync_abilities_into_db};
+pub use ability_cache::sync_abilities_into_db;
 pub use character_sync::load_characters_into_db;
 pub use definition_sync::{load_factions_into_db, load_resources_into_db};
-pub(crate) use item_syncer::build_item_map as load_items;
 pub use item_syncer::sync_items_into_db;
 pub use universe_sync::{load_map_into_db, should_auto_load};
 

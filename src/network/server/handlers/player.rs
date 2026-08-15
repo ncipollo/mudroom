@@ -71,7 +71,7 @@ pub async fn player_create_handler(
     };
     let mut character = Character::new(0, CharacterType::Player, location);
     character.name = body.name.clone();
-    let (attributes, innate_abilities) = resolve_class_data(&state, &body)?;
+    let (attributes, innate_abilities) = resolve_class_data(&state, &body).await?;
     character.attributes = attributes;
     let entity_id = character_repo::insert(pool, &character)
         .await
@@ -138,7 +138,7 @@ async fn register_player_in_game_state(
         .await;
 }
 
-fn resolve_class_data(
+async fn resolve_class_data(
     state: &AppState,
     body: &PlayerCreateBody,
 ) -> Result<(HashMap<String, Attribute>, Vec<Ability>), StatusCode> {
@@ -148,13 +148,12 @@ fn resolve_class_data(
             .classes
             .get(class_id)
             .ok_or(StatusCode::BAD_REQUEST)?;
+        let ability_cache = state.game_state.abilities.read().await;
         let abilities = class
             .innate_abilities
             .iter()
             .map(|r| {
-                state
-                    .game_state
-                    .abilities
+                ability_cache
                     .get(&r.0)
                     .cloned()
                     .ok_or(StatusCode::BAD_REQUEST)

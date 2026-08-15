@@ -70,8 +70,23 @@ pub async fn find_by_character(
     .fetch_all(pool)
     .await?;
 
-    Ok(rows
-        .into_iter()
+    Ok(rows_to_abilities(rows))
+}
+
+pub async fn find_all(pool: &SqlitePool) -> Result<Vec<Ability>, PersistenceError> {
+    let rows: Vec<AbilityRow> = sqlx::query_as(
+        "SELECT id, name, description, effects_json, costs_json, \
+             modifiers_json, engagement_types_json, role, targets_json, action_text \
+             FROM abilities",
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows_to_abilities(rows))
+}
+
+fn rows_to_abilities(rows: Vec<AbilityRow>) -> Vec<Ability> {
+    rows.into_iter()
         .map(
             |(
                 id,
@@ -120,7 +135,7 @@ pub async fn find_by_character(
                 }
             },
         )
-        .collect())
+        .collect()
 }
 
 pub async fn set_character_abilities(
@@ -242,6 +257,19 @@ mod tests {
         assert_eq!(abilities[0].effects.len(), 1);
         assert_eq!(abilities[0].engagement_types, vec![EngagementType::Battle]);
         assert_eq!(abilities[0].role, AbilityRole::Attack);
+    }
+
+    #[tokio::test]
+    async fn find_all_returns_every_ability() {
+        let db = Database::connect_in_memory().await.unwrap();
+        upsert(db.pool(), &attack_ability()).await.unwrap();
+        upsert(db.pool(), &defend_ability()).await.unwrap();
+
+        let abilities = find_all(db.pool()).await.unwrap();
+        assert_eq!(abilities.len(), 2);
+        let ids: Vec<&str> = abilities.iter().map(|a| a.id.as_str()).collect();
+        assert!(ids.contains(&"attack"));
+        assert!(ids.contains(&"defend"));
     }
 
     #[tokio::test]
