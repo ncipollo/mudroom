@@ -135,10 +135,13 @@ mod tests {
     #[test]
     fn combined_attributes_applies_equipped_bonus() {
         let mut character = make_character();
-        character.inventory.equipped_items.push(Item {
-            id: 1,
-            item_definition_id: "leather_vest".to_string(),
-        });
+        character.inventory.equipment.insert(
+            "armor".to_string(),
+            Item {
+                id: 1,
+                item_definition_id: "leather_vest".to_string(),
+            },
+        );
         let mut definitions = HashMap::new();
         definitions.insert("leather_vest".to_string(), vest_definition(2));
 
@@ -149,10 +152,13 @@ mod tests {
     #[test]
     fn combined_attributes_clamps_bonus_to_max_value() {
         let mut character = make_character();
-        character.inventory.equipped_items.push(Item {
-            id: 1,
-            item_definition_id: "leather_vest".to_string(),
-        });
+        character.inventory.equipment.insert(
+            "armor".to_string(),
+            Item {
+                id: 1,
+                item_definition_id: "leather_vest".to_string(),
+            },
+        );
         let mut definitions = HashMap::new();
         definitions.insert("leather_vest".to_string(), vest_definition(50));
 
@@ -163,10 +169,13 @@ mod tests {
     #[test]
     fn combined_attributes_ignores_bonus_for_unknown_attribute() {
         let mut character = make_character();
-        character.inventory.equipped_items.push(Item {
-            id: 1,
-            item_definition_id: "ring".to_string(),
-        });
+        character.inventory.equipment.insert(
+            "accessory".to_string(),
+            Item {
+                id: 1,
+                item_definition_id: "ring".to_string(),
+            },
+        );
         let mut definitions = HashMap::new();
         definitions.insert(
             "ring".to_string(),
@@ -196,10 +205,13 @@ mod tests {
     fn combined_abilities_concatenates_innate_and_granted() {
         let mut character = make_character();
         character.innate_abilities = vec![make_ability("slash")];
-        character.inventory.equipped_items.push(Item {
-            id: 1,
-            item_definition_id: "spiked_bat".to_string(),
-        });
+        character.inventory.equipment.insert(
+            "weapon".to_string(),
+            Item {
+                id: 1,
+                item_definition_id: "spiked_bat".to_string(),
+            },
+        );
         let mut definitions = HashMap::new();
         definitions.insert("spiked_bat".to_string(), bat_definition());
         let mut abilities = HashMap::new();
@@ -214,10 +226,13 @@ mod tests {
     fn combined_abilities_dedupes_when_granted_ability_is_also_innate() {
         let mut character = make_character();
         character.innate_abilities = vec![make_ability("painful_smash")];
-        character.inventory.equipped_items.push(Item {
-            id: 1,
-            item_definition_id: "spiked_bat".to_string(),
-        });
+        character.inventory.equipment.insert(
+            "weapon".to_string(),
+            Item {
+                id: 1,
+                item_definition_id: "spiked_bat".to_string(),
+            },
+        );
         let mut definitions = HashMap::new();
         definitions.insert("spiked_bat".to_string(), bat_definition());
         let mut abilities = HashMap::new();

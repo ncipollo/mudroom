@@ -1,0 +1,11 @@
+[[inventories]]
+id = "inventory"
+bag_size = 20
+
+[[inventories.equipment_slots]]
+name = "weapon"
+item_types = ["weapon"]
+
+[[inventories.equipment_slots]]
+name = "armor"
+item_types = ["armor"]

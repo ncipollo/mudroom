@@ -8,8 +8,8 @@ use tokio::sync::broadcast;
 
 use crate::game::component::{Ability, ItemDefinition};
 use crate::game::config::{
-    AttributeConfig, CharacterConfig, ClassConfig, FactionConfig, MudConfig, ResourceConfig,
-    ThemeConfig, load_character_configs, load_classes, load_themes,
+    AttributeConfig, CharacterConfig, ClassConfig, FactionConfig, InventoryConfig, MudConfig,
+    ResourceConfig, ThemeConfig, load_character_configs, load_classes, load_themes,
 };
 use crate::game::engagement::Engagements;
 use crate::game::entity::character::Character;
@@ -33,6 +33,7 @@ pub struct GameState {
     pub attribute_config: AttributeConfig,
     pub faction_config: FactionConfig,
     pub resource_config: ResourceConfig,
+    pub inventory_config: InventoryConfig,
     pub mud_config: MudConfig,
     pub abilities: RwLock<HashMap<String, Ability>>,
     pub item_definitions: RwLock<HashMap<String, ItemDefinition>>,
@@ -74,6 +75,12 @@ impl GameState {
             ResourceConfig::load,
             ResourceConfig::default_config,
         )?;
+        let inventory_config = load_file_config(
+            config_dir,
+            "inventory.toml",
+            InventoryConfig::load,
+            InventoryConfig::default_config,
+        )?;
         let mud_config = load_file_config(
             config_dir,
             "mud.toml",
@@ -93,6 +100,7 @@ impl GameState {
             attribute_config,
             faction_config,
             resource_config,
+            inventory_config,
             mud_config,
             abilities: RwLock::new(HashMap::new()),
             item_definitions: RwLock::new(HashMap::new()),
@@ -306,6 +314,38 @@ description = "City guards."
         let state = GameState::load(Some(dir.path())).unwrap();
         assert_eq!(state.faction_config.factions.len(), 1);
         assert_eq!(state.faction_config.factions[0].id, "guard");
+    }
+
+    #[test]
+    fn load_without_config_dir_uses_default_inventory_config() {
+        let state = GameState::load(None).unwrap();
+        assert_eq!(state.inventory_config.inventories.len(), 1);
+        assert!(state.inventory_config.get("inventory").is_some());
+    }
+
+    #[test]
+    fn load_with_inventory_toml_reads_file() {
+        let dir = TempDir::new().unwrap();
+        let toml_path = dir.path().join("inventory.toml");
+        let mut file = std::fs::File::create(&toml_path).unwrap();
+        file.write_all(
+            br#"
+[[inventories]]
+id = "inventory"
+bag_size = 5
+
+[[inventories.equipment_slots]]
+name = "trinket"
+item_types = ["trinket"]
+"#,
+        )
+        .unwrap();
+
+        let state = GameState::load(Some(dir.path())).unwrap();
+        let def = state.inventory_config.get("inventory").unwrap();
+        assert_eq!(def.bag_size, 5);
+        assert_eq!(def.equipment_slots.len(), 1);
+        assert_eq!(def.equipment_slots[0].name, "trinket");
     }
 
     #[test]
