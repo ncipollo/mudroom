@@ -63,15 +63,43 @@ muds/basic/inventory.toml:
 
   [[inventories]]
   id = "inventory"                        # the well-known default
-  bag_size = 20
+  bag_size = 100
 
   [[inventories.equipment_slots]]
-  name = "weapon"
-  item_types = ["weapon"]
+  name = "left_hand"                      # dual wielding weapons/shields
+  item_types = ["weapon", "shield"]
 
   [[inventories.equipment_slots]]
-  name = "armor"
-  item_types = ["armor"]"#
+  name = "right_hand"
+  item_types = ["weapon", "shield"]
+
+  [[inventories.equipment_slots]]
+  name = "body"
+  item_types = ["body_armor"]
+
+  [[inventories.equipment_slots]]
+  name = "head"
+  item_types = ["head_armor"]
+
+  [[inventories.equipment_slots]]
+  name = "feet"
+  item_types = ["shoes"]
+
+  [[inventories.equipment_slots]]
+  name = "amulet_1"                       # four identically-typed slots,
+  item_types = ["amulet"]                 # amulet_1..amulet_4
+
+  [[inventories.equipment_slots]]
+  name = "amulet_2"
+  item_types = ["amulet"]
+
+  [[inventories.equipment_slots]]
+  name = "amulet_3"
+  item_types = ["amulet"]
+
+  [[inventories.equipment_slots]]
+  name = "amulet_4"
+  item_types = ["amulet"]"#
         .to_string()
 }
 

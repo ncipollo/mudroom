@@ -92,7 +92,7 @@ muds/basic/items/leather_vest.toml (passive):
   name = "Leather Vest"
   description = "A simple protective vest."
   use_type = "passive"                    # grants bonuses while equipped
-  item_type = "armor"
+  item_type = "body_armor"
 
   [[equipped_bonuses.attributes]]
   attribute_id = "constitution"
