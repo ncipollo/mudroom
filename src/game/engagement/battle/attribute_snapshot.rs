@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use crate::game::GameState;
 use crate::game::component::Attribute;
+use crate::game::component::ItemDefinition;
 use crate::game::component::attribute_definition::ResetCondition;
 use crate::game::config::AttributeConfig;
 use crate::game::entity::character::Character;
@@ -59,8 +60,9 @@ pub(super) async fn reset_turn_start_attributes(
 
     let turn_start = {
         let mut entities = game_state.active_characters.write().await;
+        let item_definitions = game_state.item_definitions.read().await;
         reset_attributes(&mut entities, entity_ids, &battle_start, &reset_ids);
-        snapshot_locked(&entities, entity_ids)
+        snapshot_locked(&entities, entity_ids, &item_definitions)
     };
 
     log_reset_attributes(engagement_id, entity_ids, &turn_start, &reset_ids);
@@ -129,13 +131,22 @@ async fn read_attribute_snapshot(
     entity_ids: &[i64],
 ) -> AttributeSnapshot {
     let entities = game_state.active_characters.read().await;
-    snapshot_locked(&entities, entity_ids)
+    let item_definitions = game_state.item_definitions.read().await;
+    snapshot_locked(&entities, entity_ids, &item_definitions)
 }
 
-fn snapshot_locked(entities: &HashMap<i64, Character>, entity_ids: &[i64]) -> AttributeSnapshot {
+fn snapshot_locked(
+    entities: &HashMap<i64, Character>,
+    entity_ids: &[i64],
+    item_definitions: &HashMap<String, ItemDefinition>,
+) -> AttributeSnapshot {
     entity_ids
         .iter()
-        .filter_map(|&id| entities.get(&id).map(|e| (id, e.attributes.clone())))
+        .filter_map(|&id| {
+            entities
+                .get(&id)
+                .map(|e| (id, e.combined_attributes(item_definitions)))
+        })
         .collect()
 }
 
@@ -227,6 +238,47 @@ mod tests {
             .add_battle("room".to_string(), vec!["player".to_string()], participants)
             .await;
         (game_state, engagement_id)
+    }
+
+    #[tokio::test]
+    async fn capture_battle_start_includes_equipped_attribute_bonus() {
+        use crate::game::component::description::Description;
+        use crate::game::component::{AttributeBonus, EquippedBonuses, Item, ItemUseType};
+
+        let mut character = entity_with_attrs(1, 100, 10);
+        character.inventory.equipped_items.push(Item {
+            id: 1,
+            item_definition_id: "belt".to_string(),
+        });
+        let (game_state, engagement_id) = game_state_with_battle(character).await;
+        game_state.item_definitions.write().await.insert(
+            "belt".to_string(),
+            ItemDefinition {
+                id: "belt".to_string(),
+                name: "Belt".to_string(),
+                description: Description::default(),
+                use_type: ItemUseType::Passive,
+                item_type: "accessory".to_string(),
+                equipped_bonuses: EquippedBonuses {
+                    attributes: vec![AttributeBonus {
+                        attribute_id: "strength".to_string(),
+                        amount: 3,
+                    }],
+                    equipped: vec![],
+                },
+                use_effects: vec![],
+            },
+        );
+
+        capture_battle_start(&game_state, engagement_id, &[1]).await;
+
+        let snapshot = game_state
+            .engagements
+            .battles
+            .battle_start_snapshot(engagement_id)
+            .await
+            .unwrap();
+        assert_eq!(snapshot[&1]["strength"].current_value, 13);
     }
 
     #[tokio::test]

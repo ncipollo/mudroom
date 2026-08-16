@@ -5,9 +5,7 @@ use tracing;
 
 use crate::game::component::attribute_definition::AttributeType;
 use crate::game::component::faction_relations::FactionRelation;
-use crate::game::engagement::battle::{
-    BattlePhase, attribute_snapshot, entity_innate_battle_abilities,
-};
+use crate::game::engagement::battle::{BattlePhase, attribute_snapshot, entity_battle_abilities};
 use crate::game::entity::character::Character;
 use crate::game::messaging::{BattleParticipantInfo, BattleStartedMessage};
 use crate::game::player::Player;
@@ -131,13 +129,15 @@ pub(crate) async fn build_battle_started_message(
 ) -> BattleStartedMessage {
     let entities = game_state.active_characters.read().await;
     let players = game_state.active_players.read().await;
+    let item_definitions = game_state.item_definitions.read().await;
+    let abilities = game_state.abilities.read().await;
     let hp_attr_id = hp_attribute_id(&game_state.attribute_config);
 
     let participant_infos = build_participant_infos(participants, &entities, &players, &hp_attr_id);
 
     let available_abilities = entities
         .get(&player.entity_id)
-        .map(entity_innate_battle_abilities)
+        .map(|c| entity_battle_abilities(c, &item_definitions, &abilities))
         .unwrap_or_default();
 
     let mut turn_order: Vec<i64> = participants.values().flatten().copied().collect();

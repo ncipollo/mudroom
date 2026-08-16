@@ -6,7 +6,7 @@ Run the following commands after every code change and fix any issues before con
 1. `cargo fmt` - Format all code
 2. `cargo test` - Run all tests
 3. `cargo clippy` - Run linter; fix all warnings and errors before completing the change
-4. `(git diff --name-only HEAD; git ls-files --others --exclude-standard) | smell -` - Run smell against the changed/new files only; fix all reported limit failures before completing the change
+4. `(git diff --name-only HEAD; git ls-files --others --exclude-standard) | smell -q -` - Run smell against the changed/new files only; fix all reported limit failures before completing the change
 
 Smell is scoped to the diff (not the whole repo) because `smell.toml`'s limits are tighter than some pre-existing files. Only files you touch need to satisfy them — see `smell --info` for details on diff piping and the config file.
 

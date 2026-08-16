@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::game::GameState;
+use crate::game::component::{Ability, ItemDefinition};
 use crate::game::config::BattleAiType;
 use crate::game::entity::character::Character;
 
@@ -29,7 +30,9 @@ pub async fn run_battle_ai(game_state: &Arc<GameState>) {
 async fn run_ai_for_context(game_state: &Arc<GameState>, ctx: &BattleAiContext) {
     let decisions = {
         let entities = game_state.active_characters.read().await;
-        collect_decisions(ctx, &entities)
+        let item_definitions = game_state.item_definitions.read().await;
+        let abilities = game_state.abilities.read().await;
+        collect_decisions(ctx, &entities, &item_definitions, &abilities)
     };
     for decision in decisions {
         match decision {
@@ -48,33 +51,63 @@ async fn run_ai_for_context(game_state: &Arc<GameState>, ctx: &BattleAiContext) 
     }
 }
 
-fn collect_decisions(ctx: &BattleAiContext, entities: &HashMap<i64, Character>) -> Vec<AiDecision> {
+fn collect_decisions(
+    ctx: &BattleAiContext,
+    entities: &HashMap<i64, Character>,
+    item_definitions: &HashMap<String, ItemDefinition>,
+    abilities: &HashMap<String, Ability>,
+) -> Vec<AiDecision> {
     match &ctx.phase {
         BattlePhase::DeclareAttacks { .. } => ctx
             .planning_ids
             .iter()
-            .filter_map(|&id| route_attack(entities.get(&id)?, &ctx.responding_ids))
+            .filter_map(|&id| {
+                route_attack(
+                    entities.get(&id)?,
+                    &ctx.responding_ids,
+                    item_definitions,
+                    abilities,
+                )
+            })
             .collect(),
         BattlePhase::DeclareDefense { .. } => ctx
             .responding_ids
             .iter()
-            .filter_map(|&id| route_defend(entities.get(&id)?))
+            .filter_map(|&id| route_defend(entities.get(&id)?, item_definitions, abilities))
             .collect(),
         _ => vec![],
     }
 }
 
-fn route_attack(character: &Character, targets: &[i64]) -> Option<AiDecision> {
+fn route_attack(
+    character: &Character,
+    targets: &[i64],
+    item_definitions: &HashMap<String, ItemDefinition>,
+    abilities: &HashMap<String, Ability>,
+) -> Option<AiDecision> {
     match character.battle_ai.ai_type {
         BattleAiType::None => None,
-        BattleAiType::SimpleRandom => Some(simple_random::plan_attack(character, targets)),
+        BattleAiType::SimpleRandom => Some(simple_random::plan_attack(
+            character,
+            targets,
+            item_definitions,
+            abilities,
+        )),
     }
 }
 
-fn route_defend(character: &Character) -> Option<AiDecision> {
+fn route_defend(
+    character: &Character,
+    item_definitions: &HashMap<String, ItemDefinition>,
+    abilities: &HashMap<String, Ability>,
+) -> Option<AiDecision> {
     match character.battle_ai.ai_type {
         BattleAiType::None => None,
-        BattleAiType::SimpleRandom => Some(simple_random::plan_defend(character)),
+        BattleAiType::SimpleRandom => Some(simple_random::plan_defend(
+            character,
+            item_definitions,
+            abilities,
+        )),
     }
 }
 
@@ -146,6 +179,14 @@ mod tests {
         list.into_iter().map(|e| (e.id, e)).collect()
     }
 
+    fn no_definitions() -> HashMap<String, ItemDefinition> {
+        HashMap::new()
+    }
+
+    fn no_abilities() -> HashMap<String, Ability> {
+        HashMap::new()
+    }
+
     fn planning_ctx(planning_ids: Vec<i64>, responding_ids: Vec<i64>) -> BattleAiContext {
         BattleAiContext {
             engagement_id: 1,
@@ -172,7 +213,7 @@ mod tests {
     fn collect_decisions_planning_simple_random_queues_attack() {
         let entities = make_entities(vec![make_entity(1, BattleAiType::SimpleRandom)]);
         let ctx = planning_ctx(vec![1], vec![2]);
-        let decisions = collect_decisions(&ctx, &entities);
+        let decisions = collect_decisions(&ctx, &entities, &no_definitions(), &no_abilities());
         assert_eq!(decisions.len(), 1);
         assert!(matches!(&decisions[0], AiDecision::Action(b) if b.0 == 1 && b.2 == 2));
     }
@@ -181,7 +222,7 @@ mod tests {
     fn collect_decisions_response_simple_random_queues_defend() {
         let entities = make_entities(vec![make_entity(2, BattleAiType::SimpleRandom)]);
         let ctx = response_ctx(vec![1], vec![2]);
-        let decisions = collect_decisions(&ctx, &entities);
+        let decisions = collect_decisions(&ctx, &entities, &no_definitions(), &no_abilities());
         assert_eq!(decisions.len(), 1);
         assert!(matches!(&decisions[0], AiDecision::Action(b) if b.0 == 2 && b.2 == 2));
     }
@@ -190,7 +231,7 @@ mod tests {
     fn collect_decisions_none_type_is_ignored() {
         let entities = make_entities(vec![make_entity(1, BattleAiType::None)]);
         let ctx = planning_ctx(vec![1], vec![2]);
-        assert!(collect_decisions(&ctx, &entities).is_empty());
+        assert!(collect_decisions(&ctx, &entities, &no_definitions(), &no_abilities()).is_empty());
     }
 
     #[test]
@@ -201,7 +242,7 @@ mod tests {
         };
         let entities = make_entities(vec![character]);
         let ctx = planning_ctx(vec![1], vec![2]);
-        let decisions = collect_decisions(&ctx, &entities);
+        let decisions = collect_decisions(&ctx, &entities, &no_definitions(), &no_abilities());
         assert_eq!(decisions.len(), 1);
         assert!(matches!(decisions[0], AiDecision::Skip(1)));
     }
@@ -214,7 +255,7 @@ mod tests {
         };
         let entities = make_entities(vec![character]);
         let ctx = response_ctx(vec![1], vec![2]);
-        let decisions = collect_decisions(&ctx, &entities);
+        let decisions = collect_decisions(&ctx, &entities, &no_definitions(), &no_abilities());
         assert_eq!(decisions.len(), 1);
         assert!(matches!(decisions[0], AiDecision::Skip(2)));
     }
@@ -228,7 +269,7 @@ mod tests {
             planning_ids: vec![1],
             responding_ids: vec![2],
         };
-        assert!(collect_decisions(&ctx, &entities).is_empty());
+        assert!(collect_decisions(&ctx, &entities, &no_definitions(), &no_abilities()).is_empty());
     }
 
     #[test]
