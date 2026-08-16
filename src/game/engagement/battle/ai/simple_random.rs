@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+
+use crate::game::component::{Ability, ItemDefinition};
 use crate::game::engagement::battle::abilities::{
     battle_attack_abilities, battle_defend_abilities,
 };
@@ -6,11 +9,16 @@ use crate::game::entity::character::Character;
 use super::decision::AiDecision;
 use super::pick_random;
 
-pub fn plan_attack(character: &Character, targets: &[i64]) -> AiDecision {
+pub fn plan_attack(
+    character: &Character,
+    targets: &[i64],
+    item_definitions: &HashMap<String, ItemDefinition>,
+    abilities: &HashMap<String, Ability>,
+) -> AiDecision {
     let Some(&target_id) = pick_random(targets) else {
         return AiDecision::Skip(character.id);
     };
-    let attacks = battle_attack_abilities(character);
+    let attacks = battle_attack_abilities(character, item_definitions, abilities);
     match pick_random(&attacks).cloned() {
         Some(ability) => AiDecision::Action(Box::new((
             character.id,
@@ -22,8 +30,12 @@ pub fn plan_attack(character: &Character, targets: &[i64]) -> AiDecision {
     }
 }
 
-pub fn plan_defend(character: &Character) -> AiDecision {
-    let defends = battle_defend_abilities(character);
+pub fn plan_defend(
+    character: &Character,
+    item_definitions: &HashMap<String, ItemDefinition>,
+    abilities: &HashMap<String, Ability>,
+) -> AiDecision {
+    let defends = battle_defend_abilities(character, item_definitions, abilities);
     match pick_random(&defends).cloned() {
         Some(ability) => AiDecision::Action(Box::new((
             character.id,
@@ -84,12 +96,20 @@ mod tests {
         Character::new(id, CharacterType::Enemy, test_location())
     }
 
+    fn no_definitions() -> HashMap<String, ItemDefinition> {
+        HashMap::new()
+    }
+
+    fn no_abilities() -> HashMap<String, Ability> {
+        HashMap::new()
+    }
+
     #[test]
     fn plan_attack_returns_action_with_target() {
         let mut character = make_enemy(1);
         character.innate_abilities = vec![make_ability("slash", AbilityRole::Attack)];
         let targets = vec![2_i64];
-        let decision = plan_attack(&character, &targets);
+        let decision = plan_attack(&character, &targets, &no_definitions(), &no_abilities());
         assert!(matches!(decision, AiDecision::Action(b) if b.0 == 1 && b.2 == 2));
     }
 
@@ -98,7 +118,7 @@ mod tests {
         let character = make_enemy(1);
         let targets = vec![2_i64];
         assert!(matches!(
-            plan_attack(&character, &targets),
+            plan_attack(&character, &targets, &no_definitions(), &no_abilities()),
             AiDecision::Skip(1)
         ));
     }
@@ -106,20 +126,26 @@ mod tests {
     #[test]
     fn plan_attack_skips_when_no_targets() {
         let character = make_enemy(1);
-        assert!(matches!(plan_attack(&character, &[]), AiDecision::Skip(1)));
+        assert!(matches!(
+            plan_attack(&character, &[], &no_definitions(), &no_abilities()),
+            AiDecision::Skip(1)
+        ));
     }
 
     #[test]
     fn plan_defend_returns_action_targeting_self() {
         let mut character = make_enemy(1);
         character.innate_abilities = vec![make_ability("shield", AbilityRole::Defend)];
-        let decision = plan_defend(&character);
+        let decision = plan_defend(&character, &no_definitions(), &no_abilities());
         assert!(matches!(decision, AiDecision::Action(b) if b.0 == 1 && b.2 == 1));
     }
 
     #[test]
     fn plan_defend_skips_when_no_defend_abilities() {
         let character = make_enemy(1);
-        assert!(matches!(plan_defend(&character), AiDecision::Skip(1)));
+        assert!(matches!(
+            plan_defend(&character, &no_definitions(), &no_abilities()),
+            AiDecision::Skip(1)
+        ));
     }
 }

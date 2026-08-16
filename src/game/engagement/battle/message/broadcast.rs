@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::game::GameState;
-use crate::game::engagement::battle::{BattleMessage, BattlePhase, entity_innate_battle_abilities};
+use crate::game::engagement::battle::{BattleMessage, BattlePhase, entity_battle_abilities};
 use crate::game::messaging::{self, BattleParticipantInfo, BattleUpdateMessage};
 
 pub(in crate::game::engagement::battle) struct BattleUpdateParams {
@@ -69,10 +69,12 @@ pub(in crate::game::engagement::battle) async fn broadcast_update(
     update: &BattleUpdateMessage,
 ) {
     let entities = game_state.active_characters.read().await;
+    let item_definitions = game_state.item_definitions.read().await;
+    let abilities = game_state.abilities.read().await;
     for &(pid, entity_id) in player_pairs {
         let available_abilities = entities
             .get(&entity_id)
-            .map(entity_innate_battle_abilities)
+            .map(|c| entity_battle_abilities(c, &item_definitions, &abilities))
             .unwrap_or_default();
         let mut player_update = update.clone();
         player_update.available_abilities = available_abilities;

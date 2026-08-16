@@ -19,7 +19,7 @@ pub mod victory;
 
 use std::collections::HashMap;
 
-pub use abilities::entity_innate_battle_abilities;
+pub use abilities::entity_battle_abilities;
 pub use ai::{BattleAiContext, run_battle_ai};
 pub use attribute_snapshot::{AttributeSnapshot, AttributeSnapshots};
 pub use collection::Battles;

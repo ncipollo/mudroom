@@ -14,6 +14,8 @@ use crate::game::component::effect::Effect;
 use crate::game::config::BattleAiConfig;
 use crate::game::entity::Entity;
 
+mod combined;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum CharacterType {
     Player,
