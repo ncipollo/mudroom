@@ -10,6 +10,7 @@ pub fn run(topic: Option<InstructionsTopic>) {
         Some(InstructionsTopic::Attributes) => InstructionType::Attributes,
         Some(InstructionsTopic::Classes) => InstructionType::Classes,
         Some(InstructionsTopic::Entities) => InstructionType::Entities,
+        Some(InstructionsTopic::Inventory) => InstructionType::Inventory,
         Some(InstructionsTopic::Items) => InstructionType::Items,
         Some(InstructionsTopic::Maps) => InstructionType::Maps,
     };

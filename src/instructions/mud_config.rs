@@ -19,6 +19,7 @@ fn directory_layout() -> String {
   <mud-dir>/
     mud.toml              # top-level config (game_loop, spawn, agent, ...)
     attributes.toml       # global attribute definitions
+    inventory.toml        # inventory configs (bag size, equipment slots)
     abilities/            # one .toml per ability
     classes/               # one .toml per class
     entities/              # one .toml per entity
@@ -104,6 +105,7 @@ fn related_topics() -> String {
   mudroom instructions attributes  — attributes.toml reference
   mudroom instructions classes     — classes/*.toml reference
   mudroom instructions entities    — entities/*.toml reference
+  mudroom instructions inventory   — inventory.toml reference
   mudroom instructions items       — items/*.toml reference
   mudroom instructions maps        — maps/<world>/<dungeon>/<room>.toml reference"#
         .to_string()

@@ -246,10 +246,13 @@ mod tests {
         use crate::game::component::{AttributeBonus, EquippedBonuses, Item, ItemUseType};
 
         let mut character = entity_with_attrs(1, 100, 10);
-        character.inventory.equipped_items.push(Item {
-            id: 1,
-            item_definition_id: "belt".to_string(),
-        });
+        character.inventory.equipment.insert(
+            "accessory".to_string(),
+            Item {
+                id: 1,
+                item_definition_id: "belt".to_string(),
+            },
+        );
         let (game_state, engagement_id) = game_state_with_battle(character).await;
         game_state.item_definitions.write().await.insert(
             "belt".to_string(),

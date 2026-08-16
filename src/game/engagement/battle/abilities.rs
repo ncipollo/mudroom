@@ -128,10 +128,13 @@ mod tests {
         use crate::game::component::{EquippedBonuses, Item, ItemUseType};
 
         let mut character = Character::new(1, CharacterType::Enemy, test_location());
-        character.inventory.equipped_items.push(Item {
-            id: 1,
-            item_definition_id: "spiked_bat".to_string(),
-        });
+        character.inventory.equipment.insert(
+            "weapon".to_string(),
+            Item {
+                id: 1,
+                item_definition_id: "spiked_bat".to_string(),
+            },
+        );
         let mut definitions = no_definitions();
         definitions.insert(
             "spiked_bat".to_string(),

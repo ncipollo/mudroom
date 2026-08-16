@@ -3,11 +3,30 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::game::component::{Ability, AttributeBonus, Item, ItemDefinition};
+use crate::game::config::inventory_config::DEFAULT_INVENTORY_TYPE;
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+fn default_inventory_type() -> String {
+    DEFAULT_INVENTORY_TYPE.to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Inventory {
+    #[serde(default = "default_inventory_type")]
+    pub inventory_type: String,
     #[serde(default)]
-    pub equipped_items: Vec<Item>,
+    pub bag: Vec<Item>,
+    #[serde(default)]
+    pub equipment: HashMap<String, Item>,
+}
+
+impl Default for Inventory {
+    fn default() -> Self {
+        Self {
+            inventory_type: default_inventory_type(),
+            bag: Vec::new(),
+            equipment: HashMap::new(),
+        }
+    }
 }
 
 impl Inventory {
@@ -35,8 +54,8 @@ impl Inventory {
         &'a self,
         item_definitions: &'a HashMap<String, ItemDefinition>,
     ) -> impl Iterator<Item = &'a ItemDefinition> {
-        self.equipped_items
-            .iter()
+        self.equipment
+            .values()
             .filter_map(|item| item_definitions.get(&item.item_definition_id))
     }
 }
@@ -97,15 +116,27 @@ mod tests {
     }
 
     #[test]
+    fn default_inventory_type_is_well_known() {
+        let inventory = Inventory::default();
+        assert_eq!(inventory.inventory_type, DEFAULT_INVENTORY_TYPE);
+        assert!(inventory.bag.is_empty());
+        assert!(inventory.equipment.is_empty());
+    }
+
+    #[test]
     fn stat_bonuses_resolves_equipped_definitions() {
         let mut definitions = HashMap::new();
         definitions.insert("leather_vest".to_string(), vest_definition());
 
         let inventory = Inventory {
-            equipped_items: vec![Item {
-                id: 1,
-                item_definition_id: "leather_vest".to_string(),
-            }],
+            equipment: HashMap::from([(
+                "armor".to_string(),
+                Item {
+                    id: 1,
+                    item_definition_id: "leather_vest".to_string(),
+                },
+            )]),
+            ..Inventory::default()
         };
 
         let bonuses = inventory.stat_bonuses(&definitions);
@@ -118,10 +149,14 @@ mod tests {
     fn stat_bonuses_ignores_items_missing_a_definition() {
         let definitions = HashMap::new();
         let inventory = Inventory {
-            equipped_items: vec![Item {
-                id: 1,
-                item_definition_id: "unknown".to_string(),
-            }],
+            equipment: HashMap::from([(
+                "armor".to_string(),
+                Item {
+                    id: 1,
+                    item_definition_id: "unknown".to_string(),
+                },
+            )]),
+            ..Inventory::default()
         };
 
         assert!(inventory.stat_bonuses(&definitions).is_empty());
@@ -135,10 +170,14 @@ mod tests {
         abilities.insert("painful_smash".to_string(), painful_smash_ability());
 
         let inventory = Inventory {
-            equipped_items: vec![Item {
-                id: 1,
-                item_definition_id: "spiked_bat".to_string(),
-            }],
+            equipment: HashMap::from([(
+                "weapon".to_string(),
+                Item {
+                    id: 1,
+                    item_definition_id: "spiked_bat".to_string(),
+                },
+            )]),
+            ..Inventory::default()
         };
 
         let granted = inventory.granted_abilities(&definitions, &abilities);
@@ -153,10 +192,14 @@ mod tests {
         let abilities = HashMap::new();
 
         let inventory = Inventory {
-            equipped_items: vec![Item {
-                id: 1,
-                item_definition_id: "spiked_bat".to_string(),
-            }],
+            equipment: HashMap::from([(
+                "weapon".to_string(),
+                Item {
+                    id: 1,
+                    item_definition_id: "spiked_bat".to_string(),
+                },
+            )]),
+            ..Inventory::default()
         };
 
         assert!(

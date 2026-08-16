@@ -1,7 +1,7 @@
 name = "Leather Vest"
 description = "A simple vest of hardened leather, worn over the chest for protection."
 use_type = "passive"
-item_type = "armor"
+item_type = "body_armor"
 
 [[equipped_bonuses.attributes]]
 attribute_id = "constitution"

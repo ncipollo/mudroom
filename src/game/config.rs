@@ -9,6 +9,7 @@ mod dialog_parser;
 pub mod env_resolver;
 pub mod faction_config;
 pub mod game_loop_config;
+pub mod inventory_config;
 pub mod item_config;
 pub mod map_config;
 pub mod map_loader;
@@ -28,6 +29,9 @@ pub use character_config::{
 pub use class_config::{ClassConfig, load_classes};
 pub use faction_config::FactionConfig;
 pub use game_loop_config::GameLoopConfig;
+pub use inventory_config::{
+    DEFAULT_INVENTORY_TYPE, EquipmentSlotConfig, InventoryConfig, InventoryDefinition,
+};
 pub use map_config::load_map;
 pub use map_loader::{
     load_characters_into_db, load_factions_into_db, load_map_into_db, load_resources_into_db,
