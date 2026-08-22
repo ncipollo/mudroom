@@ -27,7 +27,7 @@ pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
         }
         (_, KeyCode::Enter) => {
             app.skip_all_reveals();
-            let input: String = app.input.drain(..).collect();
+            let input: String = std::mem::take(&mut app.input);
             if input.is_empty() {
                 return;
             }
