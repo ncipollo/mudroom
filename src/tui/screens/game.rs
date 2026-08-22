@@ -45,56 +45,57 @@ async fn dispatch_command(app: &mut App, input: &str) {
     let client_id = app.connection.client_id.as_deref();
     match cmd {
         commands::Command::Move(direction) => {
-            if let (Some(url), Some(client_id)) = (url, client_id) {
-                let interaction = Interaction::Movement(Movement::TryDirection(direction));
-                let _ = send_interaction(url, client_id, &interaction).await;
-            }
+            let interaction = Interaction::Movement(Movement::TryDirection(direction));
+            send(url, client_id, &interaction).await;
         }
-        commands::Command::Look => {
-            if let (Some(url), Some(client_id)) = (url, client_id) {
-                let _ = send_interaction(url, client_id, &Interaction::Look).await;
-            }
+        commands::Command::Look(target) => {
+            let interaction = match target {
+                Some(target) => Interaction::LookAt { target },
+                None => Interaction::Look,
+            };
+            send(url, client_id, &interaction).await;
         }
         commands::Command::Help => {
-            if let (Some(url), Some(client_id)) = (url, client_id) {
-                let _ = send_interaction(url, client_id, &Interaction::Help).await;
-            }
+            send(url, client_id, &Interaction::Help).await;
         }
-        commands::Command::Talk(msg) => {
-            let has_initial = msg.is_some();
-            if let (Some(url), Some(client_id)) = (url, client_id) {
-                let _ = send_interaction(
-                    url,
-                    client_id,
-                    &Interaction::StartConversation {
-                        initial_message: msg,
-                    },
-                )
-                .await;
-                if has_initial {
-                    app.agent_responding = true;
-                }
-            }
+        commands::Command::Speak(msg) => {
+            app.agent_responding |= dispatch_speak(url, client_id, msg).await;
+        }
+        commands::Command::Take(target) => {
+            send(url, client_id, &Interaction::Take { target }).await;
         }
         commands::Command::Choose(choice) => {
-            if let (Some(url), Some(client_id)) = (url, client_id) {
-                let action =
-                    Interaction::EngagementAction(TurnAction::SelectDialogChoice { choice });
-                let _ = send_interaction(url, client_id, &action).await;
-            }
+            let action = Interaction::EngagementAction(TurnAction::SelectDialogChoice { choice });
+            send(url, client_id, &action).await;
         }
         commands::Command::Attack => {
-            if let (Some(url), Some(client_id)) = (url, client_id) {
-                let _ = send_interaction(
-                    url,
-                    client_id,
-                    &Interaction::JoinBattle { engagement_id: 0 },
-                )
-                .await;
-            }
+            send(
+                url,
+                client_id,
+                &Interaction::JoinBattle { engagement_id: 0 },
+            )
+            .await;
         }
         _ => {}
     }
+}
+
+/// Sends `interaction` when both connection details are present, reporting whether it did.
+async fn send(url: Option<&str>, client_id: Option<&str>, interaction: &Interaction) -> bool {
+    let (Some(url), Some(client_id)) = (url, client_id) else {
+        return false;
+    };
+    let _ = send_interaction(url, client_id, interaction).await;
+    true
+}
+
+/// Sends the speak interaction, reporting whether it carried an initial message that was sent.
+async fn dispatch_speak(url: Option<&str>, client_id: Option<&str>, msg: Option<String>) -> bool {
+    let has_initial = msg.is_some();
+    let interaction = Interaction::StartConversation {
+        initial_message: msg,
+    };
+    send(url, client_id, &interaction).await && has_initial
 }
 
 pub fn render(frame: &mut Frame, app: &mut App) {

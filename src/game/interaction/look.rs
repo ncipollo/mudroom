@@ -1,12 +1,15 @@
 use std::sync::Arc;
 
+use tracing;
+
+use crate::game::component::ItemDefinition;
 use crate::game::component::description::Description;
 use crate::game::config::theme_config;
 use crate::game::entity::character::CharacterType;
 use crate::game::player::Player;
 use crate::game::{GameState, messaging};
 use crate::persistence::Database;
-use crate::persistence::room_repo;
+use crate::persistence::{room_repo, world_loot_repo};
 
 pub async fn process(game_state: &Arc<GameState>, db: &Database, player: &Player) {
     let (location, character_descriptions) = {
@@ -46,5 +49,64 @@ fn character_type_label(character_type: &CharacterType) -> &'static str {
         CharacterType::Character => "character",
         CharacterType::Enemy => "enemy",
         CharacterType::Player => "player",
+    }
+}
+
+pub async fn process_at(game_state: &Arc<GameState>, db: &Database, player: &Player, target: &str) {
+    let location = {
+        let characters = game_state.active_characters.read().await;
+        match characters.get(&player.entity_id) {
+            Some(c) => c.location.clone(),
+            None => return,
+        }
+    };
+
+    let loot = match world_loot_repo::find_by_location(db.pool(), &location).await {
+        Ok(loot) => loot,
+        Err(e) => {
+            tracing::error!("Failed to load world loot for look-at: {e}");
+            return;
+        }
+    };
+
+    let definitions = game_state.item_definitions.read().await;
+    let matches: Vec<&ItemDefinition> = loot
+        .iter()
+        .filter_map(|l| definitions.get(&l.item_definition_id))
+        .filter(|def| def.name.eq_ignore_ascii_case(target))
+        .collect();
+
+    respond_to_look_at(game_state, player, target, matches.as_slice());
+}
+
+fn respond_to_look_at(
+    game_state: &Arc<GameState>,
+    player: &Player,
+    target: &str,
+    matches: &[&ItemDefinition],
+) {
+    match matches {
+        [] => messaging::message(
+            &game_state.message_tx,
+            player.id,
+            format!("You don't see a '{target}' here."),
+        ),
+        [def] => {
+            let theme = theme_config::resolve_theme_id(
+                &game_state.themes,
+                def.description.theme.as_deref(),
+            );
+            let content = def
+                .description
+                .text
+                .clone()
+                .unwrap_or_else(|| format!("You see nothing special about the {}.", def.name));
+            messaging::message_themed(&game_state.message_tx, player.id, content, theme);
+        }
+        _ => messaging::message(
+            &game_state.message_tx,
+            player.id,
+            format!("Which '{target}' do you mean?"),
+        ),
     }
 }

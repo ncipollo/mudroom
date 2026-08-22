@@ -102,6 +102,22 @@ pub async fn set_character_bag_items(
     Ok(())
 }
 
+pub async fn add_bag_item(
+    pool: &SqlitePool,
+    character_id: i64,
+    item_definition_id: &str,
+) -> Result<i64, PersistenceError> {
+    ensure_exists(pool, character_id, "inventory").await?;
+    let result = sqlx::query(
+        "INSERT INTO inventory_items (character_id, item_definition_id, equipped) VALUES (?, ?, 0)",
+    )
+    .bind(character_id)
+    .bind(item_definition_id)
+    .execute(pool)
+    .await?;
+    Ok(result.last_insert_rowid())
+}
+
 pub async fn find_bag_by_character(
     pool: &SqlitePool,
     character_id: i64,
@@ -228,6 +244,24 @@ mod tests {
             .unwrap();
         assert_eq!(bag.len(), 1);
         assert_eq!(bag[0].item_definition_id, "leather_vest");
+    }
+
+    #[tokio::test]
+    async fn add_bag_item_appends_without_replacing() {
+        let db = Database::connect_in_memory().await.unwrap();
+        let character_id = setup(&db).await;
+
+        set_character_bag_items(db.pool(), character_id, &["leather_vest"])
+            .await
+            .unwrap();
+        add_bag_item(db.pool(), character_id, "leather_vest")
+            .await
+            .unwrap();
+
+        let bag = find_bag_by_character(db.pool(), character_id)
+            .await
+            .unwrap();
+        assert_eq!(bag.len(), 2);
     }
 
     #[tokio::test]

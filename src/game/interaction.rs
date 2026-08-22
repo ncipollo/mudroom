@@ -4,6 +4,7 @@ pub mod lifecycle;
 pub mod look;
 pub mod movement;
 pub mod room_threats;
+pub mod take;
 
 use std::sync::Arc;
 
@@ -54,7 +55,13 @@ async fn dispatch_interaction(
 ) {
     match interaction {
         Interaction::Look => look::process(game_state, db, player).await,
+        Interaction::LookAt { target } => {
+            look::process_at(game_state, db, player, &target).await;
+        }
         Interaction::Help => help::process(game_state, player).await,
+        Interaction::Take { target } => {
+            take::process(game_state, db, player, &target).await;
+        }
         Interaction::Movement(m) => dispatch_movement(game_state, db, player, m).await,
         Interaction::EngagementAction(action) => {
             dispatch_engagement_action(game_state, player, action).await;
