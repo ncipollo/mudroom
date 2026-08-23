@@ -118,10 +118,12 @@ mod tests {
                 Modifier {
                     attribute_id: "strength".to_string(),
                     operator: Operator::Multiply,
+                    amount: 2,
                 },
                 Modifier {
                     attribute_id: "dexterity".to_string(),
                     operator: Operator::Add,
+                    amount: 1,
                 },
             ],
             role: AbilityRole::Attack,

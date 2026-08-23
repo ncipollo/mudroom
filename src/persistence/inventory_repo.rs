@@ -118,6 +118,35 @@ pub async fn add_bag_item(
     Ok(result.last_insert_rowid())
 }
 
+pub async fn equip_item(
+    pool: &SqlitePool,
+    item_id: i64,
+    slot_name: &str,
+) -> Result<(), PersistenceError> {
+    sqlx::query("UPDATE inventory_items SET equipped = 1, slot_name = ? WHERE id = ?")
+        .bind(slot_name)
+        .bind(item_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn unequip_item(pool: &SqlitePool, item_id: i64) -> Result<(), PersistenceError> {
+    sqlx::query("UPDATE inventory_items SET equipped = 0, slot_name = NULL WHERE id = ?")
+        .bind(item_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn remove_item(pool: &SqlitePool, item_id: i64) -> Result<(), PersistenceError> {
+    sqlx::query("DELETE FROM inventory_items WHERE id = ?")
+        .bind(item_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
 pub async fn find_bag_by_character(
     pool: &SqlitePool,
     character_id: i64,
@@ -324,6 +353,64 @@ mod tests {
 
         let inventory_type = find_inventory_type(db.pool(), character_id).await.unwrap();
         assert!(inventory_type.is_none());
+    }
+
+    #[tokio::test]
+    async fn equip_item_moves_row_into_slot() {
+        let db = Database::connect_in_memory().await.unwrap();
+        let character_id = setup(&db).await;
+        let item_id = add_bag_item(db.pool(), character_id, "leather_vest")
+            .await
+            .unwrap();
+
+        equip_item(db.pool(), item_id, "armor").await.unwrap();
+
+        let equipped = find_equipped_by_character(db.pool(), character_id)
+            .await
+            .unwrap();
+        let bag = find_bag_by_character(db.pool(), character_id)
+            .await
+            .unwrap();
+        assert_eq!(equipped["armor"].id, item_id);
+        assert!(bag.is_empty());
+    }
+
+    #[tokio::test]
+    async fn unequip_item_clears_slot() {
+        let db = Database::connect_in_memory().await.unwrap();
+        let character_id = setup(&db).await;
+        let item_id = add_bag_item(db.pool(), character_id, "leather_vest")
+            .await
+            .unwrap();
+        equip_item(db.pool(), item_id, "armor").await.unwrap();
+
+        unequip_item(db.pool(), item_id).await.unwrap();
+
+        let equipped = find_equipped_by_character(db.pool(), character_id)
+            .await
+            .unwrap();
+        let bag = find_bag_by_character(db.pool(), character_id)
+            .await
+            .unwrap();
+        assert!(equipped.is_empty());
+        assert_eq!(bag.len(), 1);
+        assert_eq!(bag[0].id, item_id);
+    }
+
+    #[tokio::test]
+    async fn remove_item_deletes_row() {
+        let db = Database::connect_in_memory().await.unwrap();
+        let character_id = setup(&db).await;
+        let item_id = add_bag_item(db.pool(), character_id, "leather_vest")
+            .await
+            .unwrap();
+
+        remove_item(db.pool(), item_id).await.unwrap();
+
+        let bag = find_bag_by_character(db.pool(), character_id)
+            .await
+            .unwrap();
+        assert!(bag.is_empty());
     }
 
     #[tokio::test]

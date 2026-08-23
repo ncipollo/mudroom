@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::game::GameState;
-use crate::game::component::{Inventory, Item, ItemDefinition};
-use crate::game::config::inventory_config::InventoryDefinition;
+use crate::game::component::{Inventory, Item, ItemDefinition, ItemUseType};
+use crate::game::config::inventory_config::{EquipmentSlotConfig, InventoryDefinition};
 use crate::game::messaging::{self, InventoryItemInfo, InventoryOpenedMessage, InventorySlotInfo};
 use crate::game::player::Player;
 
@@ -32,11 +32,14 @@ fn build_payload(
     let resolved_def = game_state
         .inventory_config
         .resolve(&inventory.inventory_type);
-    let slots = build_slots(resolved_def, inventory, definitions);
+    let equipment_slots: &[EquipmentSlotConfig] = resolved_def
+        .map(|def| def.equipment_slots.as_slice())
+        .unwrap_or(&[]);
+    let slots = build_slots(resolved_def, inventory, definitions, equipment_slots);
     let bag = inventory
         .bag
         .iter()
-        .filter_map(|item| resolve_item(item, definitions))
+        .filter_map(|item| resolve_item(item, definitions, equipment_slots))
         .collect();
     let bag_size = resolved_def
         .map(|def| def.bag_size)
@@ -53,6 +56,7 @@ fn build_slots(
     definition: Option<&InventoryDefinition>,
     inventory: &Inventory,
     definitions: &HashMap<String, ItemDefinition>,
+    equipment_slots: &[EquipmentSlotConfig],
 ) -> Vec<InventorySlotInfo> {
     let Some(definition) = definition else {
         return Vec::new();
@@ -65,7 +69,7 @@ fn build_slots(
             equipped: inventory
                 .equipment
                 .get(&slot.name)
-                .and_then(|item| resolve_item(item, definitions)),
+                .and_then(|item| resolve_item(item, definitions, equipment_slots)),
         })
         .collect()
 }
@@ -73,12 +77,18 @@ fn build_slots(
 fn resolve_item(
     item: &Item,
     definitions: &HashMap<String, ItemDefinition>,
+    equipment_slots: &[EquipmentSlotConfig],
 ) -> Option<InventoryItemInfo> {
     let definition = definitions.get(&item.item_definition_id)?;
+    let equippable = equipment_slots
+        .iter()
+        .any(|slot| slot.item_types.iter().any(|t| t == &definition.item_type));
     Some(InventoryItemInfo {
         item_id: item.id,
         name: definition.name.clone(),
         item_type: definition.item_type.clone(),
         description: definition.description.text.clone().unwrap_or_default(),
+        usable: definition.use_type == ItemUseType::Used,
+        equippable,
     })
 }

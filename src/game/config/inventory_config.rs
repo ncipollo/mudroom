@@ -28,6 +28,16 @@ pub struct InventoryConfig {
     pub inventories: Vec<InventoryDefinition>,
 }
 
+impl InventoryDefinition {
+    /// Equipment slots this inventory defines that accept `item_type`.
+    pub fn eligible_slots(&self, item_type: &str) -> Vec<&EquipmentSlotConfig> {
+        self.equipment_slots
+            .iter()
+            .filter(|slot| slot.item_types.iter().any(|t| t == item_type))
+            .collect()
+    }
+}
+
 impl InventoryConfig {
     pub fn load(path: &Path) -> Result<Self, Box<dyn std::error::Error>> {
         let content = std::fs::read_to_string(path)?;
@@ -181,5 +191,25 @@ item_types = ["ranged"]
         let config = InventoryConfig::default_config();
         let def = config.resolve("nonexistent").unwrap();
         assert_eq!(def.id, DEFAULT_INVENTORY_TYPE);
+    }
+
+    #[test]
+    fn eligible_slots_returns_matching_slots() {
+        let def = InventoryConfig::default_config()
+            .get(DEFAULT_INVENTORY_TYPE)
+            .unwrap()
+            .clone();
+        let slots = def.eligible_slots("weapon");
+        assert_eq!(slots.len(), 1);
+        assert_eq!(slots[0].name, "weapon");
+    }
+
+    #[test]
+    fn eligible_slots_is_empty_for_unknown_item_type() {
+        let def = InventoryConfig::default_config()
+            .get(DEFAULT_INVENTORY_TYPE)
+            .unwrap()
+            .clone();
+        assert!(def.eligible_slots("amulet").is_empty());
     }
 }

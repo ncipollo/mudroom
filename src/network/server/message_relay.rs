@@ -100,28 +100,25 @@ fn inventory_opened_event(data: InventoryOpenedMessage) -> NetworkEvent {
         .into_iter()
         .map(|s| InventorySlotInfo {
             slot_name: s.slot_name,
-            equipped: s.equipped.map(|i| InventoryItemInfo {
-                item_id: i.item_id,
-                name: i.name,
-                item_type: i.item_type,
-                description: i.description,
-            }),
+            equipped: s.equipped.map(inventory_item_info),
         })
         .collect();
-    let bag = data
-        .bag
-        .into_iter()
-        .map(|i| InventoryItemInfo {
-            item_id: i.item_id,
-            name: i.name,
-            item_type: i.item_type,
-            description: i.description,
-        })
-        .collect();
+    let bag = data.bag.into_iter().map(inventory_item_info).collect();
     NetworkEvent::InventoryOpened {
         slots,
         bag,
         bag_size: data.bag_size,
+    }
+}
+
+fn inventory_item_info(item: crate::game::messaging::InventoryItemInfo) -> InventoryItemInfo {
+    InventoryItemInfo {
+        item_id: item.item_id,
+        name: item.name,
+        item_type: item.item_type,
+        description: item.description,
+        usable: item.usable,
+        equippable: item.equippable,
     }
 }
 

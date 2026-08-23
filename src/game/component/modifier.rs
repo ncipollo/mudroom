@@ -13,6 +13,7 @@ pub enum Operator {
 pub struct Modifier {
     pub attribute_id: String,
     pub operator: Operator,
+    pub amount: i64,
 }
 
 #[cfg(test)]
@@ -41,6 +42,7 @@ mod tests {
         let modifier = Modifier {
             attribute_id: "strength".to_string(),
             operator: Operator::Multiply,
+            amount: 2,
         };
         let json = serde_json::to_string(&modifier).unwrap();
         let restored: Modifier = serde_json::from_str(&json).unwrap();

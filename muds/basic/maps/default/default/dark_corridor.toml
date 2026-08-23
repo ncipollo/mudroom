@@ -1,4 +1,5 @@
 entities = ["entities/zombie", "entities/madman"]
+items = ["spiked_bat"]
 
 [description]
 text = "A dark, damp corridor. The stench of decay hangs in the air. **Something** shambles in the shadows."

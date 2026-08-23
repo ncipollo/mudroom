@@ -1,4 +1,6 @@
 pub mod conversation;
+pub mod drop;
+pub mod equip;
 pub mod help;
 pub mod inventory;
 pub mod lifecycle;
@@ -6,6 +8,7 @@ pub mod look;
 pub mod movement;
 pub mod room_threats;
 pub mod take;
+pub mod use_item;
 
 use std::sync::Arc;
 
@@ -80,8 +83,12 @@ async fn dispatch_interaction(
         Interaction::CheckRoomThreats { room_id } => {
             room_threats::check_room_hostility(game_state, player, &room_id).await;
         }
-        Interaction::OpenInventory => {
-            inventory::process(game_state, player).await;
+        item_action @ (Interaction::OpenInventory
+        | Interaction::UseItem { .. }
+        | Interaction::EquipItem { .. }
+        | Interaction::UnequipItem { .. }
+        | Interaction::DropItem { .. }) => {
+            dispatch_item_action(game_state, db, player, item_action).await;
         }
         Interaction::PlayerDisconnected {
             client_id: disconnected_client_id,
@@ -146,6 +153,32 @@ fn log_stale_disconnect(
         current_epoch,
         "ignoring stale disconnect superseded by a later activation"
     );
+}
+
+async fn dispatch_item_action(
+    game_state: &Arc<GameState>,
+    db: &Database,
+    player: &Player,
+    interaction: Interaction,
+) {
+    match interaction {
+        Interaction::OpenInventory => {
+            inventory::process(game_state, player).await;
+        }
+        Interaction::UseItem { item_id } => {
+            use_item::process(game_state, db, player, item_id).await;
+        }
+        Interaction::EquipItem { item_id } => {
+            equip::process(game_state, db, player, item_id).await;
+        }
+        Interaction::UnequipItem { item_id } => {
+            equip::unequip(game_state, db, player, item_id).await;
+        }
+        Interaction::DropItem { item_id } => {
+            drop::process(game_state, db, player, item_id).await;
+        }
+        _ => {}
+    }
 }
 
 async fn dispatch_movement(
