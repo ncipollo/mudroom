@@ -2,7 +2,7 @@ use crossterm::event::{Event, EventStream, KeyCode, KeyModifiers};
 use futures_util::StreamExt;
 use ratatui::DefaultTerminal;
 use ratatui::layout::{Constraint, Layout};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Color, Style};
 use ratatui::text::Span;
 use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph};
 use tokio::sync::mpsc;
@@ -10,6 +10,7 @@ use tokio::time::{Duration, interval};
 
 use crate::network::discovery::DiscoveredServer;
 use crate::network::discovery::client::discover;
+use crate::tui::components::selection::selection_style;
 
 const SPINNER_FRAMES: &[char] = &['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
@@ -74,11 +75,7 @@ fn render(frame: &mut ratatui::Frame, app: &DiscoveryApp) {
         .iter()
         .enumerate()
         .map(|(i, s)| {
-            let style = if i == app.cursor {
-                Style::default().add_modifier(Modifier::REVERSED)
-            } else {
-                Style::default()
-            };
+            let style = selection_style(i == app.cursor);
             let label = match &s.name {
                 Some(name) => format!("{} — {}", name, s.url()),
                 None => s.url(),

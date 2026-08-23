@@ -2,11 +2,12 @@ use crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::{
     Frame,
     layout::{Constraint, Layout},
-    style::{Color, Modifier, Style},
+    style::{Color, Style},
     widgets::{Block, Borders, List, ListItem, Paragraph},
 };
 
 use super::super::components::message_log;
+use super::super::components::selection::selection_style;
 use crate::game::{Interaction, TurnAction};
 use crate::network::client::send_interaction;
 use crate::tui::app::App;
@@ -58,15 +59,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         .enumerate()
         .map(|(i, text)| {
             let label = format!("[{}] {}", i + 1, text);
-            if i == app.conversation.selected_index {
-                ListItem::new(label).style(
-                    Style::default()
-                        .fg(Color::Yellow)
-                        .add_modifier(Modifier::BOLD),
-                )
-            } else {
-                ListItem::new(label)
-            }
+            ListItem::new(label).style(selection_style(i == app.conversation.selected_index))
         })
         .collect();
     let list = List::new(items).block(Block::default().title("Options").borders(Borders::ALL));
