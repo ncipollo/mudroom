@@ -9,7 +9,6 @@ use ratatui::{
 use super::super::components::message_log;
 use super::super::components::selection::selection_style;
 use crate::game::{Interaction, TurnAction};
-use crate::network::client::send_interaction;
 use crate::tui::app::App;
 
 pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
@@ -21,15 +20,10 @@ pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
         (_, KeyCode::Down) => app.conversation.select_next(),
         (_, KeyCode::Enter) => {
             app.skip_all_reveals();
-            if let Some(choice) = app.conversation.selected_choice()
-                && let (Some(url), Some(client_id)) = (
-                    app.connection.server_url.as_deref(),
-                    app.connection.client_id.as_deref(),
-                )
-            {
+            if let Some(choice) = app.conversation.selected_choice() {
                 let action =
                     Interaction::EngagementAction(TurnAction::SelectDialogChoice { choice });
-                let _ = send_interaction(url, client_id, &action).await;
+                app.send_interaction_async(action);
             }
         }
         _ => {}
