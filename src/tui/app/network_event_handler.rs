@@ -133,6 +133,12 @@ impl App {
                 bag,
                 bag_size,
             } => self.handle_inventory_opened(slots, bag, bag_size),
+            NetworkEvent::PlayerStatsUpdated {
+                hp_current,
+                hp_max,
+                mp_current,
+                mp_max,
+            } => self.handle_player_stats_updated(hp_current, hp_max, mp_current, mp_max),
             _ => {}
         }
     }
@@ -197,6 +203,19 @@ impl App {
         self.mode = GameMode::Inventory;
     }
 
+    fn handle_player_stats_updated(
+        &mut self,
+        hp_current: i64,
+        hp_max: i64,
+        mp_current: i64,
+        mp_max: i64,
+    ) {
+        self.hp_current = hp_current;
+        self.hp_max = hp_max;
+        self.mp_current = mp_current;
+        self.mp_max = mp_max;
+    }
+
     fn handle_battle_update(
         &mut self,
         engagement_id: i64,
@@ -220,5 +239,27 @@ impl App {
         battle.snapshot.max_turn_secs = snapshot.max_turn_secs;
         battle.snapshot.available_abilities = snapshot.available_abilities;
         battle.push_messages(messages, &theme);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn player_stats_updated_sets_hp_and_mp() {
+        let mut app = App::new(false);
+
+        app.handle_network_event(NetworkEvent::PlayerStatsUpdated {
+            hp_current: 40,
+            hp_max: 100,
+            mp_current: 20,
+            mp_max: 50,
+        });
+
+        assert_eq!(app.hp_current, 40);
+        assert_eq!(app.hp_max, 100);
+        assert_eq!(app.mp_current, 20);
+        assert_eq!(app.mp_max, 50);
     }
 }

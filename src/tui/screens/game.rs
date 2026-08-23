@@ -144,8 +144,12 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     );
 
     // Status bar
-    let status = Paragraph::new("HP: 100 | MP: 50 | Location: Town Square")
-        .block(Block::default().title("Status").borders(Borders::ALL));
+    let status_text = format!(
+        "HP: {}/{} | MP: {}/{} | Location: Town Square",
+        app.hp_current, app.hp_max, app.mp_current, app.mp_max
+    );
+    let status =
+        Paragraph::new(status_text).block(Block::default().title("Status").borders(Borders::ALL));
     frame.render_widget(status, areas[1]);
 
     // Input line

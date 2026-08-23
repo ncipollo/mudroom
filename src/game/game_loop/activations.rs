@@ -27,6 +27,7 @@ async fn apply_activation(
     register_in_game_state(game_state, db, activation).await;
     reset_disconnect_state(game_state, entity_id, &client_id).await;
     reconcile_battle_state(game_state, &player).await;
+    sync_player_stats(game_state, &player).await;
 
     // Queued directly into the mailbox (rather than left to the client to request over
     // `/interactions`) because activation and this tick's interaction processing happen
@@ -159,10 +160,31 @@ async fn reconcile_battle_state(game_state: &Arc<GameState>, player: &Player) {
     messaging::battle_started(&game_state.message_tx, player.id, started_msg);
 }
 
+/// Pushes the player's current HP/MP to the client, so the world-view status bar reflects real
+/// values as soon as the player enters the world (initial join or reconnect).
+async fn sync_player_stats(game_state: &Arc<GameState>, player: &Player) {
+    let entities = game_state.active_characters.read().await;
+    let Some(character) = entities.get(&player.entity_id) else {
+        return;
+    };
+    let hp_attr_id = messaging::hp_attribute_id(&game_state.attribute_config);
+    let mp_attr_id = messaging::mp_attribute_id(&game_state.attribute_config);
+    let (hp_current, hp_max) = character.attribute_range(&hp_attr_id);
+    let (mp_current, mp_max) = character.attribute_range(&mp_attr_id);
+    messaging::player_stats_updated(
+        &game_state.message_tx,
+        player.id,
+        hp_current,
+        hp_max,
+        mp_current,
+        mp_max,
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::component::Location;
+    use crate::game::component::{Attribute, Location};
     use crate::game::entity::character::{Character, CharacterType};
     use crate::game::messaging::Message;
     use crate::game::player::Player;
@@ -313,7 +335,50 @@ mod tests {
 
         process(&game_state, &db).await;
 
-        assert!(rx.try_recv().is_err(), "expected no messages");
+        let msg = rx
+            .try_recv()
+            .expect("expected a PlayerStatsUpdated message");
+        assert!(
+            matches!(msg.message, Message::PlayerStatsUpdated { .. }),
+            "expected no BattleStarted message outside battle, got {:?}",
+            msg.message
+        );
+        assert!(rx.try_recv().is_err(), "expected exactly one message");
+    }
+
+    #[tokio::test]
+    async fn activation_syncs_player_stats() {
+        let game_state = Arc::new(GameState::load(None).unwrap());
+        let db = Database::connect_in_memory().await.unwrap();
+        let mut rx = game_state.message_tx.subscribe();
+        let mut activation = test_activation("m:1");
+        activation.character.attributes.insert(
+            "hp".to_string(),
+            Attribute::new("hp".to_string(), 0, 100, 40),
+        );
+        activation.character.attributes.insert(
+            "mp".to_string(),
+            Attribute::new("mp".to_string(), 0, 50, 20),
+        );
+        game_state
+            .push_pending_activation(activation.character, activation.player, "m:1".to_string())
+            .await;
+
+        process(&game_state, &db).await;
+
+        let msg = rx
+            .try_recv()
+            .expect("expected a PlayerStatsUpdated message");
+        assert_eq!(msg.player_id, 1);
+        assert!(matches!(
+            msg.message,
+            Message::PlayerStatsUpdated {
+                hp_current: 40,
+                hp_max: 100,
+                mp_current: 20,
+                mp_max: 50,
+            }
+        ));
     }
 
     #[tokio::test]

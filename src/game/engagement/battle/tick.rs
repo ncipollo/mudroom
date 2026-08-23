@@ -72,8 +72,7 @@ async fn handle_tick(game_state: &Arc<GameState>, result: BattleTick, max_engage
 
     // If this tick just concluded the battle, run end-of-battle cleanup and tear it down.
     if result.phase == BattlePhase::Concluded {
-        let player_ids: Vec<i64> = player_pairs.iter().map(|&(pid, _)| pid).collect();
-        victory::handle_battle_ended(game_state, engagement_id, &all_ids, &player_ids).await;
+        victory::handle_battle_ended(game_state, engagement_id, &all_ids, &player_pairs).await;
         game_state.engagements.battles.conclude(engagement_id).await;
         game_state.engagements.battles.remove(engagement_id).await;
     }

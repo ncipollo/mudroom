@@ -101,6 +101,12 @@ pub enum Message {
         engagement_id: i64,
     },
     InventoryOpened(Box<InventoryOpenedMessage>),
+    PlayerStatsUpdated {
+        hp_current: i64,
+        hp_max: i64,
+        mp_current: i64,
+        mp_max: i64,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -157,6 +163,25 @@ pub fn battle_ended(tx: &broadcast::Sender<PlayerMessage>, player_id: i64, engag
     });
 }
 
+pub fn player_stats_updated(
+    tx: &broadcast::Sender<PlayerMessage>,
+    player_id: i64,
+    hp_current: i64,
+    hp_max: i64,
+    mp_current: i64,
+    mp_max: i64,
+) {
+    let _ = tx.send(PlayerMessage {
+        player_id,
+        message: Message::PlayerStatsUpdated {
+            hp_current,
+            hp_max,
+            mp_current,
+            mp_max,
+        },
+    });
+}
+
 pub fn inventory_opened(
     tx: &broadcast::Sender<PlayerMessage>,
     player_id: i64,
@@ -203,10 +228,69 @@ pub fn message_room_description(
 }
 
 pub fn hp_attribute_id(attribute_config: &crate::game::config::AttributeConfig) -> String {
+    attribute_id_for(attribute_config, |t| matches!(t, AttributeType::HP), "hp")
+}
+
+pub fn mp_attribute_id(attribute_config: &crate::game::config::AttributeConfig) -> String {
+    attribute_id_for(attribute_config, |t| matches!(t, AttributeType::MP), "mp")
+}
+
+fn attribute_id_for(
+    attribute_config: &crate::game::config::AttributeConfig,
+    matches_type: impl Fn(&AttributeType) -> bool,
+    fallback: &str,
+) -> String {
     attribute_config
         .attributes
         .iter()
-        .find(|def| matches!(def.attribute_type, AttributeType::HP))
+        .find(|def| matches_type(&def.attribute_type))
         .map(|def| def.id.clone())
-        .unwrap_or_else(|| "hp".to_string())
+        .unwrap_or_else(|| fallback.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::game::config::AttributeConfig;
+
+    #[test]
+    fn hp_attribute_id_reads_default_config() {
+        assert_eq!(hp_attribute_id(&AttributeConfig::default_config()), "hp");
+    }
+
+    #[test]
+    fn mp_attribute_id_reads_default_config() {
+        assert_eq!(mp_attribute_id(&AttributeConfig::default_config()), "mp");
+    }
+
+    #[test]
+    fn hp_attribute_id_falls_back_when_missing() {
+        let config = AttributeConfig { attributes: vec![] };
+        assert_eq!(hp_attribute_id(&config), "hp");
+    }
+
+    #[test]
+    fn mp_attribute_id_falls_back_when_missing() {
+        let config = AttributeConfig { attributes: vec![] };
+        assert_eq!(mp_attribute_id(&config), "mp");
+    }
+
+    #[tokio::test]
+    async fn player_stats_updated_sends_expected_message() {
+        let (tx, mut rx) = broadcast::channel(4);
+
+        player_stats_updated(&tx, 7, 40, 100, 20, 50);
+
+        let msg = rx.try_recv().expect("expected a PlayerMessage");
+        assert_eq!(msg.player_id, 7);
+        assert!(matches!(
+            msg.message,
+            Message::PlayerStatsUpdated {
+                hp_current: 40,
+                hp_max: 100,
+                mp_current: 20,
+                mp_max: 50,
+            }
+        ));
+    }
 }
