@@ -11,7 +11,6 @@ use ratatui::{
 
 use super::super::components::message_log;
 use crate::game::{Interaction, TurnAction};
-use crate::network::client::send_interaction;
 use crate::tui::app::{App, AppMessage};
 
 const SPINNER_FRAMES: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
@@ -39,22 +38,12 @@ pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
             app.skip_all_reveals();
             let input: String = std::mem::take(&mut app.input);
             if input.trim() == "/exit" {
-                if let (Some(url), Some(client_id)) = (
-                    app.connection.server_url.as_deref(),
-                    app.connection.client_id.as_deref(),
-                ) {
-                    let _ = send_interaction(url, client_id, &Interaction::EndConversation).await;
-                }
+                app.send_interaction_async(Interaction::EndConversation);
             } else if !input.is_empty() {
-                if let (Some(url), Some(client_id)) = (
-                    app.connection.server_url.as_deref(),
-                    app.connection.client_id.as_deref(),
-                ) {
-                    let action = Interaction::EngagementAction(TurnAction::Respond {
-                        content: input.clone(),
-                    });
-                    let _ = send_interaction(url, client_id, &action).await;
-                }
+                let action = Interaction::EngagementAction(TurnAction::Respond {
+                    content: input.clone(),
+                });
+                app.send_interaction_async(action);
                 app.messages.push(AppMessage::command(input, &app.theme));
                 app.log_scroll.pin_to_bottom();
                 app.agent_responding = true;

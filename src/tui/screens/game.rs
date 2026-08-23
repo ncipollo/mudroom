@@ -9,7 +9,6 @@ use ratatui::{
 use super::super::components::message_log;
 use super::{agent_conversation, battle, conversation, inventory, player_select};
 use crate::game::{Interaction, Movement, TurnAction};
-use crate::network::client::send_interaction;
 use crate::tui::app::{App, AppMessage, GameMode};
 use crate::tui::commands;
 
@@ -19,9 +18,7 @@ pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
             app.should_quit = true;
         }
         (_, KeyCode::Char('i')) if app.input.is_empty() => {
-            let url = app.connection.server_url.as_deref();
-            let client_id = app.connection.client_id.as_deref();
-            send(url, client_id, &Interaction::OpenInventory).await;
+            app.send_interaction_async(Interaction::OpenInventory);
         }
         (_, KeyCode::Char(c)) => {
             app.input.push(c);
@@ -35,7 +32,7 @@ pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
             if input.is_empty() {
                 return;
             }
-            dispatch_command(app, &input).await;
+            dispatch_command(app, &input);
             app.messages.push(AppMessage::command(input, &app.theme));
             app.log_scroll.pin_to_bottom();
         }
@@ -43,63 +40,47 @@ pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
     }
 }
 
-async fn dispatch_command(app: &mut App, input: &str) {
+fn dispatch_command(app: &mut App, input: &str) {
     let cmd = commands::parse(input);
-    let url = app.connection.server_url.as_deref();
-    let client_id = app.connection.client_id.as_deref();
     match cmd {
         commands::Command::Move(direction) => {
             let interaction = Interaction::Movement(Movement::TryDirection(direction));
-            send(url, client_id, &interaction).await;
+            app.send_interaction_async(interaction);
         }
         commands::Command::Look(target) => {
             let interaction = match target {
                 Some(target) => Interaction::LookAt { target },
                 None => Interaction::Look,
             };
-            send(url, client_id, &interaction).await;
+            app.send_interaction_async(interaction);
         }
         commands::Command::Help => {
-            send(url, client_id, &Interaction::Help).await;
+            app.send_interaction_async(Interaction::Help);
         }
         commands::Command::Speak(msg) => {
-            app.agent_responding |= dispatch_speak(url, client_id, msg).await;
+            app.agent_responding |= dispatch_speak(app, msg);
         }
         commands::Command::Take(target) => {
-            send(url, client_id, &Interaction::Take { target }).await;
+            app.send_interaction_async(Interaction::Take { target });
         }
         commands::Command::Choose(choice) => {
             let action = Interaction::EngagementAction(TurnAction::SelectDialogChoice { choice });
-            send(url, client_id, &action).await;
+            app.send_interaction_async(action);
         }
         commands::Command::Attack => {
-            send(
-                url,
-                client_id,
-                &Interaction::JoinBattle { engagement_id: 0 },
-            )
-            .await;
+            app.send_interaction_async(Interaction::JoinBattle { engagement_id: 0 });
         }
         _ => {}
     }
 }
 
-/// Sends `interaction` when both connection details are present, reporting whether it did.
-async fn send(url: Option<&str>, client_id: Option<&str>, interaction: &Interaction) -> bool {
-    let (Some(url), Some(client_id)) = (url, client_id) else {
-        return false;
-    };
-    let _ = send_interaction(url, client_id, interaction).await;
-    true
-}
-
 /// Sends the speak interaction, reporting whether it carried an initial message that was sent.
-async fn dispatch_speak(url: Option<&str>, client_id: Option<&str>, msg: Option<String>) -> bool {
+fn dispatch_speak(app: &App, msg: Option<String>) -> bool {
     let has_initial = msg.is_some();
     let interaction = Interaction::StartConversation {
         initial_message: msg,
     };
-    send(url, client_id, &interaction).await && has_initial
+    app.send_interaction_async(interaction) && has_initial
 }
 
 pub fn render(frame: &mut Frame, app: &mut App) {

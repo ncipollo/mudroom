@@ -1,5 +1,6 @@
 mod battle_state;
 mod conversation_state;
+mod interaction_send;
 mod inventory_state;
 mod message;
 mod network_event_handler;
@@ -13,6 +14,7 @@ pub use message::AppMessage;
 use std::collections::{HashMap, VecDeque};
 
 use crate::network::event::{ClassInfo, PlayerInfo, ThemeInfo};
+use crate::tui::components::message_log::LogLayout;
 use crate::tui::components::scroll::ScrollState;
 use crate::tui::components::theme::MessageTheme;
 use crate::tui::components::typewriter::{DEFAULT_REVEAL_RATE, TypewriterState};
@@ -54,6 +56,7 @@ pub struct App {
     pub messages: Vec<AppMessage>,
     pub input: String,
     pub log_scroll: ScrollState,
+    pub log_layout: LogLayout,
     pub mode: GameMode,
     pub connection: ConnectionState,
     pub player_select: PlayerSelectState,
@@ -87,6 +90,7 @@ impl App {
             ],
             input: String::new(),
             log_scroll: ScrollState::default(),
+            log_layout: LogLayout::default(),
             mode: GameMode::Game,
             connection: ConnectionState::default(),
             player_select: PlayerSelectState::default(),
@@ -121,6 +125,7 @@ impl App {
             messages: Vec::<AppMessage>::new(),
             input: String::new(),
             log_scroll: ScrollState::default(),
+            log_layout: LogLayout::default(),
             mode: GameMode::PlayerSelect,
             connection: ConnectionState {
                 server_url: Some(server_url),

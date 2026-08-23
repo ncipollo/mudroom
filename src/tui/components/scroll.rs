@@ -86,6 +86,27 @@ pub fn render_scrolled_lines(
     frame.render_widget(log, area);
 }
 
+/// Paints `lines` inside `block`, scrolled `scroll_from_top` wrapped rows down from their top.
+///
+/// Unlike [`render_scrolled_lines`], the scroll position is supplied directly instead of being
+/// derived from `lines` via `Paragraph::line_count`, so `lines` can be a bounded window of a
+/// larger, separately-tracked log rather than its full content.
+pub fn render_slice(
+    frame: &mut Frame,
+    lines: Vec<Line<'_>>,
+    scroll_from_top: usize,
+    block: Block,
+    area: Rect,
+    trim: bool,
+) {
+    let scroll_from_top = scroll_from_top.min(u16::MAX as usize) as u16;
+    let paragraph = Paragraph::new(Text::from(lines))
+        .wrap(Wrap { trim })
+        .block(block)
+        .scroll((scroll_from_top, 0));
+    frame.render_widget(paragraph, area);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
