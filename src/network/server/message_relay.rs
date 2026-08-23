@@ -76,6 +76,20 @@ pub fn spawn(
                     (pm.player_id, NetworkEvent::BattleEnded { engagement_id })
                 }
                 Message::InventoryOpened(data) => (pm.player_id, inventory_opened_event(*data)),
+                Message::PlayerStatsUpdated {
+                    hp_current,
+                    hp_max,
+                    mp_current,
+                    mp_max,
+                } => (
+                    pm.player_id,
+                    NetworkEvent::PlayerStatsUpdated {
+                        hp_current,
+                        hp_max,
+                        mp_current,
+                        mp_max,
+                    },
+                ),
             };
 
             let players = game_state.active_players.read().await;

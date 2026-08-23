@@ -25,7 +25,7 @@ pub async fn end_battle(
     else {
         return;
     };
-    let player_ids = participant_player_ids(game_state, &entity_ids).await;
+    let players = participant_players(game_state, &entity_ids).await;
 
     let mut cleanup_ids = entity_ids.clone();
     for &id in departed_entity_ids {
@@ -34,17 +34,18 @@ pub async fn end_battle(
         }
     }
 
-    victory::handle_battle_ended(game_state, engagement_id, &cleanup_ids, &player_ids).await;
+    victory::handle_battle_ended(game_state, engagement_id, &cleanup_ids, &players).await;
     game_state.engagements.battles.conclude(engagement_id).await;
     game_state.engagements.battles.remove(engagement_id).await;
 }
 
-async fn participant_player_ids(game_state: &Arc<GameState>, entity_ids: &[i64]) -> Vec<i64> {
+/// Returns `(player_id, entity_id)` pairs for every player among `entity_ids`.
+async fn participant_players(game_state: &Arc<GameState>, entity_ids: &[i64]) -> Vec<(i64, i64)> {
     let players = game_state.active_players.read().await;
     players
         .values()
         .filter(|p| entity_ids.contains(&p.entity_id))
-        .map(|p| p.id)
+        .map(|p| (p.id, p.entity_id))
         .collect()
 }
 
@@ -149,7 +150,15 @@ mod tests {
         let msg = rx.try_recv().expect("expected a BattleEnded message");
         assert_eq!(msg.player_id, 12);
         assert!(matches!(msg.message, Message::BattleEnded { .. }));
-        assert!(rx.try_recv().is_err(), "expected exactly one message");
+
+        // Also synced: the remaining player's post-battle HP/MP.
+        let msg = rx
+            .try_recv()
+            .expect("expected a PlayerStatsUpdated message");
+        assert_eq!(msg.player_id, 12);
+        assert!(matches!(msg.message, Message::PlayerStatsUpdated { .. }));
+
+        assert!(rx.try_recv().is_err(), "expected exactly two messages");
 
         // Battle-scoped effects are cleared from both survivors and departed entities.
         let entities = game_state.active_characters.read().await;

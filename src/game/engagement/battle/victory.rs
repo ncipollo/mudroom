@@ -12,7 +12,7 @@ pub(super) async fn handle_battle_ended(
     game_state: &Arc<GameState>,
     engagement_id: i64,
     all_participant_ids: &[i64],
-    player_ids: &[i64],
+    players: &[(i64, i64)],
 ) {
     loot::resolve_loot(all_participant_ids);
     attribute_snapshot::reset_end_of_engagement_attributes(
@@ -23,9 +23,31 @@ pub(super) async fn handle_battle_ended(
     )
     .await;
     clear_active_effects(game_state, all_participant_ids).await;
-    for &pid in player_ids {
-        messaging::battle_ended(&game_state.message_tx, pid, engagement_id);
+    for &(player_id, entity_id) in players {
+        messaging::battle_ended(&game_state.message_tx, player_id, engagement_id);
+        sync_player_stats(game_state, player_id, entity_id).await;
     }
+}
+
+/// Pushes `entity_id`'s current HP/MP to `player_id`, so the world-view status bar reflects the
+/// character's post-battle condition as soon as they leave the battle screen.
+async fn sync_player_stats(game_state: &Arc<GameState>, player_id: i64, entity_id: i64) {
+    let entities = game_state.active_characters.read().await;
+    let Some(character) = entities.get(&entity_id) else {
+        return;
+    };
+    let hp_attr_id = messaging::hp_attribute_id(&game_state.attribute_config);
+    let mp_attr_id = messaging::mp_attribute_id(&game_state.attribute_config);
+    let (hp_current, hp_max) = character.attribute_range(&hp_attr_id);
+    let (mp_current, mp_max) = character.attribute_range(&mp_attr_id);
+    messaging::player_stats_updated(
+        &game_state.message_tx,
+        player_id,
+        hp_current,
+        hp_max,
+        mp_current,
+        mp_max,
+    );
 }
 
 async fn clear_active_effects(game_state: &Arc<GameState>, entity_ids: &[i64]) {
@@ -48,6 +70,7 @@ mod tests {
     use crate::game::component::effect::{Effect, EffectDescription, EffectType, TriggerInfo};
     use crate::game::component::{Attribute, Location};
     use crate::game::entity::character::{Character, CharacterType};
+    use crate::game::messaging::Message;
     use tokio::sync::broadcast;
 
     fn test_location() -> Location {
@@ -118,7 +141,7 @@ mod tests {
         let game_state = game_state_with_entity(character).await;
         let mut receiver = game_state.message_tx.subscribe();
 
-        handle_battle_ended(&game_state, 42, &[1], &[7]).await;
+        handle_battle_ended(&game_state, 42, &[1], &[(7, 1)]).await;
 
         let entities = game_state.active_characters.read().await;
         assert!(entities[&1].active_effects.is_empty());
@@ -129,6 +152,41 @@ mod tests {
             message.is_ok(),
             "expected a battle_ended message to be sent"
         );
+    }
+
+    #[tokio::test]
+    async fn handle_battle_ended_syncs_player_stats() {
+        let mut character = Character::new(1, CharacterType::Player, test_location());
+        character.attributes.insert(
+            "hp".to_string(),
+            Attribute::new("hp".to_string(), 0, 100, 40),
+        );
+        character.attributes.insert(
+            "mp".to_string(),
+            Attribute::new("mp".to_string(), 0, 50, 20),
+        );
+        let game_state = game_state_with_entity(character).await;
+        let mut receiver = game_state.message_tx.subscribe();
+
+        handle_battle_ended(&game_state, 42, &[1], &[(7, 1)]).await;
+
+        // First message is battle_ended; the stats sync follows it.
+        receiver
+            .try_recv()
+            .expect("expected a battle_ended message");
+        let msg = receiver
+            .try_recv()
+            .expect("expected a player_stats_updated message");
+        assert_eq!(msg.player_id, 7);
+        assert!(matches!(
+            msg.message,
+            Message::PlayerStatsUpdated {
+                hp_current: 40,
+                hp_max: 100,
+                mp_current: 20,
+                mp_max: 50,
+            }
+        ));
     }
 
     #[tokio::test]

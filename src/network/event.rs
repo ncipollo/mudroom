@@ -140,6 +140,12 @@ pub enum NetworkEvent {
         bag: Vec<InventoryItemInfo>,
         bag_size: usize,
     },
+    PlayerStatsUpdated {
+        hp_current: i64,
+        hp_max: i64,
+        mp_current: i64,
+        mp_max: i64,
+    },
 }
 
 #[cfg(test)]
@@ -190,6 +196,34 @@ mod tests {
             player_id: 1,
             content: "A cold wind blows.".to_string(),
             theme: Some("eerie".to_string()),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        let decoded: NetworkEvent = serde_json::from_str(&json).unwrap();
+        assert_eq!(event, decoded);
+    }
+
+    #[test]
+    fn serialize_player_stats_updated() {
+        let json = serde_json::to_string(&NetworkEvent::PlayerStatsUpdated {
+            hp_current: 40,
+            hp_max: 100,
+            mp_current: 50,
+            mp_max: 50,
+        })
+        .unwrap();
+        assert_eq!(
+            json,
+            r#"{"type":"player_stats_updated","hp_current":40,"hp_max":100,"mp_current":50,"mp_max":50}"#
+        );
+    }
+
+    #[test]
+    fn round_trip_player_stats_updated() {
+        let event = NetworkEvent::PlayerStatsUpdated {
+            hp_current: 40,
+            hp_max: 100,
+            mp_current: 50,
+            mp_max: 50,
         };
         let json = serde_json::to_string(&event).unwrap();
         let decoded: NetworkEvent = serde_json::from_str(&json).unwrap();

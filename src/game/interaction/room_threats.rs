@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use tracing;
 
-use crate::game::component::attribute_definition::AttributeType;
 use crate::game::component::faction_relations::FactionRelation;
 use crate::game::engagement::battle::{BattlePhase, attribute_snapshot, entity_battle_abilities};
 use crate::game::entity::character::Character;
@@ -131,7 +130,7 @@ pub(crate) async fn build_battle_started_message(
     let players = game_state.active_players.read().await;
     let item_definitions = game_state.item_definitions.read().await;
     let abilities = game_state.abilities.read().await;
-    let hp_attr_id = hp_attribute_id(&game_state.attribute_config);
+    let hp_attr_id = messaging::hp_attribute_id(&game_state.attribute_config);
 
     let participant_infos = build_participant_infos(participants, &entities, &players, &hp_attr_id);
 
@@ -204,15 +203,6 @@ fn resolve_entity_name(
         .and_then(|e| e.config_id.as_deref())
         .map(str::to_string)
         .unwrap_or_else(|| format!("Character {entity_id}"))
-}
-
-pub(super) fn hp_attribute_id(attribute_config: &crate::game::config::AttributeConfig) -> String {
-    attribute_config
-        .attributes
-        .iter()
-        .find(|def| matches!(def.attribute_type, AttributeType::HP))
-        .map(|def| def.id.clone())
-        .unwrap_or_else(|| "hp".to_string())
 }
 
 fn entity_threat_toward_player(

@@ -101,6 +101,15 @@ impl Character {
             inventory: Inventory::default(),
         }
     }
+
+    /// Returns `(current_value, max_value)` for the given attribute id, or `(0, 0)` if the
+    /// character has no such attribute.
+    pub fn attribute_range(&self, attribute_id: &str) -> (i64, i64) {
+        self.attributes
+            .get(attribute_id)
+            .map(|a| (a.current_value, a.max_value))
+            .unwrap_or((0, 0))
+    }
 }
 
 #[cfg(test)]
@@ -123,6 +132,22 @@ mod tests {
         assert_eq!(character.location.world_id, "w1");
         assert_eq!(character.location.dungeon_id, "d1");
         assert_eq!(character.location.room_id, "r1");
+    }
+
+    #[test]
+    fn attribute_range_returns_current_and_max() {
+        let mut character = Character::new(1, CharacterType::Player, test_location());
+        character.attributes.insert(
+            "hp".to_string(),
+            Attribute::new("hp".to_string(), 0, 100, 40),
+        );
+        assert_eq!(character.attribute_range("hp"), (40, 100));
+    }
+
+    #[test]
+    fn attribute_range_defaults_when_missing() {
+        let character = Character::new(1, CharacterType::Player, test_location());
+        assert_eq!(character.attribute_range("mp"), (0, 0));
     }
 
     #[test]
