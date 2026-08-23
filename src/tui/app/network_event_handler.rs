@@ -1,33 +1,53 @@
 use crate::game::engagement::battle::BattleMessage;
 use crate::game::messaging::ConversationKind;
 use crate::network::NetworkEvent;
-use crate::network::event::BattleSnapshot;
+use crate::network::event::{BattleSnapshot, InventoryItemInfo, InventorySlotInfo};
 use crate::tui::components::theme::style_overrides_from_theme;
 
-use super::{App, AppMessage, BattleState, GameMode};
+use super::{App, AppMessage, BattleState, GameMode, InventoryState};
 
 impl App {
     pub fn handle_network_event(&mut self, event: NetworkEvent) {
+        let Some(event) = self.handle_lifecycle_event(event) else {
+            return;
+        };
+        let Some(event) = self.handle_conversation_event(event) else {
+            return;
+        };
+        self.handle_gameplay_event(event);
+    }
+
+    /// Handles connection/session-lifecycle events, returning the event back unconsumed if it
+    /// belongs to a later handler instead.
+    fn handle_lifecycle_event(&mut self, event: NetworkEvent) -> Option<NetworkEvent> {
         match event {
-            NetworkEvent::StartSession { session_id } => self.messages.push(AppMessage::system(
-                format!("Session started: {session_id}"),
-                &self.theme,
-            )),
-            NetworkEvent::EndSession { session_id } => self.messages.push(AppMessage::system(
-                format!("Session ended: {session_id}"),
-                &self.theme,
-            )),
+            NetworkEvent::StartSession { session_id } => {
+                self.messages.push(AppMessage::system(
+                    format!("Session started: {session_id}"),
+                    &self.theme,
+                ));
+                None
+            }
+            NetworkEvent::EndSession { session_id } => {
+                self.messages.push(AppMessage::system(
+                    format!("Session ended: {session_id}"),
+                    &self.theme,
+                ));
+                None
+            }
             NetworkEvent::Ping => {
                 if self.debug {
                     self.messages
                         .push(AppMessage::debug("[ping received]", &self.theme));
                 }
+                None
             }
             NetworkEvent::Pong => {
                 if self.debug {
                     self.messages
                         .push(AppMessage::debug("[pong received]", &self.theme));
                 }
+                None
             }
             NetworkEvent::PlayerSelected {
                 player_name,
@@ -42,7 +62,16 @@ impl App {
                     format!("Playing as: {player_name}"),
                     &self.theme,
                 ));
+                None
             }
+            other => Some(other),
+        }
+    }
+
+    /// Handles narration/conversation events, returning the event back unconsumed if it belongs
+    /// to `handle_gameplay_event` instead.
+    fn handle_conversation_event(&mut self, event: NetworkEvent) -> Option<NetworkEvent> {
+        match event {
             NetworkEvent::Message {
                 player_id,
                 content,
@@ -61,19 +90,31 @@ impl App {
                     ));
                     self.start_reveal(idx);
                 }
+                None
             }
             NetworkEvent::MessageChunk {
                 player_id,
                 chunk,
                 is_final,
-            } => self.handle_message_chunk(player_id, chunk, is_final),
+            } => {
+                self.handle_message_chunk(player_id, chunk, is_final);
+                None
+            }
             NetworkEvent::ConversationStarted { kind, options } => {
                 self.handle_conversation_started(kind, options);
+                None
             }
             NetworkEvent::ConversationEnded => {
                 self.mode = GameMode::Game;
                 self.conversation.reset();
+                None
             }
+            other => Some(other),
+        }
+    }
+
+    fn handle_gameplay_event(&mut self, event: NetworkEvent) {
+        match event {
             NetworkEvent::BattleStarted {
                 engagement_id,
                 snapshot,
@@ -87,6 +128,12 @@ impl App {
                 self.battle = None;
                 self.mode = GameMode::Game;
             }
+            NetworkEvent::InventoryOpened {
+                slots,
+                bag,
+                bag_size,
+            } => self.handle_inventory_opened(slots, bag, bag_size),
+            _ => {}
         }
     }
 
@@ -138,6 +185,16 @@ impl App {
     fn handle_battle_started(&mut self, engagement_id: i64, snapshot: BattleSnapshot) {
         self.battle = Some(BattleState::new(engagement_id, snapshot));
         self.mode = GameMode::Battle;
+    }
+
+    fn handle_inventory_opened(
+        &mut self,
+        slots: Vec<InventorySlotInfo>,
+        bag: Vec<InventoryItemInfo>,
+        bag_size: usize,
+    ) {
+        self.inventory = Some(InventoryState::new(slots, bag, bag_size));
+        self.mode = GameMode::Inventory;
     }
 
     fn handle_battle_update(

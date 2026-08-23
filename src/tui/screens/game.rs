@@ -8,7 +8,7 @@ use ratatui::{
 };
 
 use super::super::components::message_log;
-use super::{agent_conversation, battle, conversation, player_select};
+use super::{agent_conversation, battle, conversation, inventory, player_select};
 use crate::game::{Interaction, Movement, TurnAction};
 use crate::network::client::send_interaction;
 use crate::tui::app::{App, AppMessage, GameMode};
@@ -18,6 +18,11 @@ pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
     match (modifiers, code) {
         (KeyModifiers::CONTROL, KeyCode::Char('c')) => {
             app.should_quit = true;
+        }
+        (_, KeyCode::Char('i')) if app.input.is_empty() => {
+            let url = app.connection.server_url.as_deref();
+            let client_id = app.connection.client_id.as_deref();
+            send(url, client_id, &Interaction::OpenInventory).await;
         }
         (_, KeyCode::Char(c)) => {
             app.input.push(c);
@@ -116,6 +121,11 @@ pub fn render(frame: &mut Frame, app: &mut App) {
 
     if app.mode == GameMode::Battle {
         battle::render(frame, app);
+        return;
+    }
+
+    if app.mode == GameMode::Inventory {
+        inventory::render(frame, app);
         return;
     }
 

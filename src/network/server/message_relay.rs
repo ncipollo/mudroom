@@ -6,9 +6,12 @@ use tokio::sync::broadcast;
 
 use crate::game::GameState;
 use crate::game::messaging::{
-    BattleStartedMessage, BattleUpdateMessage, Message, PlayerMessage, StreamingState,
+    BattleStartedMessage, BattleUpdateMessage, InventoryOpenedMessage, Message, PlayerMessage,
+    StreamingState,
 };
-use crate::network::event::{BattleSnapshot, NetworkEvent, ParticipantInfo};
+use crate::network::event::{
+    BattleSnapshot, InventoryItemInfo, InventorySlotInfo, NetworkEvent, ParticipantInfo,
+};
 
 use super::state::ConnectedClient;
 
@@ -72,6 +75,7 @@ pub fn spawn(
                 Message::BattleEnded { engagement_id } => {
                     (pm.player_id, NetworkEvent::BattleEnded { engagement_id })
                 }
+                Message::InventoryOpened(data) => (pm.player_id, inventory_opened_event(*data)),
             };
 
             let players = game_state.active_players.read().await;
@@ -88,6 +92,37 @@ pub fn spawn(
             }
         }
     });
+}
+
+fn inventory_opened_event(data: InventoryOpenedMessage) -> NetworkEvent {
+    let slots = data
+        .slots
+        .into_iter()
+        .map(|s| InventorySlotInfo {
+            slot_name: s.slot_name,
+            equipped: s.equipped.map(|i| InventoryItemInfo {
+                item_id: i.item_id,
+                name: i.name,
+                item_type: i.item_type,
+                description: i.description,
+            }),
+        })
+        .collect();
+    let bag = data
+        .bag
+        .into_iter()
+        .map(|i| InventoryItemInfo {
+            item_id: i.item_id,
+            name: i.name,
+            item_type: i.item_type,
+            description: i.description,
+        })
+        .collect();
+    NetworkEvent::InventoryOpened {
+        slots,
+        bag,
+        bag_size: data.bag_size,
+    }
 }
 
 fn battle_update_snapshot(data: BattleUpdateMessage) -> BattleSnapshot {
