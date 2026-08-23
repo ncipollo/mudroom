@@ -45,6 +45,7 @@ pub async fn process(game_state: &Arc<GameState>, db: &Database, player: &Player
 
     persist_use(db, &snapshot, &attributes, &over_time_effects).await;
     apply_in_memory(game_state, player, &snapshot, attributes, over_time_effects).await;
+    sync_player_stats(game_state, player).await;
 
     messaging::message(
         &game_state.message_tx,
@@ -185,6 +186,27 @@ async fn apply_in_memory(
     }
 }
 
+/// Pushes the character's current HP/MP to the client after a use-item effect is applied, so the
+/// world-view status bar reflects the change (e.g. a heal from a consumable).
+async fn sync_player_stats(game_state: &Arc<GameState>, player: &Player) {
+    let characters = game_state.active_characters.read().await;
+    let Some(character) = characters.get(&player.entity_id) else {
+        return;
+    };
+    let hp_attr_id = messaging::hp_attribute_id(&game_state.attribute_config);
+    let mp_attr_id = messaging::mp_attribute_id(&game_state.attribute_config);
+    let (hp_current, hp_max) = character.attribute_range(&hp_attr_id);
+    let (mp_current, mp_max) = character.attribute_range(&mp_attr_id);
+    messaging::player_stats_updated(
+        &game_state.message_tx,
+        player.id,
+        hp_current,
+        hp_max,
+        mp_current,
+        mp_max,
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -310,6 +332,16 @@ mod tests {
             .await
             .unwrap();
         assert!(bag.is_empty());
+
+        let stats_msg = rx.recv().await.unwrap();
+        assert!(matches!(
+            stats_msg.message,
+            Message::PlayerStatsUpdated {
+                hp_current: 70,
+                hp_max: 100,
+                ..
+            }
+        ));
 
         let msg = rx.recv().await.unwrap();
         match msg.message {
