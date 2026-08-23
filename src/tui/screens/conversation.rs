@@ -66,7 +66,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     frame.render_widget(list, areas[1]);
 
     let hint = Paragraph::new("↑↓ Navigate  •  Enter Confirm")
-        .style(Style::default().fg(Color::Green))
+        .style(Style::default().fg(Color::DarkGray))
         .block(Block::default().title("Controls").borders(Borders::ALL));
     frame.render_widget(hint, areas[2]);
 }
