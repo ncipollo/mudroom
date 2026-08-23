@@ -9,6 +9,7 @@ use ratatui::{
 use crate::game::engagement::battle::{BattleMessage, BattlePhase};
 use crate::network::event::ParticipantInfo;
 use crate::tui::app::{App, BattleFocus, BattleLogEntry, BattleState};
+use crate::tui::components::focus::focus_style;
 use crate::tui::components::scroll;
 use crate::tui::components::selection::selection_style;
 use crate::tui::components::theme::{BattleKind, MessageTheme, StyleKey};
@@ -38,11 +39,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
 
 fn render_combatants_panel(frame: &mut Frame, battle: &mut BattleState, area: Rect) {
     let is_focused = battle.focus == BattleFocus::EntityList;
-    let border_style = if is_focused {
-        Style::default().fg(Color::Yellow)
-    } else {
-        Style::default()
-    };
+    let border_style = focus_style(is_focused);
 
     let outer_block = Block::default()
         .title("Combatants")
@@ -135,11 +132,7 @@ fn render_middle_row(
 
 fn render_abilities_panel(frame: &mut Frame, battle: &BattleState, area: Rect) {
     let is_focused = battle.focus == BattleFocus::Abilities;
-    let border_style = if is_focused {
-        Style::default().fg(Color::Yellow)
-    } else {
-        Style::default()
-    };
+    let border_style = focus_style(is_focused);
 
     let filtered = battle.filtered_abilities();
     let queued_id = battle
@@ -192,9 +185,7 @@ fn render_abilities_panel(frame: &mut Frame, battle: &BattleState, area: Rect) {
             Span::raw(format!("Abilities [{label}] ")),
             Span::styled(
                 "\u{25cf} Queued",
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD),
+                Style::default().add_modifier(Modifier::BOLD),
             ),
         ]),
         Some(label) => Line::from(format!("Abilities [{label}]")),
@@ -328,9 +319,8 @@ fn render_status_bar(frame: &mut Frame, battle: &BattleState, area: Rect) {
         format!("[{phase_str}]{timer_str} | {hints}")
     };
 
-    let status = Paragraph::new(status_text)
-        .style(Style::default().fg(Color::Green))
-        .block(Block::default().title("Status").borders(Borders::ALL));
+    let status =
+        Paragraph::new(status_text).block(Block::default().title("Status").borders(Borders::ALL));
     frame.render_widget(status, area);
 }
 
@@ -361,7 +351,7 @@ fn render_target_dialog(frame: &mut Frame, battle: &BattleState, area: Rect) {
         Block::default()
             .title("Select Target")
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Yellow)),
+            .border_style(Style::default()),
     );
     frame.render_widget(list, dialog_area);
 }

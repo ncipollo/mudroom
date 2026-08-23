@@ -2,7 +2,6 @@ use crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::{
     Frame,
     layout::{Constraint, Layout},
-    style::{Color, Style},
     text::Text,
     widgets::{Block, Borders, Paragraph},
 };
@@ -146,14 +145,12 @@ pub fn render(frame: &mut Frame, app: &mut App) {
 
     // Status bar
     let status = Paragraph::new("HP: 100 | MP: 50 | Location: Town Square")
-        .style(Style::default().fg(Color::Green))
         .block(Block::default().title("Status").borders(Borders::ALL));
     frame.render_widget(status, areas[1]);
 
     // Input line
     let input_text = format!("> {}", app.input);
     let input = Paragraph::new(Text::from(input_text))
-        .style(Style::default().fg(Color::Yellow))
         .block(Block::default().title("Input").borders(Borders::ALL));
     frame.render_widget(input, areas[2]);
 }

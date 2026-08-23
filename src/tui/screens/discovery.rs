@@ -94,9 +94,7 @@ fn render(frame: &mut ratatui::Frame, app: &DiscoveryApp) {
     } else {
         format!("{} server(s) found", app.servers.len())
     };
-    let status = Paragraph::new(status_text)
-        .style(Style::default().fg(Color::Cyan))
-        .block(Block::default().borders(Borders::ALL));
+    let status = Paragraph::new(status_text).block(Block::default().borders(Borders::ALL));
     frame.render_widget(status, areas[2]);
 
     // Help footer

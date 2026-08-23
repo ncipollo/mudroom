@@ -2,7 +2,6 @@ use crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::{
     Frame,
     layout::{Constraint, Layout},
-    style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, Paragraph},
 };
@@ -180,17 +179,11 @@ fn render_player_select(frame: &mut Frame, app: &App) {
         .collect();
 
     let create_idx = app.player_select.players.len();
-    let create_style =
-        if app.player_select.selected_index == create_idx && !app.player_select.creating_player {
-            Style::default()
-                .fg(Color::Green)
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(Color::Green)
-        };
+    let create_selected =
+        app.player_select.selected_index == create_idx && !app.player_select.creating_player;
     items.push(ListItem::new(Line::from(Span::styled(
         "[ Create New Player ]",
-        create_style,
+        selection_style(create_selected),
     ))));
 
     let list = List::new(items).block(Block::default().title(title).borders(Borders::ALL));
@@ -206,8 +199,7 @@ fn render_player_select(frame: &mut Frame, app: &App) {
     } else {
         "Input"
     };
-    let input = Paragraph::new(input_text)
-        .style(Style::default().fg(Color::Yellow))
-        .block(Block::default().title(input_title).borders(Borders::ALL));
+    let input =
+        Paragraph::new(input_text).block(Block::default().title(input_title).borders(Borders::ALL));
     frame.render_widget(input, areas[1]);
 }

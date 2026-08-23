@@ -6,6 +6,7 @@ use ratatui::{
 };
 
 use crate::tui::app::{App, InventoryFocus, InventoryState};
+use crate::tui::components::focus::focus_style;
 use crate::tui::components::selection::selection_style;
 
 pub fn render(frame: &mut Frame, app: &mut App) {
@@ -74,17 +75,9 @@ fn render_bag_panel(frame: &mut Frame, inventory: &InventoryState, area: Rect) {
 
 fn render_status_bar(frame: &mut Frame, area: Rect) {
     let status = Paragraph::new("↑↓ Navigate  ←→/Tab Switch Pane  Esc Close")
-        .style(Style::default().fg(Color::Green))
+        .style(Style::default().fg(Color::DarkGray))
         .block(Block::default().title("Controls").borders(Borders::ALL));
     frame.render_widget(status, area);
-}
-
-fn focus_style(is_focused: bool) -> Style {
-    if is_focused {
-        Style::default().fg(Color::Yellow)
-    } else {
-        Style::default()
-    }
 }
 
 fn style_item(label: String, selected: bool) -> ListItem<'static> {

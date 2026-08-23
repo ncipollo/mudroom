@@ -85,19 +85,12 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     } else {
         "Your turn".to_string()
     };
-    let status_style = if app.agent_responding {
-        Style::default().fg(Color::Yellow)
-    } else {
-        Style::default().fg(Color::Green)
-    };
-    let status = Paragraph::new(status_text)
-        .style(status_style)
-        .block(Block::default().title("Status").borders(Borders::ALL));
+    let status =
+        Paragraph::new(status_text).block(Block::default().title("Status").borders(Borders::ALL));
     frame.render_widget(status, areas[1]);
 
     let input_text = format!("> {}", app.input);
     let input = Paragraph::new(Text::from(input_text))
-        .style(Style::default().fg(Color::Yellow))
         .block(Block::default().title("Message").borders(Borders::ALL));
     frame.render_widget(input, areas[2]);
 
