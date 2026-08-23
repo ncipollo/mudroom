@@ -12,6 +12,7 @@ use crate::game::engagement::TurnAction;
 #[serde(rename_all = "snake_case")]
 pub enum Interaction {
     Look,
+    LookAt { target: String },
     Help,
     Movement(Movement),
     EngagementAction(TurnAction),
@@ -21,6 +22,7 @@ pub enum Interaction {
     LeaveBattle { engagement_id: i64 },
     CheckRoomThreats { room_id: String },
     PlayerDisconnected { client_id: String, epoch: u64 },
+    Take { target: String },
 }
 
 #[cfg(test)]
@@ -45,6 +47,26 @@ mod tests {
         };
         let json = serde_json::to_string(&v).unwrap();
         println!("some json: {json}");
+        let rt: Interaction = serde_json::from_str(&json).unwrap();
+        assert_eq!(v, rt);
+    }
+
+    #[test]
+    fn look_at_serde_round_trip() {
+        let v = Interaction::LookAt {
+            target: "sword".to_string(),
+        };
+        let json = serde_json::to_string(&v).unwrap();
+        let rt: Interaction = serde_json::from_str(&json).unwrap();
+        assert_eq!(v, rt);
+    }
+
+    #[test]
+    fn take_serde_round_trip() {
+        let v = Interaction::Take {
+            target: "sword".to_string(),
+        };
+        let json = serde_json::to_string(&v).unwrap();
         let rt: Interaction = serde_json::from_str(&json).unwrap();
         assert_eq!(v, rt);
     }

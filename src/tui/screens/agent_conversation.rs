@@ -37,7 +37,7 @@ pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
         }
         (_, KeyCode::Enter) => {
             app.skip_all_reveals();
-            let input: String = app.input.drain(..).collect();
+            let input: String = std::mem::take(&mut app.input);
             if input.trim() == "/exit" {
                 if let (Some(url), Some(client_id)) = (
                     app.connection.server_url.as_deref(),
