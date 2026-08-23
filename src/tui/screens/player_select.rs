@@ -9,6 +9,7 @@ use ratatui::{
 
 use crate::network::client::{create_player, list_classes, select_player};
 use crate::tui::app::{App, GameMode};
+use crate::tui::components::selection::selection_style;
 
 pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
     if modifiers == KeyModifiers::CONTROL && code == KeyCode::Char('c') {
@@ -141,13 +142,7 @@ fn render_class_select(frame: &mut Frame, app: &App) {
         .iter()
         .enumerate()
         .map(|(i, c)| {
-            let style = if i == app.player_select.class_select.selected_index {
-                Style::default()
-                    .fg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default()
-            };
+            let style = selection_style(i == app.player_select.class_select.selected_index);
             ListItem::new(Line::from(Span::styled(c.name.clone(), style)))
         })
         .collect();
@@ -177,14 +172,9 @@ fn render_player_select(frame: &mut Frame, app: &App) {
         .iter()
         .enumerate()
         .map(|(i, p)| {
-            let style =
-                if i == app.player_select.selected_index && !app.player_select.creating_player {
-                    Style::default()
-                        .fg(Color::Yellow)
-                        .add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default()
-                };
+            let style = selection_style(
+                i == app.player_select.selected_index && !app.player_select.creating_player,
+            );
             ListItem::new(Line::from(Span::styled(p.name.clone(), style)))
         })
         .collect();

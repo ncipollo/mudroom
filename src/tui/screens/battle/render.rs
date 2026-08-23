@@ -10,6 +10,7 @@ use crate::game::engagement::battle::{BattleMessage, BattlePhase};
 use crate::network::event::ParticipantInfo;
 use crate::tui::app::{App, BattleFocus, BattleLogEntry, BattleState};
 use crate::tui::components::scroll;
+use crate::tui::components::selection::selection_style;
 use crate::tui::components::theme::{BattleKind, MessageTheme, StyleKey};
 use crate::tui::components::typewriter;
 
@@ -173,11 +174,7 @@ fn render_abilities_panel(frame: &mut Frame, battle: &BattleState, area: Rect) {
                 base_label
             };
             if i == battle.selected_ability_index && is_focused {
-                ListItem::new(label).style(
-                    Style::default()
-                        .fg(Color::Yellow)
-                        .add_modifier(Modifier::BOLD),
-                )
+                ListItem::new(label).style(selection_style(true))
             } else if is_skip {
                 ListItem::new(label).style(
                     Style::default()
@@ -356,15 +353,7 @@ fn render_target_dialog(frame: &mut Frame, battle: &BattleState, area: Rect) {
         .iter()
         .enumerate()
         .map(|(i, p)| {
-            if i == dialog.selected_index {
-                ListItem::new(p.name.clone()).style(
-                    Style::default()
-                        .fg(Color::Yellow)
-                        .add_modifier(Modifier::BOLD),
-                )
-            } else {
-                ListItem::new(p.name.clone())
-            }
+            ListItem::new(p.name.clone()).style(selection_style(i == dialog.selected_index))
         })
         .collect();
 

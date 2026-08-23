@@ -1,11 +1,12 @@
 use ratatui::{
     Frame,
     layout::{Constraint, Layout, Rect},
-    style::{Color, Modifier, Style},
+    style::{Color, Style},
     widgets::{Block, Borders, List, ListItem, Paragraph},
 };
 
 use crate::tui::app::{App, InventoryFocus, InventoryState};
+use crate::tui::components::selection::selection_style;
 
 pub fn render(frame: &mut Frame, app: &mut App) {
     let Some(inventory) = &app.inventory else {
@@ -87,13 +88,5 @@ fn focus_style(is_focused: bool) -> Style {
 }
 
 fn style_item(label: String, selected: bool) -> ListItem<'static> {
-    if selected {
-        ListItem::new(label).style(
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
-        )
-    } else {
-        ListItem::new(label)
-    }
+    ListItem::new(label).style(selection_style(selected))
 }
