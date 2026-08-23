@@ -67,6 +67,20 @@ pub struct ParticipantInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct InventoryItemInfo {
+    pub item_id: i64,
+    pub name: String,
+    pub item_type: String,
+    pub description: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct InventorySlotInfo {
+    pub slot_name: String,
+    pub equipped: Option<InventoryItemInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct BattleSnapshot {
     pub factions: Vec<String>,
     pub participants: HashMap<String, Vec<ParticipantInfo>>,
@@ -121,6 +135,11 @@ pub enum NetworkEvent {
     BattleEnded {
         engagement_id: i64,
     },
+    InventoryOpened {
+        slots: Vec<InventorySlotInfo>,
+        bag: Vec<InventoryItemInfo>,
+        bag_size: usize,
+    },
 }
 
 #[cfg(test)]
@@ -171,6 +190,37 @@ mod tests {
             player_id: 1,
             content: "A cold wind blows.".to_string(),
             theme: Some("eerie".to_string()),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        let decoded: NetworkEvent = serde_json::from_str(&json).unwrap();
+        assert_eq!(event, decoded);
+    }
+
+    #[test]
+    fn round_trip_inventory_opened() {
+        let event = NetworkEvent::InventoryOpened {
+            slots: vec![
+                InventorySlotInfo {
+                    slot_name: "weapon".to_string(),
+                    equipped: Some(InventoryItemInfo {
+                        item_id: 1,
+                        name: "Sword".to_string(),
+                        item_type: "weapon".to_string(),
+                        description: "A sharp blade.".to_string(),
+                    }),
+                },
+                InventorySlotInfo {
+                    slot_name: "armor".to_string(),
+                    equipped: None,
+                },
+            ],
+            bag: vec![InventoryItemInfo {
+                item_id: 2,
+                name: "Potion".to_string(),
+                item_type: "consumable".to_string(),
+                description: "Restores health.".to_string(),
+            }],
+            bag_size: 20,
         };
         let json = serde_json::to_string(&event).unwrap();
         let decoded: NetworkEvent = serde_json::from_str(&json).unwrap();

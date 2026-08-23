@@ -46,6 +46,27 @@ pub struct BattleUpdateMessage {
 }
 
 #[derive(Debug, Clone)]
+pub struct InventoryItemInfo {
+    pub item_id: i64,
+    pub name: String,
+    pub item_type: String,
+    pub description: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct InventorySlotInfo {
+    pub slot_name: String,
+    pub equipped: Option<InventoryItemInfo>,
+}
+
+#[derive(Debug, Clone)]
+pub struct InventoryOpenedMessage {
+    pub slots: Vec<InventorySlotInfo>,
+    pub bag: Vec<InventoryItemInfo>,
+    pub bag_size: usize,
+}
+
+#[derive(Debug, Clone)]
 pub struct BattleStartedMessage {
     pub engagement_id: i64,
     pub factions: Vec<String>,
@@ -77,6 +98,7 @@ pub enum Message {
     BattleEnded {
         engagement_id: i64,
     },
+    InventoryOpened(Box<InventoryOpenedMessage>),
 }
 
 #[derive(Debug, Clone)]
@@ -130,6 +152,17 @@ pub fn battle_ended(tx: &broadcast::Sender<PlayerMessage>, player_id: i64, engag
     let _ = tx.send(PlayerMessage {
         player_id,
         message: Message::BattleEnded { engagement_id },
+    });
+}
+
+pub fn inventory_opened(
+    tx: &broadcast::Sender<PlayerMessage>,
+    player_id: i64,
+    data: InventoryOpenedMessage,
+) {
+    let _ = tx.send(PlayerMessage {
+        player_id,
+        message: Message::InventoryOpened(Box::new(data)),
     });
 }
 

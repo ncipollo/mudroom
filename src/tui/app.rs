@@ -1,11 +1,13 @@
 mod battle_state;
 mod conversation_state;
+mod inventory_state;
 mod message;
 mod network_event_handler;
 mod reveal;
 
 pub use battle_state::{BattleFocus, BattleLogEntry, BattleState, QueuedAbilityInfo};
 pub use conversation_state::ConversationState;
+pub use inventory_state::{InventoryFocus, InventoryState};
 pub use message::AppMessage;
 
 use std::collections::{HashMap, VecDeque};
@@ -22,6 +24,7 @@ pub enum GameMode {
     StandardConversation,
     AgentConversation,
     Battle,
+    Inventory,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -56,6 +59,7 @@ pub struct App {
     pub player_select: PlayerSelectState,
     pub conversation: ConversationState,
     pub battle: Option<BattleState>,
+    pub inventory: Option<InventoryState>,
     pub current_player_id: Option<i64>,
     pub current_entity_id: Option<i64>,
     pub streaming_message_index: Option<usize>,
@@ -84,6 +88,7 @@ impl App {
             player_select: PlayerSelectState::default(),
             conversation: ConversationState::default(),
             battle: None,
+            inventory: None,
             current_player_id: None,
             current_entity_id: None,
             streaming_message_index: None,
@@ -116,6 +121,7 @@ impl App {
             player_select: PlayerSelectState::default(),
             conversation: ConversationState::default(),
             battle: None,
+            inventory: None,
             current_player_id: None,
             current_entity_id: None,
             streaming_message_index: None,

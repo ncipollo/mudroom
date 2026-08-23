@@ -13,7 +13,8 @@ use crate::network::client::list_players;
 use super::app::{App, BattleFocus, GameMode};
 use super::components::scroll::{KEY_SCROLL_LINES, MOUSE_SCROLL_LINES, ScrollState};
 use super::screens::{
-    agent_conversation, battle as battle_screen, conversation, game as game_screen, player_select,
+    agent_conversation, battle as battle_screen, conversation, game as game_screen,
+    inventory as inventory_screen, player_select,
 };
 
 const REVEAL_TICK: Duration = Duration::from_millis(50);
@@ -107,23 +108,7 @@ async fn handle_terminal_event(
             if handle_scroll_key(app, key.modifiers, key.code) {
                 return true;
             }
-            match app.mode {
-                GameMode::PlayerSelect => {
-                    player_select::handle_key(app, key.modifiers, key.code).await;
-                }
-                GameMode::Game => {
-                    game_screen::handle_key(app, key.modifiers, key.code).await;
-                }
-                GameMode::StandardConversation => {
-                    conversation::handle_key(app, key.modifiers, key.code).await;
-                }
-                GameMode::AgentConversation => {
-                    agent_conversation::handle_key(app, key.modifiers, key.code).await;
-                }
-                GameMode::Battle => {
-                    battle_screen::handle_key(app, key.modifiers, key.code).await;
-                }
-            }
+            dispatch_mode_key(app, key.modifiers, key.code).await;
             true
         }
         Some(Ok(Event::Mouse(mouse))) => {
@@ -147,11 +132,36 @@ async fn handle_terminal_event(
     }
 }
 
+/// Routes a key event to the current mode's screen-specific handler.
+async fn dispatch_mode_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
+    match app.mode {
+        GameMode::PlayerSelect => {
+            player_select::handle_key(app, modifiers, code).await;
+        }
+        GameMode::Game => {
+            game_screen::handle_key(app, modifiers, code).await;
+        }
+        GameMode::StandardConversation => {
+            conversation::handle_key(app, modifiers, code).await;
+        }
+        GameMode::AgentConversation => {
+            agent_conversation::handle_key(app, modifiers, code).await;
+        }
+        GameMode::Battle => {
+            battle_screen::handle_key(app, modifiers, code).await;
+        }
+        GameMode::Inventory => {
+            inventory_screen::handle_key(app, modifiers, code).await;
+        }
+    }
+}
+
 /// The scroll state for the message log visible in the current mode.
 fn scroll_target(app: &mut App) -> Option<&mut ScrollState> {
     match app.mode {
         GameMode::PlayerSelect => None,
         GameMode::Battle => app.battle.as_mut().map(|battle| &mut battle.log_scroll),
+        GameMode::Inventory => None,
         _ => Some(&mut app.log_scroll),
     }
 }

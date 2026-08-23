@@ -1,5 +1,6 @@
 pub mod conversation;
 pub mod help;
+pub mod inventory;
 pub mod lifecycle;
 pub mod look;
 pub mod movement;
@@ -77,6 +78,9 @@ async fn dispatch_interaction(
         }
         Interaction::CheckRoomThreats { room_id } => {
             room_threats::check_room_hostility(game_state, player, &room_id).await;
+        }
+        Interaction::OpenInventory => {
+            inventory::process(game_state, player).await;
         }
         Interaction::PlayerDisconnected {
             client_id: disconnected_client_id,

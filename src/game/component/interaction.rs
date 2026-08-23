@@ -23,6 +23,7 @@ pub enum Interaction {
     CheckRoomThreats { room_id: String },
     PlayerDisconnected { client_id: String, epoch: u64 },
     Take { target: String },
+    OpenInventory,
 }
 
 #[cfg(test)]
