@@ -1,3 +1,4 @@
+pub mod cursor;
 pub mod focus;
 pub mod markup;
 pub mod message_log;

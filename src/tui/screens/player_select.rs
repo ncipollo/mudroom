@@ -8,6 +8,7 @@ use ratatui::{
 
 use crate::network::client::{create_player, list_classes, select_player};
 use crate::tui::app::{App, GameMode};
+use crate::tui::components::cursor;
 use crate::tui::components::selection::selection_style;
 
 pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
@@ -190,7 +191,7 @@ fn render_player_select(frame: &mut Frame, app: &App) {
     frame.render_widget(list, areas[0]);
 
     let input_text = if app.player_select.creating_player {
-        format!("Name: {}_", app.player_select.player_name_input)
+        format!("Name: {}", app.player_select.player_name_input)
     } else {
         String::new()
     };
@@ -199,7 +200,11 @@ fn render_player_select(frame: &mut Frame, app: &App) {
     } else {
         "Input"
     };
-    let input =
-        Paragraph::new(input_text).block(Block::default().title(input_title).borders(Borders::ALL));
+    let input_block = Block::default().title(input_title).borders(Borders::ALL);
+    let input_inner = input_block.inner(areas[1]);
+    let input = Paragraph::new(input_text).block(input_block);
     frame.render_widget(input, areas[1]);
+    if app.player_select.creating_player {
+        cursor::place_at_end(frame, input_inner, 6, &app.player_select.player_name_input);
+    }
 }

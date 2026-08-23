@@ -9,7 +9,7 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph},
 };
 
-use super::super::components::message_log;
+use super::super::components::{cursor, message_log};
 use crate::game::{Interaction, TurnAction};
 use crate::tui::app::{App, AppMessage};
 
@@ -78,10 +78,12 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         Paragraph::new(status_text).block(Block::default().title("Status").borders(Borders::ALL));
     frame.render_widget(status, areas[1]);
 
+    let input_block = Block::default().title("Message").borders(Borders::ALL);
+    let input_inner = input_block.inner(areas[2]);
     let input_text = format!("> {}", app.input);
-    let input = Paragraph::new(Text::from(input_text))
-        .block(Block::default().title("Message").borders(Borders::ALL));
+    let input = Paragraph::new(Text::from(input_text)).block(input_block);
     frame.render_widget(input, areas[2]);
+    cursor::place_at_end(frame, input_inner, 2, &app.input);
 
     let hint = Paragraph::new("/exit  Leave conversation  •  PgUp/PgDn Page  •  Shift+↑↓ Scroll")
         .style(Style::default().fg(Color::DarkGray))
