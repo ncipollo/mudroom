@@ -12,17 +12,35 @@ use crate::game::engagement::TurnAction;
 #[serde(rename_all = "snake_case")]
 pub enum Interaction {
     Look,
-    LookAt { target: String },
+    /// Like `Look`, but marks a genuine room arrival (movement or connect) rather than a
+    /// player-issued `look` — used to gate visit-triggered world loot respawns.
+    EnterRoom,
+    LookAt {
+        target: String,
+    },
     Help,
     Movement(Movement),
     EngagementAction(TurnAction),
-    StartConversation { initial_message: Option<String> },
+    StartConversation {
+        initial_message: Option<String>,
+    },
     EndConversation,
-    JoinBattle { engagement_id: i64 },
-    LeaveBattle { engagement_id: i64 },
-    CheckRoomThreats { room_id: String },
-    PlayerDisconnected { client_id: String, epoch: u64 },
-    Take { target: String },
+    JoinBattle {
+        engagement_id: i64,
+    },
+    LeaveBattle {
+        engagement_id: i64,
+    },
+    CheckRoomThreats {
+        room_id: String,
+    },
+    PlayerDisconnected {
+        client_id: String,
+        epoch: u64,
+    },
+    Take {
+        target: String,
+    },
     OpenInventory,
 }
 

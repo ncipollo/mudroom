@@ -34,7 +34,7 @@ async fn apply_activation(
     // `active_players` is populated.
     game_state
         .mailboxes
-        .push(entity_id, Interaction::Look)
+        .push(entity_id, Interaction::EnterRoom)
         .await;
     game_state
         .mailboxes
@@ -317,7 +317,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn activation_queues_look_before_check_room_threats() {
+    async fn activation_queues_enter_room_before_check_room_threats() {
         let game_state = Arc::new(GameState::load(None).unwrap());
         let db = Database::connect_in_memory().await.unwrap();
         let activation = test_activation("m:1");
@@ -329,8 +329,8 @@ mod tests {
 
         let queued = game_state.mailboxes.drain(1).await;
         assert!(
-            matches!(queued.first(), Some(Interaction::Look)),
-            "expected Look to be queued first on activation, got {queued:?}"
+            matches!(queued.first(), Some(Interaction::EnterRoom)),
+            "expected EnterRoom to be queued first on activation, got {queued:?}"
         );
         assert!(
             queued

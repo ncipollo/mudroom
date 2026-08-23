@@ -1,12 +1,14 @@
 mod ability_cache;
 mod character_sync;
 mod definition_sync;
+mod item_placement_sync;
 mod item_syncer;
 mod universe_sync;
 
 pub use ability_cache::sync_abilities_into_db;
 pub use character_sync::load_characters_into_db;
 pub use definition_sync::{load_factions_into_db, load_resources_into_db};
+pub use item_placement_sync::load_item_placements_into_db;
 pub use item_syncer::sync_items_into_db;
 pub use universe_sync::{load_map_into_db, should_auto_load};
 
@@ -34,6 +36,7 @@ pub async fn sync_universe_config(
         sync_abilities_into_db(pool, &ability_cache).await?;
         load_characters_into_db(pool, &universe, &character_configs, &ability_cache).await?;
         sync_items_into_db(pool, config_dir).await?;
+        load_item_placements_into_db(pool, &universe).await?;
     }
     Ok(())
 }

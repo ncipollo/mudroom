@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::game::config::agent_config::AgentConfig;
 use crate::game::config::env_resolver::deserialize_env_string;
 use crate::game::config::game_loop_config::GameLoopConfig;
+use crate::game::config::world_loot_config::WorldLootConfig;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SpawnConfig {
@@ -38,6 +39,8 @@ pub struct MudConfig {
     pub agent: AgentConfig,
     #[serde(default = "default_max_clients_per_machine")]
     pub max_clients_per_machine: usize,
+    #[serde(default = "WorldLootConfig::default_config")]
+    pub world_loot: WorldLootConfig,
 }
 
 impl MudConfig {
@@ -53,6 +56,7 @@ impl MudConfig {
             spawn: SpawnConfig::default_config(),
             agent: AgentConfig::default_config(),
             max_clients_per_machine: default_max_clients_per_machine(),
+            world_loot: WorldLootConfig::default_config(),
         }
     }
 }
