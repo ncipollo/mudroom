@@ -17,6 +17,7 @@ pub mod mud_config;
 mod persona_parser;
 pub mod resource_config;
 pub mod theme_config;
+pub mod world_loot_config;
 
 pub use ability_config::AbilityReference;
 pub use agent_config::{AgentConfig, AgentProviderConfig};
@@ -43,3 +44,4 @@ pub use persona_parser::{
 };
 pub use resource_config::ResourceConfig;
 pub use theme_config::{ThemeConfig, ThemeStyleConfig, load_themes, resolve_theme_id};
+pub use world_loot_config::{RespawnMode, WorldLootConfig};

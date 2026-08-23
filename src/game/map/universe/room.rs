@@ -13,6 +13,8 @@ pub struct Room {
     pub west: Option<Navigation>,
     #[serde(default)]
     pub entities: Vec<String>,
+    #[serde(default)]
+    pub items: Vec<String>,
 }
 
 impl Room {
@@ -25,6 +27,7 @@ impl Room {
             east: None,
             west: None,
             entities: Vec::new(),
+            items: Vec::new(),
         }
     }
 }

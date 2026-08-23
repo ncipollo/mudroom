@@ -14,8 +14,22 @@ pub async fn run(
     if reload_maps || game::should_auto_load(db.pool()).await? {
         load_maps_into_db(&db, config_path_buf.as_deref(), reload_maps, &game_state).await?;
     }
+    respawn_on_reboot(&db, &game_state).await?;
     game_state.refresh_definition_caches(db.pool()).await?;
     serve_and_wait(server_session, game_state, db).await
+}
+
+/// Un-tombstones taken world loot on process start when the mud is configured for
+/// `RespawnMode::OnGameReboot`. Runs unconditionally on every boot, independent of the
+/// map-reload gate above, since a reboot happens whether or not the map files changed.
+async fn respawn_on_reboot(
+    db: &persistence::Database,
+    game_state: &game::GameState,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if game_state.mud_config.world_loot.respawn_mode == game::config::RespawnMode::OnGameReboot {
+        persistence::world_loot_repo::respawn_all_config_seeded(db.pool()).await?;
+    }
+    Ok(())
 }
 
 async fn init_server_session(

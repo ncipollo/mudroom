@@ -55,7 +55,8 @@ async fn dispatch_interaction(
     interaction: Interaction,
 ) {
     match interaction {
-        Interaction::Look => look::process(game_state, db, player).await,
+        Interaction::Look => look::process(game_state, db, player, false).await,
+        Interaction::EnterRoom => look::process(game_state, db, player, true).await,
         Interaction::LookAt { target } => {
             look::process_at(game_state, db, player, &target).await;
         }

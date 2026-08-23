@@ -1,4 +1,5 @@
 entities = ["entities/innkeeper"]
+items = ["medicine"]
 
 [description]
 text = "A warm tavern with a crackling fireplace. The town square is to the south. A dim corner lies to the east."

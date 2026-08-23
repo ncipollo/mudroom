@@ -111,15 +111,15 @@ fn bag_size_for(game_state: &Arc<GameState>, inventory_type: &str) -> usize {
         .unwrap_or(usize::MAX)
 }
 
-/// Inserts the bag row before deleting the world-loot row so a persistence failure never causes
-/// an item to vanish from the world without landing in the player's bag.
+/// Inserts the bag row before marking the world-loot row taken so a persistence failure never
+/// causes an item to vanish from the world without landing in the player's bag.
 async fn persist_take(db: &Database, character_id: i64, loot: &LootMatch) -> Option<i64> {
     let insert_result =
         inventory_repo::add_bag_item(db.pool(), character_id, &loot.item_definition_id).await;
     let new_item_id = log_on_error(insert_result, "add taken item to bag")?;
 
-    let delete_result = world_loot_repo::delete(db.pool(), loot.loot_id).await;
-    log_on_error(delete_result, "delete taken world loot");
+    let mark_result = world_loot_repo::mark_taken(db.pool(), loot.loot_id).await;
+    log_on_error(mark_result, "mark taken world loot");
 
     Some(new_item_id)
 }

@@ -89,7 +89,7 @@ async fn execute_move(
         player.id,
         format!("You move {direction}."),
     );
-    look::process(game_state, db, player).await;
+    look::process(game_state, db, player, true).await;
     room_threats::check_room_hostility(game_state, player, &new_location.room_id).await;
 }
 

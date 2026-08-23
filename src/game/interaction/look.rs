@@ -1,3 +1,5 @@
+mod items;
+
 use std::sync::Arc;
 
 use tracing;
@@ -11,7 +13,7 @@ use crate::game::{GameState, messaging};
 use crate::persistence::Database;
 use crate::persistence::{room_repo, world_loot_repo};
 
-pub async fn process(game_state: &Arc<GameState>, db: &Database, player: &Player) {
+pub async fn process(game_state: &Arc<GameState>, db: &Database, player: &Player, is_entry: bool) {
     let (location, character_descriptions) = {
         let characters = game_state.active_characters.read().await;
         let location = match characters.get(&player.entity_id) {
@@ -42,6 +44,8 @@ pub async fn process(game_state: &Arc<GameState>, db: &Database, player: &Player
             .unwrap_or_else(|| format!("A {} is here.", character_type_label(&character_type)));
         messaging::message_themed(&game_state.message_tx, player.id, content, theme);
     }
+
+    items::send_item_descriptions(game_state, db, player, &location, is_entry).await;
 }
 
 fn character_type_label(character_type: &CharacterType) -> &'static str {
