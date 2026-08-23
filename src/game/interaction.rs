@@ -1,4 +1,6 @@
 pub mod conversation;
+pub mod drop;
+pub mod equip;
 pub mod help;
 pub mod inventory;
 pub mod lifecycle;
@@ -6,14 +8,18 @@ pub mod look;
 pub mod movement;
 pub mod room_threats;
 pub mod take;
+pub mod use_item;
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use tracing;
 
 use crate::game::component::interaction::Movement;
+use crate::game::component::{Ability, ItemDefinition};
 use crate::game::engagement::TurnAction;
 use crate::game::engagement::battle;
+use crate::game::entity::character::Character;
 use crate::game::messaging;
 use crate::game::player::Player;
 use crate::game::{GameState, Interaction};
@@ -80,8 +86,12 @@ async fn dispatch_interaction(
         Interaction::CheckRoomThreats { room_id } => {
             room_threats::check_room_hostility(game_state, player, &room_id).await;
         }
-        Interaction::OpenInventory => {
-            inventory::process(game_state, player).await;
+        item_action @ (Interaction::OpenInventory
+        | Interaction::UseItem { .. }
+        | Interaction::EquipItem { .. }
+        | Interaction::UnequipItem { .. }
+        | Interaction::DropItem { .. }) => {
+            dispatch_item_action(game_state, db, player, item_action).await;
         }
         Interaction::PlayerDisconnected {
             client_id: disconnected_client_id,
@@ -148,6 +158,32 @@ fn log_stale_disconnect(
     );
 }
 
+async fn dispatch_item_action(
+    game_state: &Arc<GameState>,
+    db: &Database,
+    player: &Player,
+    interaction: Interaction,
+) {
+    match interaction {
+        Interaction::OpenInventory => {
+            inventory::process(game_state, player).await;
+        }
+        Interaction::UseItem { item_id } => {
+            use_item::process(game_state, db, player, item_id).await;
+        }
+        Interaction::EquipItem { item_id } => {
+            equip::process(game_state, db, player, item_id).await;
+        }
+        Interaction::UnequipItem { item_id } => {
+            equip::unequip(game_state, db, player, item_id).await;
+        }
+        Interaction::DropItem { item_id } => {
+            drop::process(game_state, db, player, item_id).await;
+        }
+        _ => {}
+    }
+}
+
 async fn dispatch_movement(
     game_state: &Arc<GameState>,
     db: &Database,
@@ -207,11 +243,9 @@ async fn dispatch_queue_ability(
         let Some(character) = entities.get(&player.entity_id) else {
             return;
         };
-        let ability = character
-            .innate_abilities
-            .iter()
-            .find(|a| a.id == ability_id)
-            .cloned();
+        let item_definitions = game_state.item_definitions.read().await;
+        let abilities = game_state.abilities.read().await;
+        let ability = queueable_ability(character, &item_definitions, &abilities, ability_id);
         (ability, character.attributes.clone())
     };
     let Some(ability) = ability_opt else {
@@ -227,6 +261,23 @@ async fn dispatch_queue_ability(
         accepted,
         "battle ability queued"
     );
+}
+
+/// Resolves `ability_id` against everything the character can currently queue in battle —
+/// innate abilities plus any granted by equipped items — not just `innate_abilities` alone, so
+/// an ability granted by gear (e.g. a weapon's `equipped_bonuses.equipped`) can actually be
+/// queued, not just displayed in the battle UI's ability list (which already used
+/// `combined_abilities` via `battle::abilities::entity_battle_abilities`).
+fn queueable_ability(
+    character: &Character,
+    item_definitions: &HashMap<String, ItemDefinition>,
+    abilities: &HashMap<String, Ability>,
+    ability_id: &str,
+) -> Option<Ability> {
+    character
+        .combined_abilities(item_definitions, abilities)
+        .into_iter()
+        .find(|a| a.id == ability_id)
 }
 
 async fn dispatch_conversation(
@@ -367,6 +418,74 @@ mod tests {
             )
             .await;
         game_state
+    }
+
+    #[test]
+    fn queueable_ability_resolves_equipment_granted_ability() {
+        use crate::game::component::{
+            AbilityRole, Description, EquippedBonuses, Item, ItemUseType,
+        };
+        use crate::game::engagement::EngagementType;
+        use crate::game::entity::character::CharacterType;
+
+        let mut character = Character::new(1, CharacterType::Player, test_location());
+        character.inventory.equipment.insert(
+            "weapon".to_string(),
+            Item {
+                id: 1,
+                item_definition_id: "spiked_bat".to_string(),
+            },
+        );
+        let mut item_definitions = HashMap::new();
+        item_definitions.insert(
+            "spiked_bat".to_string(),
+            ItemDefinition {
+                id: "spiked_bat".to_string(),
+                name: "Spiked Bat".to_string(),
+                description: Description::default(),
+                use_type: ItemUseType::Passive,
+                item_type: "weapon".to_string(),
+                equipped_bonuses: EquippedBonuses {
+                    attributes: vec![],
+                    equipped: vec!["painful_smash".to_string()],
+                },
+                use_effects: vec![],
+            },
+        );
+        let mut abilities = HashMap::new();
+        abilities.insert(
+            "painful_smash".to_string(),
+            Ability {
+                id: "painful_smash".to_string(),
+                name: "Painful Smash".to_string(),
+                description: Description::default(),
+                effects: vec![],
+                costs: vec![],
+                modifiers: vec![],
+                engagement_types: vec![EngagementType::Battle],
+                role: AbilityRole::Attack,
+                targets: vec![],
+                action_text: None,
+            },
+        );
+
+        // Not in innate_abilities — only reachable via combined_abilities (equipment grant).
+        let resolved =
+            queueable_ability(&character, &item_definitions, &abilities, "painful_smash");
+
+        assert_eq!(resolved.map(|a| a.id), Some("painful_smash".to_string()));
+    }
+
+    #[test]
+    fn queueable_ability_returns_none_for_unknown_id() {
+        let character = Character::new(1, CharacterType::Player, test_location());
+        let resolved = queueable_ability(
+            &character,
+            &HashMap::new(),
+            &HashMap::new(),
+            "does_not_exist",
+        );
+        assert!(resolved.is_none());
     }
 
     #[tokio::test]

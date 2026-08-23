@@ -42,6 +42,18 @@ pub enum Interaction {
         target: String,
     },
     OpenInventory,
+    UseItem {
+        item_id: i64,
+    },
+    EquipItem {
+        item_id: i64,
+    },
+    UnequipItem {
+        item_id: i64,
+    },
+    DropItem {
+        item_id: i64,
+    },
 }
 
 #[cfg(test)]
@@ -85,6 +97,38 @@ mod tests {
         let v = Interaction::Take {
             target: "sword".to_string(),
         };
+        let json = serde_json::to_string(&v).unwrap();
+        let rt: Interaction = serde_json::from_str(&json).unwrap();
+        assert_eq!(v, rt);
+    }
+
+    #[test]
+    fn use_item_serde_round_trip() {
+        let v = Interaction::UseItem { item_id: 7 };
+        let json = serde_json::to_string(&v).unwrap();
+        let rt: Interaction = serde_json::from_str(&json).unwrap();
+        assert_eq!(v, rt);
+    }
+
+    #[test]
+    fn equip_item_serde_round_trip() {
+        let v = Interaction::EquipItem { item_id: 7 };
+        let json = serde_json::to_string(&v).unwrap();
+        let rt: Interaction = serde_json::from_str(&json).unwrap();
+        assert_eq!(v, rt);
+    }
+
+    #[test]
+    fn unequip_item_serde_round_trip() {
+        let v = Interaction::UnequipItem { item_id: 7 };
+        let json = serde_json::to_string(&v).unwrap();
+        let rt: Interaction = serde_json::from_str(&json).unwrap();
+        assert_eq!(v, rt);
+    }
+
+    #[test]
+    fn drop_item_serde_round_trip() {
+        let v = Interaction::DropItem { item_id: 7 };
         let json = serde_json::to_string(&v).unwrap();
         let rt: Interaction = serde_json::from_str(&json).unwrap();
         assert_eq!(v, rt);

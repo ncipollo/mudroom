@@ -69,6 +69,7 @@ mod tests {
         let use_effect = UseEffect::StatBoost(Modifier {
             attribute_id: "strength".to_string(),
             operator: Operator::Add,
+            amount: 3,
         });
         let json = serde_json::to_string(&use_effect).unwrap();
         let restored: UseEffect = serde_json::from_str(&json).unwrap();

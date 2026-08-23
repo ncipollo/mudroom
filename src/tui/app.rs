@@ -7,7 +7,7 @@ mod reveal;
 
 pub use battle_state::{BattleFocus, BattleLogEntry, BattleState, QueuedAbilityInfo};
 pub use conversation_state::ConversationState;
-pub use inventory_state::{InventoryFocus, InventoryState};
+pub use inventory_state::{InventoryFocus, InventoryState, ItemAction};
 pub use message::AppMessage;
 
 use std::collections::{HashMap, VecDeque};

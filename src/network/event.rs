@@ -72,6 +72,8 @@ pub struct InventoryItemInfo {
     pub name: String,
     pub item_type: String,
     pub description: String,
+    pub usable: bool,
+    pub equippable: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -207,6 +209,8 @@ mod tests {
                         name: "Sword".to_string(),
                         item_type: "weapon".to_string(),
                         description: "A sharp blade.".to_string(),
+                        usable: false,
+                        equippable: true,
                     }),
                 },
                 InventorySlotInfo {
@@ -219,6 +223,8 @@ mod tests {
                 name: "Potion".to_string(),
                 item_type: "consumable".to_string(),
                 description: "Restores health.".to_string(),
+                usable: true,
+                equippable: false,
             }],
             bag_size: 20,
         };

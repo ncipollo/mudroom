@@ -51,6 +51,8 @@ pub struct InventoryItemInfo {
     pub name: String,
     pub item_type: String,
     pub description: String,
+    pub usable: bool,
+    pub equippable: bool,
 }
 
 #[derive(Debug, Clone)]
