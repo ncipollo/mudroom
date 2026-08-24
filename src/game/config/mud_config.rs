@@ -159,7 +159,9 @@ model = "llama3.2"
         file.write_all(toml.as_bytes()).unwrap();
         let config = MudConfig::load(file.path()).unwrap();
         match config.agent.provider {
-            AgentProviderConfig::Ollama { base_url, model } => {
+            AgentProviderConfig::Ollama {
+                base_url, model, ..
+            } => {
                 assert_eq!(base_url, "http://localhost:11434");
                 assert_eq!(model, "llama3.2");
             }
@@ -184,7 +186,9 @@ room_id = "default"
         file.write_all(toml.as_bytes()).unwrap();
         let config = MudConfig::load(file.path()).unwrap();
         match config.agent.provider {
-            AgentProviderConfig::Ollama { base_url, model } => {
+            AgentProviderConfig::Ollama {
+                base_url, model, ..
+            } => {
                 assert_eq!(base_url, "http://localhost:11434");
                 assert_eq!(model, "llama3.2");
             }
