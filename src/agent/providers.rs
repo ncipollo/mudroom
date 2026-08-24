@@ -17,9 +17,14 @@ use super::provider::AgentProvider;
 
 pub fn build_provider(config: &AgentConfig) -> Arc<dyn AgentProvider> {
     match &config.provider {
-        AgentProviderConfig::Ollama { base_url, model } => Arc::new(ollama::OllamaProvider {
+        AgentProviderConfig::Ollama {
+            base_url,
+            model,
+            keep_alive,
+        } => Arc::new(ollama::OllamaProvider {
             base_url: base_url.clone(),
             model: model.clone(),
+            keep_alive: keep_alive.clone(),
         }),
         AgentProviderConfig::Anthropic { api_key, model } => {
             Arc::new(anthropic::AnthropicProvider {
@@ -72,6 +77,19 @@ mod tests {
             provider: AgentProviderConfig::Ollama {
                 base_url: "http://localhost:11434".to_string(),
                 model: "llama3.2".to_string(),
+                keep_alive: None,
+            },
+        };
+        let _provider = build_provider(&config);
+    }
+
+    #[test]
+    fn build_provider_ollama_with_keep_alive() {
+        let config = AgentConfig {
+            provider: AgentProviderConfig::Ollama {
+                base_url: "http://localhost:11434".to_string(),
+                model: "llama3.2".to_string(),
+                keep_alive: Some("5m".to_string()),
             },
         };
         let _provider = build_provider(&config);
