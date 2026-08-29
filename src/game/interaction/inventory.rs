@@ -66,6 +66,7 @@ fn build_slots(
         .iter()
         .map(|slot| InventorySlotInfo {
             slot_name: slot.name.clone(),
+            item_types: slot.item_types.clone(),
             equipped: inventory
                 .equipment
                 .get(&slot.name)

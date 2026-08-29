@@ -79,6 +79,7 @@ pub struct InventoryItemInfo {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct InventorySlotInfo {
     pub slot_name: String,
+    pub item_types: Vec<String>,
     pub equipped: Option<InventoryItemInfo>,
 }
 
@@ -238,6 +239,7 @@ mod tests {
             slots: vec![
                 InventorySlotInfo {
                     slot_name: "weapon".to_string(),
+                    item_types: vec!["weapon".to_string()],
                     equipped: Some(InventoryItemInfo {
                         item_id: 1,
                         name: "Sword".to_string(),
@@ -249,6 +251,7 @@ mod tests {
                 },
                 InventorySlotInfo {
                     slot_name: "armor".to_string(),
+                    item_types: vec!["armor".to_string()],
                     equipped: None,
                 },
             ],
