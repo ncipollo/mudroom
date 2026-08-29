@@ -114,6 +114,7 @@ fn inventory_opened_event(data: InventoryOpenedMessage) -> NetworkEvent {
         .into_iter()
         .map(|s| InventorySlotInfo {
             slot_name: s.slot_name,
+            item_types: s.item_types,
             equipped: s.equipped.map(inventory_item_info),
         })
         .collect();

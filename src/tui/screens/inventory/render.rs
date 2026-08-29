@@ -25,6 +25,9 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     if inventory.dialog.is_some() {
         render_item_dialog(frame, inventory, frame.area());
     }
+    if inventory.slot_picker.is_some() {
+        render_slot_picker(frame, inventory, frame.area());
+    }
 }
 
 fn render_equipment_panel(frame: &mut Frame, inventory: &InventoryState, area: Rect) {
@@ -78,7 +81,9 @@ fn render_bag_panel(frame: &mut Frame, inventory: &InventoryState, area: Rect) {
 }
 
 fn render_status_bar(frame: &mut Frame, inventory: &InventoryState, area: Rect) {
-    let hints = if inventory.dialog.is_some() {
+    let hints = if inventory.slot_picker.is_some() {
+        "↑↓ Navigate  Enter Equip  Esc Cancel"
+    } else if inventory.dialog.is_some() {
         "↑↓ Navigate  Enter Confirm  Esc Cancel"
     } else {
         "↑↓ Navigate  ←→/Tab Switch Pane  Enter Actions  Esc Close"
@@ -121,6 +126,38 @@ fn render_item_dialog(frame: &mut Frame, inventory: &InventoryState, area: Rect)
     let list = List::new(items).block(
         Block::default()
             .title(dialog.item_name.clone())
+            .borders(Borders::ALL),
+    );
+    frame.render_widget(list, dialog_area);
+}
+
+fn render_slot_picker(frame: &mut Frame, inventory: &InventoryState, area: Rect) {
+    let Some(picker) = &inventory.slot_picker else {
+        return;
+    };
+
+    let row_count = picker.items.len().max(1) as u16;
+    let height = (row_count + 2).min(20);
+    let dialog_area = centered_rect(30, height, area);
+
+    frame.render_widget(Clear, dialog_area);
+
+    let items: Vec<ListItem> = if picker.items.is_empty() {
+        vec![ListItem::new("(no eligible items)").style(Style::default().fg(Color::DarkGray))]
+    } else {
+        picker
+            .items
+            .iter()
+            .enumerate()
+            .map(|(i, item)| {
+                ListItem::new(item.name.clone()).style(selection_style(i == picker.selected_index))
+            })
+            .collect()
+    };
+
+    let list = List::new(items).block(
+        Block::default()
+            .title(picker.slot_name.clone())
             .borders(Borders::ALL),
     );
     frame.render_widget(list, dialog_area);

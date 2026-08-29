@@ -58,6 +58,7 @@ pub struct InventoryItemInfo {
 #[derive(Debug, Clone)]
 pub struct InventorySlotInfo {
     pub slot_name: String,
+    pub item_types: Vec<String>,
     pub equipped: Option<InventoryItemInfo>,
 }
 
