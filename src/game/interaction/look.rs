@@ -6,6 +6,7 @@ use tracing;
 
 use crate::game::component::ItemDefinition;
 use crate::game::component::description::Description;
+use crate::game::config::item_config::select_by_name;
 use crate::game::config::theme_config;
 use crate::game::entity::character::CharacterType;
 use crate::game::player::Player;
@@ -74,11 +75,12 @@ pub async fn process_at(game_state: &Arc<GameState>, db: &Database, player: &Pla
     };
 
     let definitions = game_state.item_definitions.read().await;
-    let matches: Vec<&ItemDefinition> = loot
-        .iter()
-        .filter_map(|l| definitions.get(&l.item_definition_id))
-        .filter(|def| def.name.eq_ignore_ascii_case(target))
-        .collect();
+    let matches: Vec<&ItemDefinition> = select_by_name(loot.iter(), target, |l| {
+        definitions.get(&l.item_definition_id)
+    })
+    .into_iter()
+    .filter_map(|l| definitions.get(&l.item_definition_id))
+    .collect();
 
     respond_to_look_at(game_state, player, target, matches.as_slice());
 }

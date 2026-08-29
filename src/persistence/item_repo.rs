@@ -13,6 +13,7 @@ type ItemDefinitionRow = (
     String,
     String,
     String,
+    String,
 );
 
 pub async fn upsert_definition(
@@ -25,10 +26,11 @@ pub async fn upsert_definition(
     let use_effects_json = serde_json::to_string(&def.use_effects).unwrap_or_default();
     let equipped_abilities_json =
         serde_json::to_string(&def.equipped_bonuses.equipped).unwrap_or_default();
+    let alternate_names_json = serde_json::to_string(&def.alternate_names).unwrap_or_default();
     sqlx::query(
         "INSERT INTO item_definitions \
-         (id, name, description, use_type, item_type, attribute_bonuses_json, use_effects_json, equipped_abilities_json) \
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?) \
+         (id, name, description, use_type, item_type, attribute_bonuses_json, use_effects_json, equipped_abilities_json, alternate_names_json) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) \
          ON CONFLICT(id) DO UPDATE SET \
              name = excluded.name, \
              description = excluded.description, \
@@ -36,7 +38,8 @@ pub async fn upsert_definition(
              item_type = excluded.item_type, \
              attribute_bonuses_json = excluded.attribute_bonuses_json, \
              use_effects_json = excluded.use_effects_json, \
-             equipped_abilities_json = excluded.equipped_abilities_json",
+             equipped_abilities_json = excluded.equipped_abilities_json, \
+             alternate_names_json = excluded.alternate_names_json",
     )
     .bind(&def.id)
     .bind(&def.name)
@@ -46,6 +49,7 @@ pub async fn upsert_definition(
     .bind(&attribute_bonuses_json)
     .bind(&use_effects_json)
     .bind(&equipped_abilities_json)
+    .bind(&alternate_names_json)
     .execute(pool)
     .await?;
     Ok(())
@@ -56,7 +60,7 @@ pub async fn find_all_definitions(
 ) -> Result<Vec<ItemDefinition>, PersistenceError> {
     let rows: Vec<ItemDefinitionRow> = sqlx::query_as(
         "SELECT id, name, description, use_type, item_type, attribute_bonuses_json, \
-             use_effects_json, equipped_abilities_json FROM item_definitions",
+             use_effects_json, equipped_abilities_json, alternate_names_json FROM item_definitions",
     )
     .fetch_all(pool)
     .await?;
@@ -73,6 +77,7 @@ pub async fn find_all_definitions(
                 attribute_bonuses_json,
                 use_effects_json,
                 equipped_abilities_json,
+                alternate_names_json,
             )| {
                 let use_type: ItemUseType =
                     serde_json::from_str(&use_type_json).unwrap_or_else(|e| {
@@ -98,6 +103,11 @@ pub async fn find_all_definitions(
                         );
                         vec![]
                     });
+                let alternate_names: Vec<String> = serde_json::from_str(&alternate_names_json)
+                    .unwrap_or_else(|e| {
+                        tracing::warn!("Failed to deserialize alternate_names for item {id}: {e}");
+                        vec![]
+                    });
                 ItemDefinition {
                     id,
                     name,
@@ -109,6 +119,7 @@ pub async fn find_all_definitions(
                         equipped: equipped_abilities,
                     },
                     use_effects,
+                    alternate_names,
                 }
             },
         )
@@ -130,6 +141,7 @@ mod tests {
             item_type: "medicine".to_string(),
             equipped_bonuses: EquippedBonuses::default(),
             use_effects: vec![],
+            alternate_names: vec!["tonic".to_string()],
         }
     }
 
@@ -148,6 +160,7 @@ mod tests {
                 equipped: vec![],
             },
             use_effects: vec![],
+            alternate_names: vec![],
         }
     }
 
@@ -172,6 +185,16 @@ mod tests {
 
         let defs = find_all_definitions(db.pool()).await.unwrap();
         assert_eq!(defs.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn upsert_round_trips_alternate_names() {
+        let db = Database::connect_in_memory().await.unwrap();
+        upsert_definition(db.pool(), &health_tonic()).await.unwrap();
+
+        let defs = find_all_definitions(db.pool()).await.unwrap();
+        let tonic = defs.iter().find(|d| d.id == "health_tonic").unwrap();
+        assert_eq!(tonic.alternate_names, vec!["tonic".to_string()]);
     }
 
     #[tokio::test]

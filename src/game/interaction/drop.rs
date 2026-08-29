@@ -170,6 +170,7 @@ mod tests {
             item_type: "weapon".to_string(),
             equipped_bonuses: EquippedBonuses::default(),
             use_effects: vec![],
+            alternate_names: vec![],
         }
     }
 
