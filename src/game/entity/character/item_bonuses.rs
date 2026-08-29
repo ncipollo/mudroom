@@ -92,6 +92,7 @@ mod tests {
                 equipped: vec![],
             },
             use_effects: vec![],
+            alternate_names: vec![],
         }
     }
 
@@ -107,6 +108,7 @@ mod tests {
                 equipped: vec!["painful_smash".to_string()],
             },
             use_effects: vec![],
+            alternate_names: vec![],
         }
     }
 
@@ -193,6 +195,7 @@ mod tests {
                     equipped: vec![],
                 },
                 use_effects: vec![],
+                alternate_names: vec![],
             },
         );
 

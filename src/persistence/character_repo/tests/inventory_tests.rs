@@ -14,6 +14,7 @@ fn leather_vest_definition() -> crate::game::component::ItemDefinition {
         item_type: "armor".to_string(),
         equipped_bonuses: EquippedBonuses::default(),
         use_effects: vec![],
+        alternate_names: vec![],
     }
 }
 

@@ -29,6 +29,13 @@ fn fields_section() -> String {
   item_type            string            Free-form, mud-defined category
                                           (e.g. "weapon", "armor",
                                           "medicine" — anything).
+  alternate_names      array of strings  Extra names players can use to
+                                          refer to the item with `take` and
+                                          `look at` (e.g. ["bat"] for a
+                                          Spiked Bat). Matched
+                                          case-insensitively alongside the
+                                          primary name. Defaults to [] if
+                                          omitted.
   equipped_bonuses     table             What the item grants while
                                           equipped (passive items). Defaults
                                           to an empty table if omitted. See
@@ -93,6 +100,7 @@ muds/basic/items/leather_vest.toml (passive):
   description = "A simple protective vest."
   use_type = "passive"                    # grants bonuses while equipped
   item_type = "body_armor"
+  alternate_names = ["vest"]              # `take vest` also works
 
   [[equipped_bonuses.attributes]]
   attribute_id = "constitution"
@@ -112,6 +120,7 @@ mod tests {
         assert!(text.contains("equipped_bonuses"));
         assert!(text.contains("[[use_effects]]"));
         assert!(text.contains("equipped"));
+        assert!(text.contains("alternate_names"));
     }
 
     #[test]

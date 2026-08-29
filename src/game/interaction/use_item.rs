@@ -258,6 +258,7 @@ mod tests {
             item_type: "consumable".to_string(),
             equipped_bonuses: EquippedBonuses::default(),
             use_effects,
+            alternate_names: vec![],
         }
     }
 

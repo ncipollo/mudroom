@@ -270,6 +270,7 @@ mod tests {
                     equipped: vec![],
                 },
                 use_effects: vec![],
+                alternate_names: vec![],
             },
         );
 

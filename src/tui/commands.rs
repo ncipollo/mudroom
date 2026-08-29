@@ -170,6 +170,17 @@ mod tests {
     }
 
     #[test]
+    fn parse_take_preserves_target_case() {
+        for (input, expected) in [("take BAT", "BAT"), ("Take Spiked Bat", "Spiked Bat")] {
+            if let Command::Take(target) = parse(input) {
+                assert_eq!(target, expected);
+            } else {
+                panic!("expected Take(...) for {input}");
+            }
+        }
+    }
+
+    #[test]
     fn parse_removed_single_letter_shortcuts() {
         assert!(matches!(parse("t"), Command::Unknown));
         assert!(matches!(parse("h"), Command::Unknown));

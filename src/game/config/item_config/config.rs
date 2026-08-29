@@ -44,6 +44,52 @@ pub struct ItemDefinition {
     pub equipped_bonuses: EquippedBonuses,
     #[serde(default)]
     pub use_effects: Vec<UseEffect>,
+    /// Extra names the item can be referred to by (e.g. `["bat"]` for a Spiked Bat).
+    /// Matched case-insensitively by `take` and `look at` alongside the primary name.
+    #[serde(default)]
+    pub alternate_names: Vec<String>,
+}
+
+impl ItemDefinition {
+    /// Whether `target` matches this item's primary display name, case-insensitively.
+    pub fn matches_name(&self, target: &str) -> bool {
+        self.name.eq_ignore_ascii_case(target)
+    }
+
+    /// Whether `target` matches one of this item's alternate names, case-insensitively.
+    pub fn matches_alternate_name(&self, target: &str) -> bool {
+        self.alternate_names
+            .iter()
+            .any(|alt| alt.eq_ignore_ascii_case(target))
+    }
+}
+
+/// Filters `candidates` down to those whose resolved [`ItemDefinition`] matches `target` by
+/// name. Primary-name matches (case-insensitive) win: alternate-name matches are only used
+/// when nothing matched by primary name, so an alias collision never makes a real name
+/// ambiguous. `definition` resolves a candidate to its definition (returning `None` drops it).
+pub fn select_by_name<'d, T>(
+    candidates: impl IntoIterator<Item = T>,
+    target: &str,
+    definition: impl Fn(&T) -> Option<&'d ItemDefinition>,
+) -> Vec<T> {
+    let mut name_matches = Vec::new();
+    let mut alternate_matches = Vec::new();
+    for candidate in candidates {
+        let Some(def) = definition(&candidate) else {
+            continue;
+        };
+        if def.matches_name(target) {
+            name_matches.push(candidate);
+        } else if def.matches_alternate_name(target) {
+            alternate_matches.push(candidate);
+        }
+    }
+    if name_matches.is_empty() {
+        alternate_matches
+    } else {
+        name_matches
+    }
 }
 
 #[cfg(test)]
@@ -120,6 +166,7 @@ mod tests {
                 equipped: vec![],
             },
             use_effects: vec![],
+            alternate_names: vec!["vest".to_string()],
         };
         let json = serde_json::to_string(&def).unwrap();
         let restored: ItemDefinition = serde_json::from_str(&json).unwrap();
@@ -139,5 +186,75 @@ mod tests {
         assert!(def.equipped_bonuses.attributes.is_empty());
         assert!(def.equipped_bonuses.equipped.is_empty());
         assert!(def.use_effects.is_empty());
+        assert!(def.alternate_names.is_empty());
+    }
+
+    #[test]
+    fn item_definition_parses_alternate_names_from_toml() {
+        let toml = r#"
+name = "Spiked Bat"
+use_type = "passive"
+item_type = "weapon"
+alternate_names = ["bat", "club"]
+"#;
+        let def: ItemDefinition = toml::from_str(toml).unwrap();
+        assert_eq!(def.alternate_names, vec!["bat", "club"]);
+    }
+
+    #[test]
+    fn matches_name_is_case_insensitive() {
+        let def = ItemDefinition {
+            id: "spiked_bat".to_string(),
+            name: "Spiked Bat".to_string(),
+            description: Description::default(),
+            use_type: ItemUseType::Passive,
+            item_type: "weapon".to_string(),
+            equipped_bonuses: EquippedBonuses::default(),
+            use_effects: vec![],
+            alternate_names: vec!["bat".to_string()],
+        };
+        assert!(def.matches_name("spiked bat"));
+        assert!(def.matches_name("SPIKED BAT"));
+        assert!(!def.matches_name("bat"));
+        assert!(def.matches_alternate_name("BAT"));
+        assert!(!def.matches_alternate_name("spiked bat"));
+    }
+
+    fn named(name: &str, alternate_names: &[&str]) -> ItemDefinition {
+        ItemDefinition {
+            id: name.to_lowercase().replace(' ', "_"),
+            name: name.to_string(),
+            description: Description::default(),
+            use_type: ItemUseType::Passive,
+            item_type: "weapon".to_string(),
+            equipped_bonuses: EquippedBonuses::default(),
+            use_effects: vec![],
+            alternate_names: alternate_names.iter().map(|s| s.to_string()).collect(),
+        }
+    }
+
+    #[test]
+    fn select_by_name_prefers_primary_name_over_alias() {
+        let defs = [named("Club", &[]), named("Spiked Bat", &["club"])];
+        let selected = select_by_name(defs.iter(), "club", |d| Some(*d));
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected[0].name, "Club");
+    }
+
+    #[test]
+    fn select_by_name_returns_all_alias_matches_when_no_primary_name_matches() {
+        let defs = [
+            named("Spiked Bat", &["stick"]),
+            named("Gnarled Club", &["stick"]),
+        ];
+        let selected = select_by_name(defs.iter(), "STICK", |d| Some(*d));
+        assert_eq!(selected.len(), 2);
+    }
+
+    #[test]
+    fn select_by_name_drops_candidates_without_a_definition() {
+        let defs = [named("Spiked Bat", &["bat"])];
+        let selected = select_by_name(0..3, "bat", |i| defs.get(*i));
+        assert_eq!(selected.len(), 1);
     }
 }

@@ -206,6 +206,7 @@ mod tests {
             item_type: "medicine".to_string(),
             equipped_bonuses: EquippedBonuses::default(),
             use_effects: vec![],
+            alternate_names: vec![],
         };
         item_repo::upsert_definition(db.pool(), &def).await.unwrap();
     }

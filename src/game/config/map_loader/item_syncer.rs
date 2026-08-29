@@ -58,6 +58,7 @@ mod tests {
             item_type: "medicine".to_string(),
             equipped_bonuses: EquippedBonuses::default(),
             use_effects: vec![],
+            alternate_names: vec![],
         }
     }
 
