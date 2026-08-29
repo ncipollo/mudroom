@@ -2,6 +2,7 @@ name = "Medicine"
 description = "A restorative brew brewed from crushed medicinal herbs."
 use_type = "used"
 item_type = "consumable"
+alternate_names = ["medicine", "herbs", "brew"]
 
 [[use_effects]]
 type = "apply_effect"
