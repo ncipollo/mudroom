@@ -179,6 +179,33 @@ impl InventoryState {
         self.slot_picker.as_ref()?.selected_item_id()
     }
 
+    /// Description text for whatever is currently highlighted, for the screen's
+    /// description box. Resolves through an open slot picker first (the popup is
+    /// about a candidate item, not the empty slot behind it), then falls back to
+    /// the focused pane's selection. Empty slots report `"<slot>: (empty)"`;
+    /// nothing highlighted yields an empty string.
+    pub fn selected_description(&self) -> String {
+        if let Some(picker) = &self.slot_picker {
+            return match picker.items.get(picker.selected_index) {
+                Some(item) => item.description.clone(),
+                None => "(no eligible items)".to_string(),
+            };
+        }
+        match self.focus {
+            InventoryFocus::Equipment => match self.slots.get(self.selected_slot_index) {
+                Some(slot) => match &slot.equipped {
+                    Some(item) => item.description.clone(),
+                    None => format!("{}: (empty)", slot.slot_name),
+                },
+                None => String::new(),
+            },
+            InventoryFocus::Bag => match self.bag.get(self.selected_bag_index) {
+                Some(item) => item.description.clone(),
+                None => String::new(),
+            },
+        }
+    }
+
     fn dialog_target(&self) -> Option<(i64, String, Vec<ItemAction>)> {
         match self.focus {
             InventoryFocus::Equipment => {
@@ -237,247 +264,4 @@ impl InventoryState {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn slot(name: &str) -> InventorySlotInfo {
-        slot_accepting(name, &[])
-    }
-
-    fn slot_accepting(name: &str, item_types: &[&str]) -> InventorySlotInfo {
-        InventorySlotInfo {
-            slot_name: name.to_string(),
-            item_types: item_types.iter().map(|t| t.to_string()).collect(),
-            equipped: None,
-        }
-    }
-
-    fn equipped_slot(
-        name: &str,
-        item_types: &[&str],
-        equipped: InventoryItemInfo,
-    ) -> InventorySlotInfo {
-        InventorySlotInfo {
-            slot_name: name.to_string(),
-            item_types: item_types.iter().map(|t| t.to_string()).collect(),
-            equipped: Some(equipped),
-        }
-    }
-
-    fn item(name: &str) -> InventoryItemInfo {
-        bag_item(name, false, false)
-    }
-
-    fn bag_item(name: &str, usable: bool, equippable: bool) -> InventoryItemInfo {
-        InventoryItemInfo {
-            item_id: 1,
-            name: name.to_string(),
-            item_type: "misc".to_string(),
-            description: String::new(),
-            usable,
-            equippable,
-        }
-    }
-
-    fn typed_item(item_id: i64, name: &str, item_type: &str) -> InventoryItemInfo {
-        InventoryItemInfo {
-            item_id,
-            name: name.to_string(),
-            item_type: item_type.to_string(),
-            description: String::new(),
-            usable: false,
-            equippable: true,
-        }
-    }
-
-    #[test]
-    fn toggle_focus_flips_between_equipment_and_bag() {
-        let mut state = InventoryState::new(vec![], vec![], 0);
-        assert_eq!(state.focus, InventoryFocus::Equipment);
-        state.toggle_focus();
-        assert_eq!(state.focus, InventoryFocus::Bag);
-        state.toggle_focus();
-        assert_eq!(state.focus, InventoryFocus::Equipment);
-    }
-
-    #[test]
-    fn select_next_wraps_within_equipment_slots() {
-        let mut state = InventoryState::new(vec![slot("weapon"), slot("armor")], vec![], 0);
-        state.select_next();
-        assert_eq!(state.selected_slot_index, 1);
-        state.select_next();
-        assert_eq!(state.selected_slot_index, 0);
-    }
-
-    #[test]
-    fn select_prev_wraps_within_bag_items() {
-        let mut state = InventoryState::new(vec![], vec![item("Potion"), item("Sword")], 10);
-        state.toggle_focus();
-        state.select_prev();
-        assert_eq!(state.selected_bag_index, 1);
-        state.select_prev();
-        assert_eq!(state.selected_bag_index, 0);
-    }
-
-    #[test]
-    fn select_next_is_noop_when_pane_is_empty() {
-        let mut state = InventoryState::new(vec![], vec![], 0);
-        state.select_next();
-        assert_eq!(state.selected_slot_index, 0);
-        state.toggle_focus();
-        state.select_next();
-        assert_eq!(state.selected_bag_index, 0);
-    }
-
-    #[test]
-    fn open_item_dialog_is_noop_on_empty_equipment_slot_with_no_matching_items() {
-        let mut state = InventoryState::new(vec![slot("weapon")], vec![], 0);
-        state.open_item_dialog();
-        assert!(state.dialog.is_none());
-        assert!(state.slot_picker.is_none());
-    }
-
-    #[test]
-    fn open_item_dialog_on_equipped_item_offers_swap_unequip_and_drop() {
-        let mut state = InventoryState::new(
-            vec![equipped_slot("weapon", &["weapon"], item("Sword"))],
-            vec![],
-            0,
-        );
-        state.open_item_dialog();
-        let dialog = state.dialog.unwrap();
-        assert_eq!(dialog.item_name, "Sword");
-        assert_eq!(
-            dialog.actions,
-            vec![ItemAction::Swap, ItemAction::Unequip, ItemAction::Drop]
-        );
-    }
-
-    #[test]
-    fn open_item_dialog_on_empty_slot_opens_picker_with_only_matching_items() {
-        let mut state = InventoryState::new(
-            vec![slot_accepting("weapon", &["weapon"])],
-            vec![
-                typed_item(1, "Sword", "weapon"),
-                typed_item(2, "Potion", "consumable"),
-            ],
-            10,
-        );
-        state.open_item_dialog();
-        assert!(state.dialog.is_none());
-        let picker = state.slot_picker.expect("picker should open");
-        assert_eq!(picker.slot_name, "weapon");
-        assert_eq!(picker.items.len(), 1);
-        assert_eq!(picker.items[0].name, "Sword");
-    }
-
-    #[test]
-    fn open_slot_picker_is_noop_when_no_bag_item_fits() {
-        let mut state = InventoryState::new(
-            vec![slot_accepting("weapon", &["weapon"])],
-            vec![typed_item(1, "Potion", "consumable")],
-            10,
-        );
-        state.open_slot_picker();
-        assert!(state.slot_picker.is_none());
-    }
-
-    #[test]
-    fn open_slot_picker_from_occupied_slot_replaces_action_dialog() {
-        let mut state = InventoryState::new(
-            vec![equipped_slot(
-                "weapon",
-                &["weapon"],
-                typed_item(1, "Old Sword", "weapon"),
-            )],
-            vec![typed_item(2, "New Sword", "weapon")],
-            10,
-        );
-        state.open_item_dialog();
-        assert!(state.dialog.is_some());
-        state.open_slot_picker();
-        assert!(state.dialog.is_none());
-        let picker = state.slot_picker.unwrap();
-        assert_eq!(picker.slot_name, "weapon");
-        assert_eq!(picker.items.len(), 1);
-        assert_eq!(picker.items[0].name, "New Sword");
-    }
-
-    #[test]
-    fn slot_picker_next_and_prev_wrap() {
-        let mut state = InventoryState::new(
-            vec![slot_accepting("weapon", &["weapon"])],
-            vec![
-                typed_item(1, "Sword", "weapon"),
-                typed_item(2, "Axe", "weapon"),
-            ],
-            10,
-        );
-        state.open_slot_picker();
-        assert_eq!(state.selected_slot_item_id(), Some(1));
-        state.slot_picker_next();
-        assert_eq!(state.selected_slot_item_id(), Some(2));
-        state.slot_picker_next();
-        assert_eq!(state.selected_slot_item_id(), Some(1));
-        state.slot_picker_prev();
-        assert_eq!(state.selected_slot_item_id(), Some(2));
-    }
-
-    #[test]
-    fn close_slot_picker_clears_picker() {
-        let mut state = InventoryState::new(
-            vec![slot_accepting("weapon", &["weapon"])],
-            vec![typed_item(1, "Sword", "weapon")],
-            10,
-        );
-        state.open_slot_picker();
-        assert!(state.slot_picker.is_some());
-        state.close_slot_picker();
-        assert!(state.slot_picker.is_none());
-    }
-
-    #[test]
-    fn open_item_dialog_on_usable_equippable_bag_item_offers_all_actions() {
-        let mut state = InventoryState::new(vec![], vec![bag_item("Sword", true, true)], 10);
-        state.toggle_focus();
-        state.open_item_dialog();
-        let dialog = state.dialog.unwrap();
-        assert_eq!(
-            dialog.actions,
-            vec![ItemAction::Use, ItemAction::Equip, ItemAction::Drop]
-        );
-    }
-
-    #[test]
-    fn open_item_dialog_on_plain_bag_item_only_offers_drop() {
-        let mut state = InventoryState::new(vec![], vec![bag_item("Rock", false, false)], 10);
-        state.toggle_focus();
-        state.open_item_dialog();
-        let dialog = state.dialog.unwrap();
-        assert_eq!(dialog.actions, vec![ItemAction::Drop]);
-    }
-
-    #[test]
-    fn item_dialog_next_and_prev_wrap() {
-        let mut state = InventoryState::new(vec![], vec![bag_item("Sword", true, true)], 10);
-        state.toggle_focus();
-        state.open_item_dialog();
-        state.item_dialog_next();
-        assert_eq!(state.selected_action(), Some(ItemAction::Equip));
-        state.item_dialog_next();
-        assert_eq!(state.selected_action(), Some(ItemAction::Drop));
-        state.item_dialog_next();
-        assert_eq!(state.selected_action(), Some(ItemAction::Use));
-        state.item_dialog_prev();
-        assert_eq!(state.selected_action(), Some(ItemAction::Drop));
-    }
-
-    #[test]
-    fn close_item_dialog_clears_dialog() {
-        let mut state = InventoryState::new(vec![], vec![bag_item("Sword", true, true)], 10);
-        state.toggle_focus();
-        state.open_item_dialog();
-        state.close_item_dialog();
-        assert!(state.dialog.is_none());
-    }
-}
+mod tests;

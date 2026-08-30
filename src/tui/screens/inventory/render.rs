@@ -2,7 +2,7 @@ use ratatui::{
     Frame,
     layout::{Constraint, Layout, Rect},
     style::{Color, Style},
-    widgets::{Block, Borders, Clear, List, ListItem, Paragraph},
+    widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap},
 };
 
 use crate::tui::app::{App, InventoryFocus, InventoryState};
@@ -14,13 +14,19 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         return;
     };
 
-    let areas = Layout::vertical([Constraint::Fill(1), Constraint::Length(3)]).split(frame.area());
+    let areas = Layout::vertical([
+        Constraint::Fill(1),
+        Constraint::Length(5),
+        Constraint::Length(3),
+    ])
+    .split(frame.area());
     let cols =
         Layout::horizontal([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)]).split(areas[0]);
 
     render_equipment_panel(frame, inventory, cols[0]);
     render_bag_panel(frame, inventory, cols[1]);
-    render_status_bar(frame, inventory, areas[1]);
+    render_description(frame, inventory, areas[1]);
+    render_status_bar(frame, inventory, areas[2]);
 
     if inventory.dialog.is_some() {
         render_item_dialog(frame, inventory, frame.area());
@@ -78,6 +84,13 @@ fn render_bag_panel(frame: &mut Frame, inventory: &InventoryState, area: Rect) {
             .border_style(focus_style(is_focused)),
     );
     frame.render_widget(list, area);
+}
+
+fn render_description(frame: &mut Frame, inventory: &InventoryState, area: Rect) {
+    let paragraph = Paragraph::new(inventory.selected_description())
+        .wrap(Wrap { trim: true })
+        .block(Block::default().title("Description").borders(Borders::ALL));
+    frame.render_widget(paragraph, area);
 }
 
 fn render_status_bar(frame: &mut Frame, inventory: &InventoryState, area: Rect) {
