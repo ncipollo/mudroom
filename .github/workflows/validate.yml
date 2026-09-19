@@ -39,14 +39,12 @@ jobs:
     permissions:
       contents: read
       checks: write
-    env:
-      # rustsec/audit-check@v2 targets Node 20; GitHub now forces Node20 actions
-      # onto the Node 24 runtime, which breaks its Checks API call when reporting
-      # a warnings-only (no vulnerabilities) result. Force Node 20 until upstream
-      # ships a Node24-compatible release.
-      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
     steps:
       - uses: actions/checkout@v3
-      - uses: rustsec/audit-check@v2
+      # Pinned to the Node24-compatible commit on rustsec/audit-check's main
+      # branch (unreleased past the v2.0.0 tag, which still targets Node 20
+      # and breaks its Checks API call under GitHub's Node24-forced runtime
+      # when reporting a warnings-only, no-vulnerabilities result).
+      - uses: rustsec/audit-check@858dc40f52ca2b8570b7a997c1c4e35c6fc9a432 # main, "Update to use Node 24 (#48)"
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
