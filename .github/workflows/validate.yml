@@ -36,15 +36,21 @@ jobs:
   audit:
     name: cargo audit
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      checks: write
+    env:
+      CARGO_AUDIT_VERSION: "0.22.2"
     steps:
       - uses: actions/checkout@v3
-      # Pinned to the Node24-compatible commit on rustsec/audit-check's main
-      # branch (unreleased past the v2.0.0 tag, which still targets Node 20
-      # and breaks its Checks API call under GitHub's Node24-forced runtime
-      # when reporting a warnings-only, no-vulnerabilities result).
-      - uses: rustsec/audit-check@858dc40f52ca2b8570b7a997c1c4e35c6fc9a432 # main, "Update to use Node 24 (#48)"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Cache cargo-audit binary
+        id: cache-cargo-audit
+        uses: actions/cache@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          path: ~/.cargo/bin/cargo-audit
+          key: cargo-audit-${{ env.CARGO_AUDIT_VERSION }}-${{ runner.os }}
+      - name: Install cargo-audit
+        if: steps.cache-cargo-audit.outputs.cache-hit != 'true'
+        run: cargo install cargo-audit --version ${{ env.CARGO_AUDIT_VERSION }} --locked
+      # cargo audit exits nonzero only on actual vulnerabilities; advisories
+      # ignored via .cargo/audit.toml and informational warnings (unsound,
+      # yanked, unmaintained) don't fail the build.
+      - run: cargo audit
