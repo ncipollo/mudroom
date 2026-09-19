@@ -1,0 +1,10 @@
+name = "Oak Chest"
+default_state = "closed"
+
+[states.closed]
+description = "A heavy oak chest bound with iron bands. The lid is shut."
+interact_next_state = "open"
+
+[states.open]
+description = "The oak chest stands open, its lid tipped back."
+items = ["medicine"]
