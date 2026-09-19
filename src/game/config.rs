@@ -8,6 +8,7 @@ pub mod config_path;
 mod dialog_parser;
 pub mod env_resolver;
 pub mod faction_config;
+pub mod feature_config;
 pub mod game_loop_config;
 pub mod inventory_config;
 pub mod item_config;
@@ -29,6 +30,7 @@ pub use character_config::{
 };
 pub use class_config::{ClassConfig, load_classes};
 pub use faction_config::FactionConfig;
+pub use feature_config::{build_feature_map, load_feature};
 pub use game_loop_config::GameLoopConfig;
 pub use inventory_config::{
     DEFAULT_INVENTORY_TYPE, EquipmentSlotConfig, InventoryConfig, InventoryDefinition,

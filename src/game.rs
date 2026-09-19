@@ -58,6 +58,7 @@ pub use mailbox::Mailboxes;
 pub use map::Dungeon;
 pub use map::Navigation;
 pub use map::Room;
+pub use map::RoomFeature;
 pub use map::Universe;
 pub use map::World;
 pub use messaging::PlayerMessage;

@@ -1,11 +1,13 @@
 pub mod dungeon;
 pub mod navigation;
 pub mod room;
+pub mod room_feature;
 pub mod world;
 
 pub use dungeon::Dungeon;
 pub use navigation::Navigation;
 pub use room::Room;
+pub use room_feature::{FeatureState, FeatureValidationError, InteractScript, RoomFeature};
 pub use world::World;
 
 use serde::{Deserialize, Serialize};
