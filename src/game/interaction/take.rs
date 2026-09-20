@@ -1,4 +1,6 @@
+mod feature;
 mod matching;
+mod parse;
 
 use std::sync::Arc;
 
@@ -11,32 +13,81 @@ use crate::persistence::Database;
 use crate::persistence::PersistenceError;
 use crate::persistence::{inventory_repo, room_feature_repo, world_loot_repo};
 use matching::{TakeMatch, TakeSource, matching_items};
+use parse::TakeTarget;
+
+/// Bundles the character state shared by every `take` flow so passing it around doesn't
+/// blow up individual functions' argument counts.
+#[derive(Clone, Copy)]
+struct TakeBudget<'a> {
+    inventory_type: &'a str,
+    bag_len: usize,
+}
 
 pub async fn process(game_state: &Arc<GameState>, db: &Database, player: &Player, target: &str) {
     let Some((location, inventory_type, bag_len)) = character_snapshot(game_state, player).await
     else {
         return;
     };
+    let budget = TakeBudget {
+        inventory_type: &inventory_type,
+        bag_len,
+    };
 
-    let matches = match matching_items(game_state, db, &location, target).await {
+    match parse::parse_take_target(target) {
+        TakeTarget::Named(item) => {
+            take_named(game_state, db, player, &location, item, budget).await;
+        }
+        TakeTarget::FromFeature { item, feature } => {
+            feature::take_from_feature(game_state, db, player, &location, item, feature, budget)
+                .await;
+        }
+        TakeTarget::AllFromFeature { feature } => {
+            feature::take_all_from_feature(game_state, db, player, &location, feature, budget)
+                .await;
+        }
+    }
+}
+
+async fn take_named(
+    game_state: &Arc<GameState>,
+    db: &Database,
+    player: &Player,
+    location: &Location,
+    target: &str,
+    budget: TakeBudget<'_>,
+) {
+    let matches = match matching_items(game_state, db, location, target).await {
         Ok(matches) => matches,
         Err(e) => {
             tracing::error!("Failed to load takeable items for take: {e}");
             return;
         }
     };
+    respond_to_item_matches(game_state, db, player, target, &matches, budget).await;
+}
 
-    match matches.as_slice() {
+/// Shared 0/1/many dispatch for a set of name-matched items — used by both the room-wide
+/// `Named` path and `take <item> from <feature>`, so both read the same "not here" /
+/// "which one" wording.
+async fn respond_to_item_matches(
+    game_state: &Arc<GameState>,
+    db: &Database,
+    player: &Player,
+    label: &str,
+    matches: &[TakeMatch],
+    budget: TakeBudget<'_>,
+) {
+    match matches {
         [] => messaging::message(
             &game_state.message_tx,
             player.id,
-            format!("You don't see a '{target}' here."),
+            format!("You don't see a '{label}' here."),
         ),
-        [item] => take_matched_item(game_state, db, player, item, &inventory_type, bag_len).await,
+        [item] => take_matched_item(game_state, db, player, item, budget).await,
         _ => messaging::message(
             &game_state.message_tx,
             player.id,
-            format!("Which '{target}' do you mean?"),
+            format!("Which '{label}' do you mean?"),
         ),
     }
 }
@@ -59,10 +110,9 @@ async fn take_matched_item(
     db: &Database,
     player: &Player,
     item: &TakeMatch,
-    inventory_type: &str,
-    bag_len: usize,
+    budget: TakeBudget<'_>,
 ) {
-    if bag_len >= bag_size_for(game_state, inventory_type) {
+    if budget.bag_len >= bag_size_for(game_state, budget.inventory_type) {
         messaging::message(&game_state.message_tx, player.id, "Your bag is full.");
         return;
     }

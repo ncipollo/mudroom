@@ -1,6 +1,7 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::game::component::Location;
+use crate::game::component::{ItemDefinition, Location};
 use crate::game::config::item_config::select_by_name;
 use crate::game::{GameState, RoomFeatureState, WorldLoot};
 use crate::persistence::Database;
@@ -40,7 +41,62 @@ pub(super) async fn matching_items(
     let selected = select_by_name(candidates, target, |c| {
         definitions.get(&c.item_definition_id)
     });
-    Ok(selected
+    Ok(to_matches(selected, &definitions))
+}
+
+/// Like [`matching_items`], but scoped to a single room feature's held items — used by
+/// `take <item> from <feature>` to ignore floor loot and other features entirely.
+pub(super) async fn matching_items_in_feature(
+    game_state: &Arc<GameState>,
+    room_feature_id: i64,
+    items: &[String],
+    target: &str,
+) -> Vec<TakeMatch> {
+    let definitions = game_state.item_definitions.read().await;
+    let candidates = feature_candidates(room_feature_id, items);
+    let selected = select_by_name(candidates, target, |c| {
+        definitions.get(&c.item_definition_id)
+    });
+    to_matches(selected, &definitions)
+}
+
+/// Every item a room feature currently holds, unfiltered by name — used by
+/// `take all from <feature>`.
+pub(super) async fn feature_items_as_matches(
+    game_state: &Arc<GameState>,
+    room_feature_id: i64,
+    items: &[String],
+) -> Vec<TakeMatch> {
+    let definitions = game_state.item_definitions.read().await;
+    to_matches(feature_candidates(room_feature_id, items), &definitions)
+}
+
+fn take_candidates(loot: &[WorldLoot], features: &[RoomFeatureState]) -> Vec<TakeCandidate> {
+    let loot_candidates = loot.iter().map(|l| TakeCandidate {
+        source: TakeSource::WorldLoot { loot_id: l.id },
+        item_definition_id: l.item_definition_id.clone(),
+    });
+    let held_candidates = features
+        .iter()
+        .flat_map(|feature| feature_candidates(feature.id, &feature.items));
+    loot_candidates.chain(held_candidates).collect()
+}
+
+fn feature_candidates(room_feature_id: i64, items: &[String]) -> Vec<TakeCandidate> {
+    items
+        .iter()
+        .map(|item_definition_id| TakeCandidate {
+            source: TakeSource::Feature { room_feature_id },
+            item_definition_id: item_definition_id.clone(),
+        })
+        .collect()
+}
+
+fn to_matches(
+    candidates: Vec<TakeCandidate>,
+    definitions: &HashMap<String, ItemDefinition>,
+) -> Vec<TakeMatch> {
+    candidates
         .into_iter()
         .filter_map(|c| {
             let name = definitions.get(&c.item_definition_id)?.name.clone();
@@ -50,26 +106,7 @@ pub(super) async fn matching_items(
                 name,
             })
         })
-        .collect())
-}
-
-fn take_candidates(loot: &[WorldLoot], features: &[RoomFeatureState]) -> Vec<TakeCandidate> {
-    let loot_candidates = loot.iter().map(|l| TakeCandidate {
-        source: TakeSource::WorldLoot { loot_id: l.id },
-        item_definition_id: l.item_definition_id.clone(),
-    });
-    let feature_candidates = features.iter().flat_map(|feature| {
-        feature
-            .items
-            .iter()
-            .map(|item_definition_id| TakeCandidate {
-                source: TakeSource::Feature {
-                    room_feature_id: feature.id,
-                },
-                item_definition_id: item_definition_id.clone(),
-            })
-    });
-    loot_candidates.chain(feature_candidates).collect()
+        .collect()
 }
 
 #[cfg(test)]
@@ -264,5 +301,51 @@ mod tests {
 
         assert_eq!(matches.len(), 1);
         assert_eq!(matches[0].name, "Torch");
+    }
+
+    #[tokio::test]
+    async fn matching_items_in_feature_only_considers_that_features_items() {
+        let db = Database::connect_in_memory().await.unwrap();
+        setup_world(&db).await;
+        let game_state = Arc::new(GameState::load(None).unwrap());
+        seed_loot(&game_state, &db, definition("torch", "Torch", &[])).await;
+        seed_feature_item(&game_state, &db, definition("key", "Key", &[])).await;
+        let room_feature_id = room_feature_repo::find_by_location(db.pool(), &test_location())
+            .await
+            .unwrap()[0]
+            .id;
+
+        let matches =
+            matching_items_in_feature(&game_state, room_feature_id, &["key".to_string()], "torch")
+                .await;
+
+        assert!(matches.is_empty(), "floor loot should not be matched");
+    }
+
+    #[tokio::test]
+    async fn feature_items_as_matches_returns_every_held_item_regardless_of_name() {
+        let db = Database::connect_in_memory().await.unwrap();
+        setup_world(&db).await;
+        let game_state = Arc::new(GameState::load(None).unwrap());
+        seed_feature_item(&game_state, &db, definition("torch", "Torch", &[])).await;
+        item_repo::upsert_definition(db.pool(), &definition("key", "Key", &[]))
+            .await
+            .unwrap();
+        game_state
+            .item_definitions
+            .write()
+            .await
+            .insert("key".to_string(), definition("key", "Key", &[]));
+        let room_feature_id = room_feature_repo::find_by_location(db.pool(), &test_location())
+            .await
+            .unwrap()[0]
+            .id;
+        let items = vec!["torch".to_string(), "key".to_string()];
+
+        let matches = feature_items_as_matches(&game_state, room_feature_id, &items).await;
+
+        assert_eq!(matches.len(), 2);
+        assert_eq!(matches[0].name, "Torch");
+        assert_eq!(matches[1].name, "Key");
     }
 }
