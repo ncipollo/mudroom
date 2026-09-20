@@ -66,6 +66,14 @@ fn parse_attack_variant() {
 }
 
 #[test]
+fn parse_inventory_variants() {
+    assert!(matches!(parse("i"), Command::Inventory));
+    assert!(matches!(parse("I"), Command::Inventory));
+    assert!(matches!(parse("inventory"), Command::Inventory));
+    assert!(matches!(parse("Inventory"), Command::Inventory));
+}
+
+#[test]
 fn parse_speak_variants() {
     assert!(matches!(parse("speak"), Command::Speak(None)));
     assert!(matches!(parse("Speak"), Command::Speak(None)));

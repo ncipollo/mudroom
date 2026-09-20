@@ -17,9 +17,6 @@ pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
         (KeyModifiers::CONTROL, KeyCode::Char('c')) => {
             app.should_quit = true;
         }
-        (_, KeyCode::Char('i')) if app.input.is_empty() => {
-            app.send_interaction_async(Interaction::OpenInventory);
-        }
         (_, KeyCode::Char(c)) => {
             app.input.push(c);
         }
@@ -56,6 +53,9 @@ fn dispatch_command(app: &mut App, input: &str) {
         }
         commands::Command::Help => {
             app.send_interaction_async(Interaction::Help);
+        }
+        commands::Command::Inventory => {
+            app.send_interaction_async(Interaction::OpenInventory);
         }
         commands::Command::Speak(msg) => {
             app.agent_responding |= dispatch_speak(app, msg);

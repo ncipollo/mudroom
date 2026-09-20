@@ -7,6 +7,7 @@ pub enum Command {
     Speak(Option<String>),
     Choose(String),
     Attack,
+    Inventory,
     #[allow(dead_code)]
     Enter(String),
     Take(String),
@@ -30,6 +31,7 @@ pub fn parse(input: &str) -> Command {
         "help" => Command::Help,
         "attack" => Command::Attack,
         "speak" | "talk" | "say" => Command::Speak(None),
+        "i" | "inventory" => Command::Inventory,
         _ => parse_prefixed(trimmed, &lower),
     }
 }
