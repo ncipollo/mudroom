@@ -22,6 +22,7 @@ When `smell` reports a limit failure, fix it by refactoring — never suppress b
 - **Too many methods** (`max_methods`) - the type probably has too many responsibilities; enumerate its responsibilities and split each into a helper type/file.
 - **Too many declarations** (`max_declarations`) - the file itself is too big, usually from mixing responsibilities and tests; split it into separate files along responsibility lines.
 - **Too many lines** (`max_lines`) - same fix as too many declarations.
+- **Too many/long comments** (`max_comments`, `max_comment_lines`) - delete comments that restate the code; keep only WHY comments, and keep those short.
 
 ## Dependencies
 Always use exact versions for dependencies in `Cargo.toml` (e.g., `"4.5.60"` not `"4"`). Check `Cargo.lock` for the resolved version when pinning.
