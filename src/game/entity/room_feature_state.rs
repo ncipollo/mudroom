@@ -9,6 +9,7 @@ pub struct RoomFeatureState {
     pub feature_definition_id: String,
     pub location: Location,
     pub current_state: String,
+    pub items: Vec<String>,
 }
 
 impl RoomFeatureState {
@@ -17,12 +18,14 @@ impl RoomFeatureState {
         feature_definition_id: String,
         location: Location,
         current_state: String,
+        items: Vec<String>,
     ) -> Self {
         Self {
             id,
             feature_definition_id,
             location,
             current_state,
+            items,
         }
     }
 }
@@ -46,10 +49,12 @@ mod tests {
             "chest".to_string(),
             test_location(),
             "closed".to_string(),
+            vec!["medicine".to_string()],
         );
         assert_eq!(state.id, 1);
         assert_eq!(state.feature_definition_id, "chest");
         assert_eq!(state.location.world_id, "w1");
         assert_eq!(state.current_state, "closed");
+        assert_eq!(state.items, vec!["medicine".to_string()]);
     }
 }

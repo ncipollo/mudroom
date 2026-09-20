@@ -250,9 +250,15 @@ mod tests {
             dungeon_id: "d1".to_string(),
             room_id: "r2".to_string(),
         };
-        room_feature_repo::insert_placement_if_missing(db.pool(), &r2_location, "chest", "closed")
-            .await
-            .unwrap();
+        room_feature_repo::insert_placement_if_missing(
+            db.pool(),
+            &r2_location,
+            "chest",
+            "closed",
+            &[],
+        )
+        .await
+        .unwrap();
 
         // Reload with only r1
         let universe2 = make_universe();

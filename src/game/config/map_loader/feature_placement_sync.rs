@@ -35,11 +35,16 @@ async fn sync_room_features(
                 dungeon_id: dungeon_id.to_string(),
                 room_id: room.id.clone(),
             };
+            let items = feature
+                .default_state()
+                .map(|state| state.items.clone())
+                .unwrap_or_default();
             room_feature_repo::insert_placement_if_missing(
                 pool,
                 &location,
                 feature_id,
                 &feature.default_state,
+                &items,
             )
             .await?;
         }
@@ -137,6 +142,30 @@ mod tests {
         assert_eq!(placed.len(), 1);
         assert_eq!(placed[0].feature_definition_id, "chest");
         assert_eq!(placed[0].current_state, "closed");
+        assert!(placed[0].items.is_empty());
+    }
+
+    #[tokio::test]
+    async fn load_feature_placements_into_db_seeds_items_from_default_state() {
+        let db = Database::connect_in_memory().await.unwrap();
+        let mut feature = chest_feature();
+        feature.default_state = "open".to_string();
+        let mut feature_map = HashMap::new();
+        feature_map.insert("chest".to_string(), feature.clone());
+        room_feature_repo::upsert_definition(db.pool(), &feature)
+            .await
+            .unwrap();
+        let universe = make_universe_with_feature();
+        load_map_into_db(db.pool(), &universe).await.unwrap();
+
+        load_feature_placements_into_db(db.pool(), &universe, &feature_map)
+            .await
+            .unwrap();
+
+        let placed = room_feature_repo::find_by_location(db.pool(), &chest_location())
+            .await
+            .unwrap();
+        assert_eq!(placed[0].items, vec!["medicine".to_string()]);
     }
 
     #[tokio::test]
