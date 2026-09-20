@@ -157,6 +157,7 @@ mod tests {
             default_state: state.to_string(),
             states,
             alt_verbs: vec![],
+            alternate_names: vec![],
         }
     }
 

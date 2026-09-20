@@ -1,4 +1,5 @@
 use crate::game::component::Location;
+use crate::game::map::universe::room_feature;
 use crate::persistence::Database;
 use crate::persistence::PersistenceError;
 use crate::persistence::room_feature_repo;
@@ -17,7 +18,7 @@ pub(super) async fn matching_features(
     target: &str,
 ) -> Result<Vec<InteractMatch>, PersistenceError> {
     let placements = room_feature_repo::find_by_location(db.pool(), location).await?;
-    let mut matches = Vec::new();
+    let mut candidates = Vec::new();
     for placement in placements {
         let Some(def) =
             room_feature_repo::find_definition_by_id(db.pool(), &placement.feature_definition_id)
@@ -25,20 +26,26 @@ pub(super) async fn matching_features(
         else {
             continue;
         };
-        if !def.name.eq_ignore_ascii_case(target) || !def.allows_verb(verb) {
+        if !def.allows_verb(verb) {
             continue;
         }
-        let next_state = def
-            .states
-            .get(&placement.current_state)
-            .and_then(|state| state.interact_next_state.clone());
-        matches.push(InteractMatch {
-            room_feature_id: placement.id,
-            name: def.name,
-            next_state,
-        });
+        candidates.push((placement, def));
     }
-    Ok(matches)
+
+    Ok(room_feature::select_by_name(candidates, target, |c| &c.1)
+        .into_iter()
+        .map(|(placement, def)| {
+            let next_state = def
+                .states
+                .get(&placement.current_state)
+                .and_then(|state| state.interact_next_state.clone());
+            InteractMatch {
+                room_feature_id: placement.id,
+                name: def.name,
+                next_state,
+            }
+        })
+        .collect())
 }
 
 #[cfg(test)]
@@ -100,6 +107,7 @@ mod tests {
             default_state: "closed".to_string(),
             states,
             alt_verbs: alt_verbs.into_iter().map(str::to_string).collect(),
+            alternate_names: vec![],
         }
     }
 
@@ -170,5 +178,42 @@ mod tests {
 
         assert_eq!(matches.len(), 1);
         assert!(matches[0].next_state.is_none());
+    }
+
+    #[tokio::test]
+    async fn matches_by_alternate_name_case_insensitively() {
+        let db = Database::connect_in_memory().await.unwrap();
+        setup_world(&db).await;
+        let mut feature = chest_feature(vec![]);
+        feature.alternate_names = vec!["chest".to_string()];
+        seed_feature(&db, &feature, "closed").await;
+
+        let matches = matching_features(&db, &test_location(), "interact", "CHEST")
+            .await
+            .unwrap();
+
+        assert_eq!(matches.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn primary_name_match_wins_over_alias_match() {
+        let db = Database::connect_in_memory().await.unwrap();
+        setup_world(&db).await;
+        let mut club = chest_feature(vec![]);
+        club.id = "club".to_string();
+        club.name = "Club".to_string();
+        seed_feature(&db, &club, "closed").await;
+        let mut spiked_bat = chest_feature(vec![]);
+        spiked_bat.id = "spiked_bat".to_string();
+        spiked_bat.name = "Spiked Bat".to_string();
+        spiked_bat.alternate_names = vec!["club".to_string()];
+        seed_feature(&db, &spiked_bat, "closed").await;
+
+        let matches = matching_features(&db, &test_location(), "interact", "club")
+            .await
+            .unwrap();
+
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].name, "Club");
     }
 }
