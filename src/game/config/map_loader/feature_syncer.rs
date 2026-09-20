@@ -42,6 +42,7 @@ mod tests {
             name: name.to_string(),
             default_state: "closed".to_string(),
             states,
+            alt_verbs: vec![],
         }
     }
 

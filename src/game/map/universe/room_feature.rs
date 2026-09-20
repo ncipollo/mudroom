@@ -14,6 +14,11 @@ pub struct RoomFeature {
     pub name: String,
     pub default_state: String,
     pub states: HashMap<String, FeatureState>,
+    /// Verbs that trigger this feature's `interact_next_state` transition just like
+    /// `interact` (e.g. `open` for a chest). `interact` itself always works, whether or
+    /// not it's listed here.
+    #[serde(default)]
+    pub alt_verbs: Vec<String>,
 }
 
 /// One state a [`RoomFeature`] can be in: what it looks like, what it holds, and
@@ -67,6 +72,14 @@ impl RoomFeature {
         self.validate_next_states()
     }
 
+    /// Whether `verb` can trigger this feature's `interact_next_state` transition.
+    /// `interact` always works; anything else must be one of this feature's declared
+    /// alternate verbs.
+    pub fn allows_verb(&self, verb: &str) -> bool {
+        verb.eq_ignore_ascii_case("interact")
+            || self.alt_verbs.iter().any(|v| v.eq_ignore_ascii_case(verb))
+    }
+
     fn validate_next_states(&self) -> Result<(), FeatureValidationError> {
         for (from, state) in &self.states {
             let Some(next) = &state.interact_next_state else {
@@ -118,6 +131,7 @@ mod tests {
             name: "Oak Chest".to_string(),
             default_state: "closed".to_string(),
             states,
+            alt_verbs: vec!["open".to_string()],
         }
     }
 
@@ -157,6 +171,40 @@ description = "A dusty button."
         assert!(state.items.is_empty());
         assert!(state.interact_script.is_none());
         assert!(state.interact_next_state.is_none());
+    }
+
+    #[test]
+    fn alt_verbs_defaults_to_empty_when_omitted() {
+        let toml = r#"
+name = "Button"
+default_state = "idle"
+
+[states.idle]
+description = "A dusty button."
+"#;
+        let feature: RoomFeature = toml::from_str(toml).unwrap();
+        assert!(feature.alt_verbs.is_empty());
+    }
+
+    #[test]
+    fn allows_verb_always_allows_interact() {
+        let mut feature = chest();
+        feature.alt_verbs = vec![];
+        assert!(feature.allows_verb("interact"));
+        assert!(feature.allows_verb("INTERACT"));
+    }
+
+    #[test]
+    fn allows_verb_matches_declared_alt_verb_case_insensitively() {
+        let feature = chest();
+        assert!(feature.allows_verb("open"));
+        assert!(feature.allows_verb("OPEN"));
+    }
+
+    #[test]
+    fn allows_verb_rejects_undeclared_verb() {
+        let feature = chest();
+        assert!(!feature.allows_verb("push"));
     }
 
     #[test]
