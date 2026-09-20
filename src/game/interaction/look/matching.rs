@@ -152,6 +152,7 @@ mod tests {
             name: "Oak Chest".to_string(),
             default_state: default_state.to_string(),
             states: state_map,
+            alt_verbs: vec![],
         }
     }
 

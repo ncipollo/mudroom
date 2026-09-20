@@ -63,6 +63,9 @@ fn dispatch_command(app: &mut App, input: &str) {
         commands::Command::Take(target) => {
             app.send_interaction_async(Interaction::Take { target });
         }
+        commands::Command::Interact { verb, target } => {
+            app.send_interaction_async(Interaction::Interact { verb, target });
+        }
         commands::Command::Choose(choice) => {
             let action = Interaction::EngagementAction(TurnAction::SelectDialogChoice { choice });
             app.send_interaction_async(action);

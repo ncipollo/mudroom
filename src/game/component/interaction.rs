@@ -41,6 +41,10 @@ pub enum Interaction {
     Take {
         target: String,
     },
+    Interact {
+        verb: String,
+        target: String,
+    },
     OpenInventory,
     UseItem {
         item_id: i64,
@@ -96,6 +100,17 @@ mod tests {
     fn take_serde_round_trip() {
         let v = Interaction::Take {
             target: "sword".to_string(),
+        };
+        let json = serde_json::to_string(&v).unwrap();
+        let rt: Interaction = serde_json::from_str(&json).unwrap();
+        assert_eq!(v, rt);
+    }
+
+    #[test]
+    fn interact_serde_round_trip() {
+        let v = Interaction::Interact {
+            verb: "open".to_string(),
+            target: "chest".to_string(),
         };
         let json = serde_json::to_string(&v).unwrap();
         let rt: Interaction = serde_json::from_str(&json).unwrap();

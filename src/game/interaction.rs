@@ -2,6 +2,7 @@ pub mod conversation;
 pub mod drop;
 pub mod equip;
 pub mod help;
+pub mod interact;
 pub mod inventory;
 pub mod lifecycle;
 pub mod look;
@@ -61,14 +62,13 @@ async fn dispatch_interaction(
     interaction: Interaction,
 ) {
     match interaction {
-        Interaction::Look => look::process(game_state, db, player, false).await,
-        Interaction::EnterRoom => look::process(game_state, db, player, true).await,
-        Interaction::LookAt { target } => {
-            look::process_at(game_state, db, player, &target).await;
-        }
-        Interaction::Help => help::process(game_state, player).await,
-        Interaction::Take { target } => {
-            take::process(game_state, db, player, &target).await;
+        world_query @ (Interaction::Look
+        | Interaction::EnterRoom
+        | Interaction::LookAt { .. }
+        | Interaction::Help
+        | Interaction::Take { .. }
+        | Interaction::Interact { .. }) => {
+            dispatch_world_query(game_state, db, player, world_query).await;
         }
         Interaction::Movement(m) => dispatch_movement(game_state, db, player, m).await,
         Interaction::EngagementAction(action) => {
@@ -156,6 +156,29 @@ fn log_stale_disconnect(
         current_epoch,
         "ignoring stale disconnect superseded by a later activation"
     );
+}
+
+async fn dispatch_world_query(
+    game_state: &Arc<GameState>,
+    db: &Database,
+    player: &Player,
+    interaction: Interaction,
+) {
+    match interaction {
+        Interaction::Look => look::process(game_state, db, player, false).await,
+        Interaction::EnterRoom => look::process(game_state, db, player, true).await,
+        Interaction::LookAt { target } => {
+            look::process_at(game_state, db, player, &target).await;
+        }
+        Interaction::Help => help::process(game_state, player).await,
+        Interaction::Take { target } => {
+            take::process(game_state, db, player, &target).await;
+        }
+        Interaction::Interact { verb, target } => {
+            interact::process(game_state, db, player, &verb, &target).await;
+        }
+        _ => {}
+    }
 }
 
 async fn dispatch_item_action(
