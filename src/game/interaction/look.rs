@@ -1,18 +1,18 @@
 mod items;
+mod matching;
 
 use std::sync::Arc;
 
 use tracing;
 
-use crate::game::component::ItemDefinition;
 use crate::game::component::description::Description;
-use crate::game::config::item_config::select_by_name;
 use crate::game::config::theme_config;
 use crate::game::entity::character::CharacterType;
 use crate::game::player::Player;
 use crate::game::{GameState, messaging};
 use crate::persistence::Database;
-use crate::persistence::{room_repo, world_loot_repo};
+use crate::persistence::room_repo;
+use matching::{LookMatch, matching_targets};
 
 pub async fn process(game_state: &Arc<GameState>, db: &Database, player: &Player, is_entry: bool) {
     let (location, character_descriptions) = {
@@ -66,21 +66,13 @@ pub async fn process_at(game_state: &Arc<GameState>, db: &Database, player: &Pla
         }
     };
 
-    let loot = match world_loot_repo::find_by_location(db.pool(), &location).await {
-        Ok(loot) => loot,
+    let matches = match matching_targets(game_state, db, &location, target).await {
+        Ok(matches) => matches,
         Err(e) => {
-            tracing::error!("Failed to load world loot for look-at: {e}");
+            tracing::error!("Failed to load look-at targets: {e}");
             return;
         }
     };
-
-    let definitions = game_state.item_definitions.read().await;
-    let matches: Vec<&ItemDefinition> = select_by_name(loot.iter(), target, |l| {
-        definitions.get(&l.item_definition_id)
-    })
-    .into_iter()
-    .filter_map(|l| definitions.get(&l.item_definition_id))
-    .collect();
 
     respond_to_look_at(game_state, player, target, matches.as_slice());
 }
@@ -89,7 +81,7 @@ fn respond_to_look_at(
     game_state: &Arc<GameState>,
     player: &Player,
     target: &str,
-    matches: &[&ItemDefinition],
+    matches: &[LookMatch],
 ) {
     match matches {
         [] => messaging::message(
@@ -97,16 +89,14 @@ fn respond_to_look_at(
             player.id,
             format!("You don't see a '{target}' here."),
         ),
-        [def] => {
+        [look_match] => {
             let theme = theme_config::resolve_theme_id(
                 &game_state.themes,
-                def.description.theme.as_deref(),
+                look_match.description.theme.as_deref(),
             );
-            let content = def
-                .description
-                .text
-                .clone()
-                .unwrap_or_else(|| format!("You see nothing special about the {}.", def.name));
+            let content = look_match.description.text.clone().unwrap_or_else(|| {
+                format!("You see nothing special about the {}.", look_match.name)
+            });
             messaging::message_themed(&game_state.message_tx, player.id, content, theme);
         }
         _ => messaging::message(
