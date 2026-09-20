@@ -226,6 +226,7 @@ mod tests {
             default_state: "open".to_string(),
             states,
             alt_verbs: vec![],
+            alternate_names: vec![],
         }
     }
 

@@ -19,6 +19,10 @@ pub struct RoomFeature {
     /// not it's listed here.
     #[serde(default)]
     pub alt_verbs: Vec<String>,
+    /// Extra names the feature can be referred to by (e.g. `["chest"]` for an Oak Chest).
+    /// Matched case-insensitively by `look` and `interact` alongside the primary name.
+    #[serde(default)]
+    pub alternate_names: Vec<String>,
 }
 
 /// One state a [`RoomFeature`] can be in: what it looks like, what it holds, and
@@ -80,6 +84,16 @@ impl RoomFeature {
             || self.alt_verbs.iter().any(|v| v.eq_ignore_ascii_case(verb))
     }
 
+    pub fn matches_name(&self, target: &str) -> bool {
+        self.name.eq_ignore_ascii_case(target)
+    }
+
+    pub fn matches_alternate_name(&self, target: &str) -> bool {
+        self.alternate_names
+            .iter()
+            .any(|alt| alt.eq_ignore_ascii_case(target))
+    }
+
     fn validate_next_states(&self) -> Result<(), FeatureValidationError> {
         for (from, state) in &self.states {
             let Some(next) = &state.interact_next_state else {
@@ -94,6 +108,31 @@ impl RoomFeature {
             }
         }
         Ok(())
+    }
+}
+
+/// Filters `candidates` down to those whose resolved [`RoomFeature`] matches `target` by
+/// name. Primary-name matches (case-insensitive) win: alternate-name matches are only used
+/// when nothing matched by primary name, so an alias collision never makes a real name
+/// ambiguous. `feature` resolves a candidate to its [`RoomFeature`].
+pub fn select_by_name<T>(
+    candidates: Vec<T>,
+    target: &str,
+    feature: impl Fn(&T) -> &RoomFeature,
+) -> Vec<T> {
+    let mut name_matches = Vec::new();
+    let mut alternate_matches = Vec::new();
+    for candidate in candidates {
+        if feature(&candidate).matches_name(target) {
+            name_matches.push(candidate);
+        } else if feature(&candidate).matches_alternate_name(target) {
+            alternate_matches.push(candidate);
+        }
+    }
+    if name_matches.is_empty() {
+        alternate_matches
+    } else {
+        name_matches
     }
 }
 
@@ -132,6 +171,7 @@ mod tests {
             default_state: "closed".to_string(),
             states,
             alt_verbs: vec!["open".to_string()],
+            alternate_names: vec!["chest".to_string()],
         }
     }
 
@@ -184,6 +224,35 @@ description = "A dusty button."
 "#;
         let feature: RoomFeature = toml::from_str(toml).unwrap();
         assert!(feature.alt_verbs.is_empty());
+    }
+
+    #[test]
+    fn alternate_names_defaults_to_empty_when_omitted() {
+        let toml = r#"
+name = "Button"
+default_state = "idle"
+
+[states.idle]
+description = "A dusty button."
+"#;
+        let feature: RoomFeature = toml::from_str(toml).unwrap();
+        assert!(feature.alternate_names.is_empty());
+    }
+
+    #[test]
+    fn matches_name_is_case_insensitive() {
+        let feature = chest();
+        assert!(feature.matches_name("oak chest"));
+        assert!(feature.matches_name("OAK CHEST"));
+        assert!(!feature.matches_name("chest"));
+    }
+
+    #[test]
+    fn matches_alternate_name_is_case_insensitive() {
+        let feature = chest();
+        assert!(feature.matches_alternate_name("chest"));
+        assert!(feature.matches_alternate_name("CHEST"));
+        assert!(!feature.matches_alternate_name("oak chest"));
     }
 
     #[test]
@@ -255,5 +324,40 @@ description = "A dusty button."
                 next: "missing".to_string(),
             })
         );
+    }
+
+    fn named_feature(name: &str, alternate_names: &[&str]) -> RoomFeature {
+        let mut feature = chest();
+        feature.name = name.to_string();
+        feature.alternate_names = alternate_names.iter().map(|s| s.to_string()).collect();
+        feature
+    }
+
+    #[test]
+    fn select_by_name_prefers_primary_name_over_alias() {
+        let candidates = vec![
+            named_feature("Club", &[]),
+            named_feature("Spiked Bat", &["club"]),
+        ];
+        let selected = select_by_name(candidates, "club", |f| f);
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected[0].name, "Club");
+    }
+
+    #[test]
+    fn select_by_name_returns_all_alias_matches_when_no_primary_name_matches() {
+        let candidates = vec![
+            named_feature("Oak Chest", &["stick"]),
+            named_feature("Iron Chest", &["stick"]),
+        ];
+        let selected = select_by_name(candidates, "stick", |f| f);
+        assert_eq!(selected.len(), 2);
+    }
+
+    #[test]
+    fn select_by_name_matches_nothing_when_target_is_unrelated() {
+        let candidates = vec![named_feature("Oak Chest", &["chest"])];
+        let selected = select_by_name(candidates, "torch", |f| f);
+        assert!(selected.is_empty());
     }
 }

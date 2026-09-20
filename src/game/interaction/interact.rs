@@ -181,6 +181,7 @@ mod tests {
             default_state: "closed".to_string(),
             states,
             alt_verbs: alt_verbs.into_iter().map(str::to_string).collect(),
+            alternate_names: vec![],
         }
     }
 

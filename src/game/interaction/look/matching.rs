@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use crate::game::GameState;
 use crate::game::component::{Description, ItemDefinition, Location};
-use crate::game::config::item_config::select_by_name;
+use crate::game::config::item_config;
+use crate::game::map::universe::room_feature;
 use crate::persistence::Database;
 use crate::persistence::PersistenceError;
 use crate::persistence::{room_feature_repo, world_loot_repo};
@@ -33,7 +34,7 @@ async fn matching_items(
 ) -> Result<Vec<LookMatch>, PersistenceError> {
     let loot = world_loot_repo::find_by_location(db.pool(), location).await?;
     let definitions = game_state.item_definitions.read().await;
-    let selected: Vec<&ItemDefinition> = select_by_name(loot.iter(), target, |l| {
+    let selected: Vec<&ItemDefinition> = item_config::select_by_name(loot.iter(), target, |l| {
         definitions.get(&l.item_definition_id)
     })
     .into_iter()
@@ -55,7 +56,7 @@ async fn matching_features(
     target: &str,
 ) -> Result<Vec<LookMatch>, PersistenceError> {
     let placements = room_feature_repo::find_by_location(db.pool(), location).await?;
-    let mut matches = Vec::new();
+    let mut candidates = Vec::new();
     for placement in placements {
         let Some(def) =
             room_feature_repo::find_definition_by_id(db.pool(), &placement.feature_definition_id)
@@ -63,17 +64,19 @@ async fn matching_features(
         else {
             continue;
         };
-        if !def.name.eq_ignore_ascii_case(target) {
-            continue;
-        }
-        if let Some(state) = def.states.get(&placement.current_state) {
-            matches.push(LookMatch {
-                name: def.name,
-                description: state.description.clone(),
-            });
-        }
+        candidates.push((placement, def));
     }
-    Ok(matches)
+
+    Ok(room_feature::select_by_name(candidates, target, |c| &c.1)
+        .into_iter()
+        .filter_map(|(placement, def)| {
+            let state = def.states.get(&placement.current_state)?;
+            Some(LookMatch {
+                name: def.name.clone(),
+                description: state.description.clone(),
+            })
+        })
+        .collect())
 }
 
 #[cfg(test)]
@@ -153,6 +156,7 @@ mod tests {
             default_state: default_state.to_string(),
             states: state_map,
             alt_verbs: vec![],
+            alternate_names: vec![],
         }
     }
 
@@ -235,6 +239,46 @@ mod tests {
             matches[0].description.text.as_deref(),
             Some("A closed oak chest.")
         );
+    }
+
+    #[tokio::test]
+    async fn matches_feature_alternate_name_case_insensitively() {
+        let db = Database::connect_in_memory().await.unwrap();
+        setup_world(&db).await;
+        let game_state = Arc::new(GameState::load(None).unwrap());
+        let mut feature = chest_feature(vec![("closed", "A closed oak chest.")], "closed");
+        feature.alternate_names = vec!["chest".to_string()];
+        seed_feature(&db, &feature, "closed").await;
+
+        let matches = matching_targets(&game_state, &db, &test_location(), "CHEST")
+            .await
+            .unwrap();
+
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].name, "Oak Chest");
+    }
+
+    #[tokio::test]
+    async fn feature_primary_name_match_wins_over_alias_match() {
+        let db = Database::connect_in_memory().await.unwrap();
+        setup_world(&db).await;
+        let game_state = Arc::new(GameState::load(None).unwrap());
+        let mut club = chest_feature(vec![("closed", "A wooden club.")], "closed");
+        club.id = "club".to_string();
+        club.name = "Club".to_string();
+        seed_feature(&db, &club, "closed").await;
+        let mut spiked_bat = chest_feature(vec![("closed", "A spiked bat.")], "closed");
+        spiked_bat.id = "spiked_bat".to_string();
+        spiked_bat.name = "Spiked Bat".to_string();
+        spiked_bat.alternate_names = vec!["club".to_string()];
+        seed_feature(&db, &spiked_bat, "closed").await;
+
+        let matches = matching_targets(&game_state, &db, &test_location(), "club")
+            .await
+            .unwrap();
+
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].name, "Club");
     }
 
     #[tokio::test]
