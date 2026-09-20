@@ -1,6 +1,8 @@
 mod ability_cache;
 mod character_sync;
 mod definition_sync;
+mod feature_placement_sync;
+mod feature_syncer;
 mod item_placement_sync;
 mod item_syncer;
 mod universe_sync;
@@ -8,6 +10,8 @@ mod universe_sync;
 pub use ability_cache::sync_abilities_into_db;
 pub use character_sync::load_characters_into_db;
 pub use definition_sync::{load_factions_into_db, load_resources_into_db};
+pub use feature_placement_sync::load_feature_placements_into_db;
+pub use feature_syncer::sync_features_into_db;
 pub use item_placement_sync::load_item_placements_into_db;
 pub use item_syncer::sync_items_into_db;
 pub use universe_sync::{load_map_into_db, should_auto_load};
@@ -17,6 +21,7 @@ use std::error::Error;
 use std::path::Path;
 
 use crate::game::config::character_config::load_character_configs;
+use crate::game::config::feature_config::build_feature_map;
 use crate::game::config::map_config::load_map;
 use crate::game::config::{FactionConfig, ResourceConfig};
 
@@ -37,6 +42,9 @@ pub async fn sync_universe_config(
         load_characters_into_db(pool, &universe, &character_configs, &ability_cache).await?;
         sync_items_into_db(pool, config_dir).await?;
         load_item_placements_into_db(pool, &universe).await?;
+        let feature_map = build_feature_map(config_dir)?;
+        sync_features_into_db(pool, &feature_map).await?;
+        load_feature_placements_into_db(pool, &universe, &feature_map).await?;
     }
     Ok(())
 }

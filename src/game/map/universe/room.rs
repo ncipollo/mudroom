@@ -15,6 +15,8 @@ pub struct Room {
     pub entities: Vec<String>,
     #[serde(default)]
     pub items: Vec<String>,
+    #[serde(default)]
+    pub features: Vec<String>,
 }
 
 impl Room {
@@ -28,6 +30,7 @@ impl Room {
             west: None,
             entities: Vec::new(),
             items: Vec::new(),
+            features: Vec::new(),
         }
     }
 }

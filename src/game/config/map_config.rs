@@ -16,6 +16,8 @@ pub struct RoomConfig {
     pub entities: Vec<String>,
     #[serde(default)]
     pub items: Vec<String>,
+    #[serde(default)]
+    pub features: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -98,6 +100,7 @@ pub fn load_map(config_dir: Option<&Path>) -> Result<Universe, Box<dyn Error>> {
                     west: config.west,
                     entities: config.entities,
                     items: config.items,
+                    features: config.features,
                 };
                 dungeon.rooms.insert(room_name, room);
             }
@@ -290,5 +293,36 @@ text = "A room with items."
         let universe = load_map(Some(tmp.path())).unwrap();
         let room = &universe.worlds["w1"].dungeons["d1"].rooms["room"];
         assert!(room.items.is_empty());
+    }
+
+    #[test]
+    fn load_map_parses_room_features() {
+        let tmp = TempDir::new().unwrap();
+        make_dir(tmp.path(), "maps/w1/d1");
+        write_file(
+            tmp.path(),
+            "maps/w1/d1/room.toml",
+            r#"
+features = ["features/chest"]
+
+[description]
+text = "A room with features."
+"#,
+        );
+
+        let universe = load_map(Some(tmp.path())).unwrap();
+        let room = &universe.worlds["w1"].dungeons["d1"].rooms["room"];
+        assert_eq!(room.features, vec!["features/chest".to_string()]);
+    }
+
+    #[test]
+    fn load_map_defaults_features_to_empty() {
+        let tmp = TempDir::new().unwrap();
+        make_dir(tmp.path(), "maps/w1/d1");
+        write_file(tmp.path(), "maps/w1/d1/room.toml", r#"[description]"#);
+
+        let universe = load_map(Some(tmp.path())).unwrap();
+        let room = &universe.worlds["w1"].dungeons["d1"].rooms["room"];
+        assert!(room.features.is_empty());
     }
 }

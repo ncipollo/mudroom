@@ -12,6 +12,7 @@ pub mod inventory_repo;
 pub mod item_repo;
 pub mod player_repo;
 pub mod resource_repo;
+pub mod room_feature_repo;
 pub mod room_repo;
 pub mod server_state_repo;
 pub mod world_loot_repo;
