@@ -131,6 +131,7 @@ fn parse_room(
         west,
         entities: Vec::new(),
         items: Vec::new(),
+        features: Vec::new(),
     })
 }
 

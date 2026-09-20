@@ -3,7 +3,8 @@ use std::error::Error;
 
 use crate::game::{Universe, World};
 use crate::persistence::{
-    character_repo, dungeon_repo, room_repo, server_state_repo, world_loot_repo, world_repo,
+    character_repo, dungeon_repo, room_feature_repo, room_repo, server_state_repo, world_loot_repo,
+    world_repo,
 };
 
 pub const LAST_MAP_LOAD_KEY: &str = "last_map_load_date";
@@ -74,6 +75,7 @@ async fn cleanup_stale_dungeons(
             if !universe_dungeon.rooms.contains_key(&db_room.id) {
                 character_repo::delete_by_room(pool, &db_room.id).await?;
                 world_loot_repo::delete_by_room(pool, &db_room.id).await?;
+                room_feature_repo::delete_by_room(pool, &db_room.id).await?;
                 room_repo::delete(pool, &db_room.id).await?;
             }
         }
@@ -86,6 +88,7 @@ async fn delete_dungeon_cascade(pool: &SqlitePool, dungeon_id: &str) -> Result<(
     for room in rooms {
         character_repo::delete_by_room(pool, &room.id).await?;
         world_loot_repo::delete_by_room(pool, &room.id).await?;
+        room_feature_repo::delete_by_room(pool, &room.id).await?;
         room_repo::delete(pool, &room.id).await?;
     }
     Ok(())
@@ -196,5 +199,68 @@ mod tests {
 
         let world = world_repo::find_by_id(db.pool(), "w2").await.unwrap();
         assert!(world.is_none());
+    }
+
+    #[tokio::test]
+    async fn load_map_into_db_removes_stale_room_features() {
+        use crate::game::{FeatureState, Location, RoomFeature};
+        use std::collections::HashMap;
+
+        let db = Database::connect_in_memory().await.unwrap();
+        let mut states = HashMap::new();
+        states.insert(
+            "closed".to_string(),
+            FeatureState {
+                description: Description::new(Some("A closed chest.".to_string())),
+                items: vec![],
+                interact_script: None,
+                interact_next_state: None,
+            },
+        );
+        room_feature_repo::upsert_definition(
+            db.pool(),
+            &RoomFeature {
+                id: "chest".to_string(),
+                name: "Oak Chest".to_string(),
+                default_state: "closed".to_string(),
+                states,
+            },
+        )
+        .await
+        .unwrap();
+
+        let mut universe = make_universe();
+        {
+            let dungeon = universe
+                .worlds
+                .get_mut("w1")
+                .unwrap()
+                .dungeons
+                .get_mut("d1")
+                .unwrap();
+            dungeon.rooms.insert(
+                "r2".to_string(),
+                Room::new("r2".to_string(), Description::new(None)),
+            );
+        }
+        load_map_into_db(db.pool(), &universe).await.unwrap();
+
+        let r2_location = Location {
+            world_id: "w1".to_string(),
+            dungeon_id: "d1".to_string(),
+            room_id: "r2".to_string(),
+        };
+        room_feature_repo::insert_placement_if_missing(db.pool(), &r2_location, "chest", "closed")
+            .await
+            .unwrap();
+
+        // Reload with only r1
+        let universe2 = make_universe();
+        load_map_into_db(db.pool(), &universe2).await.unwrap();
+
+        let placed = room_feature_repo::find_by_location(db.pool(), &r2_location)
+            .await
+            .unwrap();
+        assert!(placed.is_empty());
     }
 }

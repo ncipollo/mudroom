@@ -1,4 +1,5 @@
 pub mod character;
+pub mod room_feature_state;
 pub mod world_loot;
 
 use crate::game::component::Location;
