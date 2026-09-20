@@ -1,5 +1,5 @@
 name = "Oak Chest"
-default_state = "closed"
+default_state = "open"
 
 [states.closed]
 description = "A heavy oak chest bound with iron bands. The lid is shut."

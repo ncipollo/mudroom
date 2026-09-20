@@ -1,20 +1,16 @@
+mod matching;
+
 use std::sync::Arc;
 
 use tracing;
 
 use crate::game::component::{Item, Location};
-use crate::game::config::item_config::select_by_name;
 use crate::game::player::Player;
 use crate::game::{GameState, messaging};
 use crate::persistence::Database;
 use crate::persistence::PersistenceError;
-use crate::persistence::{inventory_repo, world_loot_repo};
-
-struct LootMatch {
-    loot_id: i64,
-    item_definition_id: String,
-    name: String,
-}
+use crate::persistence::{inventory_repo, room_feature_repo, world_loot_repo};
+use matching::{TakeMatch, TakeSource, matching_items};
 
 pub async fn process(game_state: &Arc<GameState>, db: &Database, player: &Player, target: &str) {
     let Some((location, inventory_type, bag_len)) = character_snapshot(game_state, player).await
@@ -22,10 +18,10 @@ pub async fn process(game_state: &Arc<GameState>, db: &Database, player: &Player
         return;
     };
 
-    let matches = match matching_loot(game_state, db, &location, target).await {
+    let matches = match matching_items(game_state, db, &location, target).await {
         Ok(matches) => matches,
         Err(e) => {
-            tracing::error!("Failed to load world loot for take: {e}");
+            tracing::error!("Failed to load takeable items for take: {e}");
             return;
         }
     };
@@ -36,7 +32,7 @@ pub async fn process(game_state: &Arc<GameState>, db: &Database, player: &Player
             player.id,
             format!("You don't see a '{target}' here."),
         ),
-        [loot] => take_matched_item(game_state, db, player, loot, &inventory_type, bag_len).await,
+        [item] => take_matched_item(game_state, db, player, item, &inventory_type, bag_len).await,
         _ => messaging::message(
             &game_state.message_tx,
             player.id,
@@ -58,33 +54,11 @@ async fn character_snapshot(
     ))
 }
 
-async fn matching_loot(
-    game_state: &Arc<GameState>,
-    db: &Database,
-    location: &Location,
-    target: &str,
-) -> Result<Vec<LootMatch>, PersistenceError> {
-    let loot = world_loot_repo::find_by_location(db.pool(), location).await?;
-    let definitions = game_state.item_definitions.read().await;
-    let selected = select_by_name(loot, target, |l| definitions.get(&l.item_definition_id));
-    Ok(selected
-        .into_iter()
-        .filter_map(|l| {
-            let def = definitions.get(&l.item_definition_id)?;
-            Some(LootMatch {
-                loot_id: l.id,
-                item_definition_id: l.item_definition_id.clone(),
-                name: def.name.clone(),
-            })
-        })
-        .collect())
-}
-
 async fn take_matched_item(
     game_state: &Arc<GameState>,
     db: &Database,
     player: &Player,
-    loot: &LootMatch,
+    item: &TakeMatch,
     inventory_type: &str,
     bag_len: usize,
 ) {
@@ -93,15 +67,15 @@ async fn take_matched_item(
         return;
     }
 
-    let Some(new_item_id) = persist_take(db, player.entity_id, loot).await else {
+    let Some(new_item_id) = persist_take(db, player.entity_id, item).await else {
         return;
     };
-    add_to_bag(game_state, player, new_item_id, loot).await;
+    add_to_bag(game_state, player, new_item_id, item).await;
 
     messaging::message(
         &game_state.message_tx,
         player.id,
-        format!("You take the {}.", loot.name),
+        format!("You take the {}.", item.name),
     );
 }
 
@@ -113,15 +87,28 @@ fn bag_size_for(game_state: &Arc<GameState>, inventory_type: &str) -> usize {
         .unwrap_or(usize::MAX)
 }
 
-/// Inserts the bag row before marking the world-loot row taken so a persistence failure never
-/// causes an item to vanish from the world without landing in the player's bag.
-async fn persist_take(db: &Database, character_id: i64, loot: &LootMatch) -> Option<i64> {
+/// Inserts the bag row before removing the item from its source so a persistence failure
+/// never causes an item to vanish from the world without landing in the player's bag.
+async fn persist_take(db: &Database, character_id: i64, item: &TakeMatch) -> Option<i64> {
     let insert_result =
-        inventory_repo::add_bag_item(db.pool(), character_id, &loot.item_definition_id).await;
+        inventory_repo::add_bag_item(db.pool(), character_id, &item.item_definition_id).await;
     let new_item_id = log_on_error(insert_result, "add taken item to bag")?;
 
-    let mark_result = world_loot_repo::mark_taken(db.pool(), loot.loot_id).await;
-    log_on_error(mark_result, "mark taken world loot");
+    match &item.source {
+        TakeSource::WorldLoot { loot_id } => {
+            let mark_result = world_loot_repo::mark_taken(db.pool(), *loot_id).await;
+            log_on_error(mark_result, "mark taken world loot");
+        }
+        TakeSource::Feature { room_feature_id } => {
+            let remove_result = room_feature_repo::remove_item(
+                db.pool(),
+                *room_feature_id,
+                &item.item_definition_id,
+            )
+            .await;
+            log_on_error(remove_result, "remove taken item from feature");
+        }
+    }
 
     Some(new_item_id)
 }
@@ -136,24 +123,28 @@ async fn add_to_bag(
     game_state: &Arc<GameState>,
     player: &Player,
     new_item_id: i64,
-    loot: &LootMatch,
+    item: &TakeMatch,
 ) {
     let mut characters = game_state.active_characters.write().await;
     if let Some(character) = characters.get_mut(&player.entity_id) {
         character.inventory.bag.push(Item {
             id: new_item_id,
-            item_definition_id: loot.item_definition_id.clone(),
+            item_definition_id: item.item_definition_id.clone(),
         });
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
     use crate::game::component::description::Description;
     use crate::game::component::{EquippedBonuses, ItemDefinition, ItemUseType};
-    use crate::game::{Dungeon, Room, World};
-    use crate::persistence::{dungeon_repo, item_repo, room_repo, world_repo};
+    use crate::game::entity::character::{Character, CharacterType};
+    use crate::game::messaging::Message;
+    use crate::game::{Dungeon, FeatureState, Room, RoomFeature, World};
+    use crate::persistence::{character_repo, dungeon_repo, item_repo, room_repo, world_repo};
 
     fn test_location() -> Location {
         Location {
@@ -163,7 +154,7 @@ mod tests {
         }
     }
 
-    fn definition(id: &str, name: &str, alternate_names: &[&str]) -> ItemDefinition {
+    fn definition(id: &str, name: &str) -> ItemDefinition {
         ItemDefinition {
             id: id.to_string(),
             name: name.to_string(),
@@ -172,7 +163,7 @@ mod tests {
             item_type: "weapon".to_string(),
             equipped_bonuses: EquippedBonuses::default(),
             use_effects: vec![],
-            alternate_names: alternate_names.iter().map(|s| s.to_string()).collect(),
+            alternate_names: vec![],
         }
     }
 
@@ -192,6 +183,20 @@ mod tests {
         .unwrap();
     }
 
+    async fn setup_character(db: &Database) -> i64 {
+        let character = Character::new(0, CharacterType::Player, test_location());
+        character_repo::insert(db.pool(), &character).await.unwrap()
+    }
+
+    fn test_player(entity_id: i64) -> Player {
+        Player {
+            id: 1,
+            client_id: "client".to_string(),
+            name: "Hero".to_string(),
+            entity_id,
+        }
+    }
+
     async fn seed_loot(game_state: &Arc<GameState>, db: &Database, def: ItemDefinition) {
         item_repo::upsert_definition(db.pool(), &def).await.unwrap();
         world_loot_repo::insert_config_loot_if_missing(db.pool(), &test_location(), &def.id)
@@ -204,79 +209,114 @@ mod tests {
             .insert(def.id.clone(), def);
     }
 
-    async fn game_state_with(defs: Vec<ItemDefinition>, db: &Database) -> Arc<GameState> {
-        setup_world(db).await;
-        let game_state = Arc::new(GameState::load(None).unwrap());
-        for def in defs {
-            seed_loot(&game_state, db, def).await;
+    fn chest_feature(items: Vec<String>) -> RoomFeature {
+        let mut states = HashMap::new();
+        states.insert(
+            "open".to_string(),
+            FeatureState {
+                description: Description::new(None),
+                items,
+                interact_script: None,
+                interact_next_state: None,
+            },
+        );
+        RoomFeature {
+            id: "chest".to_string(),
+            name: "Oak Chest".to_string(),
+            default_state: "open".to_string(),
+            states,
         }
+    }
+
+    /// Registers a feature holding `def` and places it in `test_location()`. Returns the
+    /// placement id.
+    async fn seed_feature_item(
+        game_state: &Arc<GameState>,
+        db: &Database,
+        def: ItemDefinition,
+    ) -> i64 {
+        item_repo::upsert_definition(db.pool(), &def).await.unwrap();
+        let feature = chest_feature(vec![def.id.clone()]);
+        room_feature_repo::upsert_definition(db.pool(), &feature)
+            .await
+            .unwrap();
+        let (id, _) = room_feature_repo::insert_placement_if_missing(
+            db.pool(),
+            &test_location(),
+            "chest",
+            "open",
+            std::slice::from_ref(&def.id),
+        )
+        .await
+        .unwrap();
         game_state
+            .item_definitions
+            .write()
+            .await
+            .insert(def.id.clone(), def);
+        id
+    }
+
+    async fn game_state_with_character(db: &Database) -> (Arc<GameState>, Player) {
+        let character_id = setup_character(db).await;
+        let game_state = Arc::new(GameState::load(None).unwrap());
+        game_state.active_characters.write().await.insert(
+            character_id,
+            Character::new(character_id, CharacterType::Player, test_location()),
+        );
+        (game_state, test_player(character_id))
     }
 
     #[tokio::test]
-    async fn matches_primary_name_case_insensitively() {
+    async fn take_takes_item_from_a_room_feature_and_persists_the_removal() {
         let db = Database::connect_in_memory().await.unwrap();
-        let game_state =
-            game_state_with(vec![definition("spiked_bat", "Spiked Bat", &["bat"])], &db).await;
+        setup_world(&db).await;
+        let (game_state, player) = game_state_with_character(&db).await;
+        let room_feature_id =
+            seed_feature_item(&game_state, &db, definition("torch", "Torch")).await;
 
-        let matches = matching_loot(&game_state, &db, &test_location(), "spiked bat")
+        let mut rx = game_state.message_tx.subscribe();
+        process(&game_state, &db, &player, "torch").await;
+
+        let msg = rx.recv().await.unwrap();
+        match msg.message {
+            Message::Complete { content, .. } => assert_eq!(content, "You take the Torch."),
+            other => panic!("expected Complete message, got {other:?}"),
+        }
+
+        let characters = game_state.active_characters.read().await;
+        assert_eq!(characters[&player.entity_id].inventory.bag.len(), 1);
+        assert_eq!(
+            characters[&player.entity_id].inventory.bag[0].item_definition_id,
+            "torch"
+        );
+        drop(characters);
+
+        let placed = room_feature_repo::find_by_location(db.pool(), &test_location())
             .await
             .unwrap();
-
-        assert_eq!(matches.len(), 1);
-        assert_eq!(matches[0].name, "Spiked Bat");
+        assert_eq!(placed.len(), 1);
+        assert_eq!(placed[0].id, room_feature_id);
+        assert!(placed[0].items.is_empty());
     }
 
     #[tokio::test]
-    async fn matches_alternate_name_case_insensitively() {
+    async fn take_is_ambiguous_when_floor_loot_and_feature_item_share_a_name() {
         let db = Database::connect_in_memory().await.unwrap();
-        let game_state =
-            game_state_with(vec![definition("spiked_bat", "Spiked Bat", &["bat"])], &db).await;
+        setup_world(&db).await;
+        let (game_state, player) = game_state_with_character(&db).await;
+        seed_loot(&game_state, &db, definition("torch", "Torch")).await;
+        seed_feature_item(&game_state, &db, definition("torch", "Torch")).await;
 
-        let matches = matching_loot(&game_state, &db, &test_location(), "BAT")
-            .await
-            .unwrap();
+        let mut rx = game_state.message_tx.subscribe();
+        process(&game_state, &db, &player, "torch").await;
 
-        assert_eq!(matches.len(), 1);
-        assert_eq!(matches[0].name, "Spiked Bat");
-    }
-
-    #[tokio::test]
-    async fn ambiguous_when_two_items_share_an_alias() {
-        let db = Database::connect_in_memory().await.unwrap();
-        let game_state = game_state_with(
-            vec![
-                definition("spiked_bat", "Spiked Bat", &["stick"]),
-                definition("gnarled_club", "Gnarled Club", &["stick"]),
-            ],
-            &db,
-        )
-        .await;
-
-        let matches = matching_loot(&game_state, &db, &test_location(), "stick")
-            .await
-            .unwrap();
-
-        assert_eq!(matches.len(), 2);
-    }
-
-    #[tokio::test]
-    async fn primary_name_match_wins_over_alias_match() {
-        let db = Database::connect_in_memory().await.unwrap();
-        let game_state = game_state_with(
-            vec![
-                definition("club", "Club", &[]),
-                definition("spiked_bat", "Spiked Bat", &["club"]),
-            ],
-            &db,
-        )
-        .await;
-
-        let matches = matching_loot(&game_state, &db, &test_location(), "club")
-            .await
-            .unwrap();
-
-        assert_eq!(matches.len(), 1);
-        assert_eq!(matches[0].name, "Club");
+        let msg = rx.recv().await.unwrap();
+        match msg.message {
+            Message::Complete { content, .. } => {
+                assert_eq!(content, "Which 'torch' do you mean?");
+            }
+            other => panic!("expected Complete message, got {other:?}"),
+        }
     }
 }

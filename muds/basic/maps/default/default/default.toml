@@ -1,5 +1,7 @@
+features = ["chest"]
+
 [description]
-text = "You stand at the crossroads of a small town. A **tavern** lies to the north. A dark corridor leads to the east."
+text = "You stand at the crossroads of a small town. A **tavern** lies to the north. A dark corridor leads to the east. An oak chest sits at the edge of the square."
 
 [north]
 room_id = "tavern"
