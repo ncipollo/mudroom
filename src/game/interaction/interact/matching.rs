@@ -1,3 +1,4 @@
+use crate::game::RoomFeatureState;
 use crate::game::component::Location;
 use crate::game::map::universe::room_feature;
 use crate::persistence::Database;
@@ -11,12 +12,21 @@ pub(super) struct InteractMatch {
     pub(super) next_state: Option<String>,
 }
 
+/// The result of matching a player's target against room features at their location.
+/// `matches` is empty when either nothing matched by name, or something matched by name
+/// but `verb` doesn't apply to its current state — `verb_mismatches` (feature names) tells
+/// those two cases apart so the caller can give clearer feedback than a silent no-op.
+pub(super) struct MatchOutcome {
+    pub(super) matches: Vec<InteractMatch>,
+    pub(super) verb_mismatches: Vec<String>,
+}
+
 pub(super) async fn matching_features(
     db: &Database,
     location: &Location,
     verb: &str,
     target: &str,
-) -> Result<Vec<InteractMatch>, PersistenceError> {
+) -> Result<MatchOutcome, PersistenceError> {
     let placements = room_feature_repo::find_by_location(db.pool(), location).await?;
     let mut candidates = Vec::new();
     for placement in placements {
@@ -26,26 +36,40 @@ pub(super) async fn matching_features(
         else {
             continue;
         };
-        if !def.allows_verb(verb) {
-            continue;
-        }
         candidates.push((placement, def));
     }
 
-    Ok(room_feature::select_by_name(candidates, target, |c| &c.1)
-        .into_iter()
-        .map(|(placement, def)| {
-            let next_state = def
-                .states
-                .get(&placement.current_state)
-                .and_then(|state| state.interact_next_state.clone());
-            InteractMatch {
+    let name_matches = room_feature::select_by_name(candidates, target, |c| &c.1);
+    Ok(split_by_verb(name_matches, verb))
+}
+
+/// Splits name-matched candidates into those whose current state allows `verb` (as
+/// [`InteractMatch`]es) and those that matched by name but not by verb (by name, for
+/// feedback).
+fn split_by_verb(
+    name_matches: Vec<(RoomFeatureState, room_feature::RoomFeature)>,
+    verb: &str,
+) -> MatchOutcome {
+    let mut matches = Vec::new();
+    let mut verb_mismatches = Vec::new();
+    for (placement, def) in name_matches {
+        let Some(state) = def.states.get(&placement.current_state) else {
+            continue;
+        };
+        if state.allows_verb(verb) {
+            matches.push(InteractMatch {
                 room_feature_id: placement.id,
                 name: def.name,
-                next_state,
-            }
-        })
-        .collect())
+                next_state: state.interact_next_state.clone(),
+            });
+        } else {
+            verb_mismatches.push(def.name);
+        }
+    }
+    MatchOutcome {
+        matches,
+        verb_mismatches,
+    }
 }
 
 #[cfg(test)]
@@ -90,6 +114,7 @@ mod tests {
                 items: vec![],
                 interact_script: None,
                 interact_next_state: Some("open".to_string()),
+                alt_verbs: alt_verbs.into_iter().map(str::to_string).collect(),
             },
         );
         states.insert(
@@ -99,6 +124,7 @@ mod tests {
                 items: vec![],
                 interact_script: None,
                 interact_next_state: None,
+                alt_verbs: vec![],
             },
         );
         RoomFeature {
@@ -106,7 +132,6 @@ mod tests {
             name: "Oak Chest".to_string(),
             default_state: "closed".to_string(),
             states,
-            alt_verbs: alt_verbs.into_iter().map(str::to_string).collect(),
             alternate_names: vec![],
         }
     }
@@ -132,12 +157,12 @@ mod tests {
         setup_world(&db).await;
         seed_feature(&db, &chest_feature(vec![]), "closed").await;
 
-        let matches = matching_features(&db, &test_location(), "interact", "oak chest")
+        let outcome = matching_features(&db, &test_location(), "interact", "oak chest")
             .await
             .unwrap();
 
-        assert_eq!(matches.len(), 1);
-        assert_eq!(matches[0].next_state.as_deref(), Some("open"));
+        assert_eq!(outcome.matches.len(), 1);
+        assert_eq!(outcome.matches[0].next_state.as_deref(), Some("open"));
     }
 
     #[tokio::test]
@@ -146,24 +171,52 @@ mod tests {
         setup_world(&db).await;
         seed_feature(&db, &chest_feature(vec!["open"]), "closed").await;
 
-        let matches = matching_features(&db, &test_location(), "OPEN", "oak chest")
+        let outcome = matching_features(&db, &test_location(), "OPEN", "oak chest")
             .await
             .unwrap();
 
-        assert_eq!(matches.len(), 1);
+        assert_eq!(outcome.matches.len(), 1);
     }
 
     #[tokio::test]
-    async fn does_not_match_an_undeclared_alt_verb() {
+    async fn undeclared_alt_verb_is_reported_as_a_verb_mismatch() {
         let db = Database::connect_in_memory().await.unwrap();
         setup_world(&db).await;
         seed_feature(&db, &chest_feature(vec![]), "closed").await;
 
-        let matches = matching_features(&db, &test_location(), "push", "oak chest")
+        let outcome = matching_features(&db, &test_location(), "push", "oak chest")
             .await
             .unwrap();
 
-        assert!(matches.is_empty());
+        assert!(outcome.matches.is_empty());
+        assert_eq!(outcome.verb_mismatches, vec!["Oak Chest".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn no_name_match_reports_no_verb_mismatch_either() {
+        let db = Database::connect_in_memory().await.unwrap();
+        setup_world(&db).await;
+
+        let outcome = matching_features(&db, &test_location(), "interact", "oak chest")
+            .await
+            .unwrap();
+
+        assert!(outcome.matches.is_empty());
+        assert!(outcome.verb_mismatches.is_empty());
+    }
+
+    #[tokio::test]
+    async fn matches_by_name_but_not_by_verb_reports_a_verb_mismatch() {
+        let db = Database::connect_in_memory().await.unwrap();
+        setup_world(&db).await;
+        seed_feature(&db, &chest_feature(vec!["open"]), "open").await;
+
+        let outcome = matching_features(&db, &test_location(), "open", "oak chest")
+            .await
+            .unwrap();
+
+        assert!(outcome.matches.is_empty());
+        assert_eq!(outcome.verb_mismatches, vec!["Oak Chest".to_string()]);
     }
 
     #[tokio::test]
@@ -172,12 +225,12 @@ mod tests {
         setup_world(&db).await;
         seed_feature(&db, &chest_feature(vec![]), "open").await;
 
-        let matches = matching_features(&db, &test_location(), "interact", "oak chest")
+        let outcome = matching_features(&db, &test_location(), "interact", "oak chest")
             .await
             .unwrap();
 
-        assert_eq!(matches.len(), 1);
-        assert!(matches[0].next_state.is_none());
+        assert_eq!(outcome.matches.len(), 1);
+        assert!(outcome.matches[0].next_state.is_none());
     }
 
     #[tokio::test]
@@ -188,11 +241,11 @@ mod tests {
         feature.alternate_names = vec!["chest".to_string()];
         seed_feature(&db, &feature, "closed").await;
 
-        let matches = matching_features(&db, &test_location(), "interact", "CHEST")
+        let outcome = matching_features(&db, &test_location(), "interact", "CHEST")
             .await
             .unwrap();
 
-        assert_eq!(matches.len(), 1);
+        assert_eq!(outcome.matches.len(), 1);
     }
 
     #[tokio::test]
@@ -209,11 +262,11 @@ mod tests {
         spiked_bat.alternate_names = vec!["club".to_string()];
         seed_feature(&db, &spiked_bat, "closed").await;
 
-        let matches = matching_features(&db, &test_location(), "interact", "club")
+        let outcome = matching_features(&db, &test_location(), "interact", "club")
             .await
             .unwrap();
 
-        assert_eq!(matches.len(), 1);
-        assert_eq!(matches[0].name, "Club");
+        assert_eq!(outcome.matches.len(), 1);
+        assert_eq!(outcome.matches[0].name, "Club");
     }
 }

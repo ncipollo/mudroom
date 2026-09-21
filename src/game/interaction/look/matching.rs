@@ -147,6 +147,7 @@ mod tests {
                     items: vec![],
                     interact_script: None,
                     interact_next_state: None,
+                    alt_verbs: vec![],
                 },
             );
         }
@@ -155,7 +156,6 @@ mod tests {
             name: "Oak Chest".to_string(),
             default_state: default_state.to_string(),
             states: state_map,
-            alt_verbs: vec![],
             alternate_names: vec![],
         }
     }

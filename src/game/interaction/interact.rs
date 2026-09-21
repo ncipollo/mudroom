@@ -9,7 +9,7 @@ use crate::game::player::Player;
 use crate::game::{GameState, messaging};
 use crate::persistence::Database;
 use crate::persistence::room_feature_repo;
-use matching::{InteractMatch, matching_features};
+use matching::{InteractMatch, MatchOutcome, matching_features};
 
 pub async fn process(
     game_state: &Arc<GameState>,
@@ -22,15 +22,15 @@ pub async fn process(
         return;
     };
 
-    let matches = match matching_features(db, &location, verb, target).await {
-        Ok(matches) => matches,
+    let outcome = match matching_features(db, &location, verb, target).await {
+        Ok(outcome) => outcome,
         Err(e) => {
             tracing::error!("Failed to load interact targets: {e}");
             return;
         }
     };
 
-    respond_to_interact(game_state, db, player, verb, target, matches.as_slice()).await;
+    respond_to_interact(game_state, db, player, verb, target, &outcome).await;
 }
 
 async fn player_location(game_state: &Arc<GameState>, player: &Player) -> Option<Location> {
@@ -46,14 +46,10 @@ async fn respond_to_interact(
     player: &Player,
     verb: &str,
     target: &str,
-    matches: &[InteractMatch],
+    outcome: &MatchOutcome,
 ) {
-    match matches {
-        [] => messaging::message(
-            &game_state.message_tx,
-            player.id,
-            format!("You don't see a '{target}' here."),
-        ),
+    match outcome.matches.as_slice() {
+        [] => respond_to_no_match(game_state, player, verb, target, &outcome.verb_mismatches),
         [feature_match] => apply_interact(game_state, db, player, verb, feature_match).await,
         _ => messaging::message(
             &game_state.message_tx,
@@ -61,6 +57,23 @@ async fn respond_to_interact(
             format!("Which '{target}' do you mean?"),
         ),
     }
+}
+
+/// No feature's current state allowed `verb`. Distinguishes "found it, but that verb
+/// doesn't apply right now" from "no such feature here" — the latter is all we can say
+/// when nothing matched by name at all.
+fn respond_to_no_match(
+    game_state: &Arc<GameState>,
+    player: &Player,
+    verb: &str,
+    target: &str,
+    verb_mismatches: &[String],
+) {
+    let content = match verb_mismatches.first() {
+        Some(name) => format!("You can't {} the {name} right now.", verb.to_lowercase()),
+        None => format!("You don't see a '{target}' here."),
+    };
+    messaging::message(&game_state.message_tx, player.id, content);
 }
 
 async fn apply_interact(
@@ -164,6 +177,7 @@ mod tests {
                 items: vec![],
                 interact_script: None,
                 interact_next_state: has_next_state.then(|| "open".to_string()),
+                alt_verbs: alt_verbs.into_iter().map(str::to_string).collect(),
             },
         );
         states.insert(
@@ -173,6 +187,7 @@ mod tests {
                 items: vec![],
                 interact_script: None,
                 interact_next_state: None,
+                alt_verbs: vec![],
             },
         );
         RoomFeature {
@@ -180,12 +195,15 @@ mod tests {
             name: "Oak Chest".to_string(),
             default_state: "closed".to_string(),
             states,
-            alt_verbs: alt_verbs.into_iter().map(str::to_string).collect(),
             alternate_names: vec![],
         }
     }
 
     async fn seed_feature(db: &Database, feature: &RoomFeature) -> i64 {
+        seed_feature_at(db, feature, "closed").await
+    }
+
+    async fn seed_feature_at(db: &Database, feature: &RoomFeature, current_state: &str) -> i64 {
         room_feature_repo::upsert_definition(db.pool(), feature)
             .await
             .unwrap();
@@ -193,7 +211,7 @@ mod tests {
             db.pool(),
             &test_location(),
             &feature.id,
-            "closed",
+            current_state,
             &[],
         )
         .await
@@ -246,7 +264,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn undeclared_alt_verb_is_treated_as_no_match() {
+    async fn undeclared_alt_verb_gives_a_clear_mismatch_message() {
         let db = Database::connect_in_memory().await.unwrap();
         let (game_state, player) = game_state_with_character(&db).await;
         seed_feature(&db, &chest_feature(vec![], true)).await;
@@ -255,7 +273,21 @@ mod tests {
         process(&game_state, &db, &player, "push", "oak chest").await;
         let content = recv_message(&mut rx).await;
 
-        assert_eq!(content, "You don't see a 'oak chest' here.");
+        assert_eq!(content, "You can't push the Oak Chest right now.");
+    }
+
+    #[tokio::test]
+    async fn alt_verb_from_a_different_state_gives_a_clear_mismatch_message() {
+        let db = Database::connect_in_memory().await.unwrap();
+        let (game_state, player) = game_state_with_character(&db).await;
+        // "open" is only declared on the "closed" state; the chest is already open.
+        seed_feature_at(&db, &chest_feature(vec!["open"], true), "open").await;
+
+        let mut rx = game_state.message_tx.subscribe();
+        process(&game_state, &db, &player, "open", "oak chest").await;
+        let content = recv_message(&mut rx).await;
+
+        assert_eq!(content, "You can't open the Oak Chest right now.");
     }
 
     #[tokio::test]
