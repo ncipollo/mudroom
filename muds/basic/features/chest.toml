@@ -1,12 +1,14 @@
 name = "Oak Chest"
 default_state = "open"
-alt_verbs = ["open"]
 alternate_names = ["chest"]
 
 [states.closed]
 description = "A heavy oak chest bound with iron bands. The lid is shut."
 interact_next_state = "open"
+alt_verbs = ["open"]
 
 [states.open]
 description = "The oak chest stands open, its lid tipped back."
 items = ["medicine"]
+interact_next_state = "closed"
+alt_verbs = ["close"]

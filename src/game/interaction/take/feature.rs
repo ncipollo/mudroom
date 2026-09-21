@@ -258,6 +258,7 @@ mod tests {
                 items,
                 interact_script: None,
                 interact_next_state: None,
+                alt_verbs: vec![],
             },
         );
         RoomFeature {
@@ -265,7 +266,6 @@ mod tests {
             name: name.to_string(),
             default_state: "open".to_string(),
             states,
-            alt_verbs: vec![],
             alternate_names: vec![],
         }
     }

@@ -215,6 +215,7 @@ mod tests {
                 items: vec![],
                 interact_script: None,
                 interact_next_state: None,
+                alt_verbs: vec![],
             },
         );
         room_feature_repo::upsert_definition(
@@ -224,7 +225,6 @@ mod tests {
                 name: "Oak Chest".to_string(),
                 default_state: "closed".to_string(),
                 states,
-                alt_verbs: vec![],
                 alternate_names: vec![],
             },
         )

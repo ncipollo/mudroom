@@ -186,6 +186,7 @@ mod tests {
                 items,
                 interact_script: None,
                 interact_next_state: None,
+                alt_verbs: vec![],
             },
         );
         RoomFeature {
@@ -193,7 +194,6 @@ mod tests {
             name: "Oak Chest".to_string(),
             default_state: state.to_string(),
             states,
-            alt_verbs: vec![],
             alternate_names: vec![],
         }
     }

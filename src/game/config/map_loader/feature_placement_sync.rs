@@ -71,6 +71,7 @@ mod tests {
                 items: vec![],
                 interact_script: None,
                 interact_next_state: Some("open".to_string()),
+                alt_verbs: vec![],
             },
         );
         states.insert(
@@ -80,6 +81,7 @@ mod tests {
                 items: vec!["medicine".to_string()],
                 interact_script: None,
                 interact_next_state: None,
+                alt_verbs: vec![],
             },
         );
         RoomFeature {
@@ -87,7 +89,6 @@ mod tests {
             name: "Oak Chest".to_string(),
             default_state: "closed".to_string(),
             states,
-            alt_verbs: vec![],
             alternate_names: vec![],
         }
     }
