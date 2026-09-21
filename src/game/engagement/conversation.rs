@@ -1,22 +1,8 @@
 /// Handles resolved actions for [`crate::game::EngagementType::Conversation`] engagements.
-///
-/// A conversation engagement has two entities: a player and an NPC. Only the player takes
-/// turns; the NPC's character id is tracked for dialog-state lookups but never appears in the
-/// turn order.
-///
-/// Each time the player's turn resolves there are two possible outcomes:
-/// - **Timeout** (`resolved.action` is `None`): the player didn't respond in time.
-///   The conversation is ended, the NPC's conversation state is cleaned up, and the
-///   engagement is removed.
-/// - **`SelectDialogChoice { choice }`**: the player picked a numbered dialog option.
-///   The handler validates the choice, advances to the matching reply node in the dialog
-///   tree, updates the NPC's in-memory conversation context, and sends the next dialog
-///   message to the player. If the reply has no further responses the conversation ends.
-/// - **`Respond { content }`**: the player sent a free-text message to an agent NPC.
-///   The handler calls the LLM provider and streams the response.
-///
-/// Returns `true` if the engagement ended this tick so the caller can call
-/// `engagements.remove()` without this module reaching back into `Engagements` directly.
+/// Only the player takes turns; the NPC's character id is tracked for dialog-state lookups
+/// but never appears in the turn order. A resolved turn is a timeout (ends the conversation),
+/// a dialog choice (advances the dialog tree), or free text (routed to the LLM provider).
+/// Returns `true` if the engagement ended this tick, so the caller should remove it.
 mod agent_turn;
 pub mod collection;
 pub mod factory;

@@ -4,12 +4,9 @@ use ratatui::text::{Line, Span};
 
 use super::theme::{Markup, MessageTheme, StyleKey, StyleOverrides};
 
-/// Parses markdown-ish description/narration text into themed `Line`s.
-///
-/// Only inline styling is honored (bold, emphasis, inline code as highlight).
-/// Unsupported constructs (headings, lists, blockquotes, links, images, html)
-/// render their inner text as plain spans in the surrounding style; they never
-/// cause a panic.
+/// Parses markdown-ish description/narration text into themed `Line`s. Only inline styling
+/// is honored (bold, emphasis, inline code as highlight); unsupported constructs render as
+/// plain spans in the surrounding style rather than panicking.
 pub fn parse(text: &str, theme: &MessageTheme, overrides: &StyleOverrides) -> Vec<Line<'static>> {
     let mut builder = LineBuilder::new(theme, overrides);
     for event in Parser::new(text) {

@@ -1,17 +1,12 @@
+mod phase;
+
 use std::collections::HashMap;
 
 use crate::game::component::{Ability, Attribute};
 use crate::game::entity::character::Character;
 
+use super::BattlePhase;
 use super::action_queue::ActionQueue;
-use super::{BattleMessage, BattlePhase, BattleTick, QueuedAbility};
-
-struct PhaseOutput {
-    messages: Vec<BattleMessage>,
-    resolution_queue: Vec<QueuedAbility>,
-    pending_actions: Vec<QueuedAbility>,
-    completed_phase: BattlePhase,
-}
 
 pub struct BattleEngagement {
     pub factions: Vec<String>,
@@ -114,200 +109,6 @@ impl BattleEngagement {
             .values()
             .filter(|ids| !ids.is_empty())
             .count()
-    }
-
-    pub fn tick(&mut self, engagement_id: i64, max_engage_ticks: u64) -> BattleTick {
-        let all_participant_ids = self.all_entity_ids();
-        let output = self.advance_phase(engagement_id, max_engage_ticks);
-        BattleTick {
-            engagement_id,
-            all_participant_ids,
-            messages: output.messages,
-            turn_count: self.turn_count,
-            resolution_queue: output.resolution_queue,
-            pending_actions: output.pending_actions,
-            phase: self.turn_phase.clone(),
-            completed_phase: output.completed_phase,
-            factions: self.factions.clone(),
-            participants: self.participants.clone(),
-            ticks_in_phase: self.ticks_in_phase,
-        }
-    }
-
-    /// Drives the phase state machine one step, returning messages and queued work produced by
-    /// the transition. Advances `self.turn_phase` and resets `self.ticks_in_phase` as needed.
-    ///
-    /// Every phase except `DeclareAttacks`/`DeclareDefense` is an unconditional single-tick
-    /// transition — one `tick()` call advances exactly one phase-arm. Only `DeclareAttacks` and
-    /// `DeclareDefense` dwell across multiple raw ticks, waiting for player/AI submissions or a
-    /// timeout. This is deliberate: walking the non-dwelling phases (e.g. `ResolveAbilities`
-    /// through `VictoryCheck`, or `ResetAttributes` through `DeclareAttacks`) now costs several
-    /// more raw ticks than the old 5-phase machine's equivalent single-call transitions did. None
-    /// of the new phases block on player input, so this only adds a few non-waiting game-loop
-    /// ticks per turn — do not "optimize" this into a multi-arm-per-call loop.
-    fn advance_phase(&mut self, engagement_id: i64, max_engage_ticks: u64) -> PhaseOutput {
-        let completed_phase = self.turn_phase.clone();
-        let mut out = PhaseOutput {
-            messages: Vec::new(),
-            resolution_queue: Vec::new(),
-            pending_actions: Vec::new(),
-            completed_phase: completed_phase.clone(),
-        };
-        match completed_phase {
-            BattlePhase::ResetAttributes { .. } => {
-                self.advance_reset_attributes(&mut out, engagement_id)
-            }
-            BattlePhase::AnnounceState { .. } => self.advance_announce_state(&mut out),
-            BattlePhase::ApplyEffects { .. } => self.advance_apply_effects(&mut out),
-            BattlePhase::DeclareAttacks { faction } => {
-                self.advance_declare_attacks(&mut out, engagement_id, faction, max_engage_ticks)
-            }
-            BattlePhase::DeclareDefense { .. } => {
-                self.advance_declare_defense(&mut out, engagement_id, max_engage_ticks)
-            }
-            BattlePhase::ResolveAbilities => {
-                self.advance_resolve_abilities(&mut out, engagement_id)
-            }
-            BattlePhase::ResolveEntityState => self.advance_resolve_entity_state(&mut out),
-            BattlePhase::Cleanup => self.advance_cleanup(&mut out),
-            BattlePhase::VictoryCheck => self.advance_victory_check(&mut out, engagement_id),
-            BattlePhase::Concluded => {}
-        }
-        out
-    }
-
-    fn transition_to(&mut self, out: &mut PhaseOutput, next: BattlePhase) {
-        out.messages.push(BattleMessage::PhaseChange {
-            phase: next.clone(),
-        });
-        self.turn_phase = next;
-        self.ticks_in_phase = 0;
-    }
-
-    fn advance_reset_attributes(&mut self, out: &mut PhaseOutput, engagement_id: i64) {
-        self.turn_count += 1;
-        tracing::info!(
-            engagement_id,
-            faction = %self.planning_faction(),
-            turn_count = self.turn_count,
-            "Starting battle turn for faction"
-        );
-        let next = BattlePhase::AnnounceState {
-            faction: self.planning_faction().to_string(),
-        };
-        self.transition_to(out, next);
-    }
-
-    fn advance_announce_state(&mut self, out: &mut PhaseOutput) {
-        let next = BattlePhase::ApplyEffects {
-            faction: self.planning_faction().to_string(),
-        };
-        self.transition_to(out, next);
-    }
-
-    fn advance_apply_effects(&mut self, out: &mut PhaseOutput) {
-        let next = BattlePhase::DeclareAttacks {
-            faction: self.planning_faction().to_string(),
-        };
-        self.transition_to(out, next);
-    }
-
-    fn advance_declare_attacks(
-        &mut self,
-        out: &mut PhaseOutput,
-        engagement_id: i64,
-        faction: String,
-        max_engage_ticks: u64,
-    ) {
-        self.ticks_in_phase += 1;
-        let planning_ids = self.planning_ids();
-        let all_submitted = self.action_queue.all_submitted(&planning_ids);
-        if all_submitted || self.ticks_in_phase >= max_engage_ticks {
-            out.pending_actions = self.action_queue.snapshot();
-            tracing::info!(
-                engagement_id,
-                faction = %faction,
-                planning_count = planning_ids.len(),
-                queued_count = self.action_queue.queued_count(&planning_ids),
-                timed_out = !all_submitted,
-                "DeclareAttacks phase complete"
-            );
-            self.transition_to(out, BattlePhase::DeclareDefense { faction });
-        }
-    }
-
-    fn advance_declare_defense(
-        &mut self,
-        out: &mut PhaseOutput,
-        engagement_id: i64,
-        max_engage_ticks: u64,
-    ) {
-        self.ticks_in_phase += 1;
-        let responding_ids = self.responding_ids();
-        let all_submitted =
-            responding_ids.is_empty() || self.action_queue.all_submitted(&responding_ids);
-        if all_submitted || self.ticks_in_phase >= max_engage_ticks {
-            tracing::info!(
-                engagement_id,
-                responding_count = responding_ids.len(),
-                queued_count = self.action_queue.queued_count(&responding_ids),
-                timed_out = !all_submitted,
-                "DeclareDefense phase complete"
-            );
-            self.transition_to(out, BattlePhase::ResolveAbilities);
-        }
-    }
-
-    fn advance_resolve_abilities(&mut self, out: &mut PhaseOutput, engagement_id: i64) {
-        out.resolution_queue = self.action_queue.drain();
-        tracing::info!(
-            engagement_id,
-            resolution_count = out.resolution_queue.len(),
-            "Resolving queued abilities"
-        );
-        self.transition_to(out, BattlePhase::ResolveEntityState);
-    }
-
-    fn advance_resolve_entity_state(&mut self, out: &mut PhaseOutput) {
-        self.transition_to(out, BattlePhase::Cleanup);
-    }
-
-    fn advance_cleanup(&mut self, out: &mut PhaseOutput) {
-        self.action_queue.clear_turn_state();
-        self.transition_to(out, BattlePhase::VictoryCheck);
-    }
-
-    fn advance_victory_check(&mut self, out: &mut PhaseOutput, engagement_id: i64) {
-        if self.surviving_faction_count() <= 1 {
-            self.log_battle_concluded(engagement_id);
-            self.transition_to(out, BattlePhase::Concluded);
-            return;
-        }
-        if !self.factions.is_empty() {
-            self.planning_faction_index = (self.planning_faction_index + 1) % self.factions.len();
-        }
-        self.log_battle_continuing(engagement_id);
-        let next = BattlePhase::ResetAttributes {
-            faction: self.planning_faction().to_string(),
-        };
-        self.transition_to(out, next);
-    }
-
-    fn log_battle_concluded(&self, engagement_id: i64) {
-        tracing::info!(
-            engagement_id,
-            survivors = self.surviving_faction_count(),
-            "Battle concluded"
-        );
-    }
-
-    fn log_battle_continuing(&self, engagement_id: i64) {
-        tracing::info!(
-            engagement_id,
-            next_faction = %self.planning_faction(),
-            survivor_factions = self.surviving_faction_count(),
-            "Battle continuing to next faction"
-        );
     }
 }
 
@@ -429,7 +230,6 @@ mod tests {
     fn turn_count_increments_once_per_full_faction_turn() {
         let mut eng = make_engagement();
         assert_eq!(eng.turn_count, 0);
-        // ResetAttributes -> AnnounceState -> ApplyEffects -> DeclareAttacks (3 calls)
         for _ in 0..3 {
             eng.tick(1, 1);
         }
@@ -440,8 +240,6 @@ mod tests {
                 faction: "player".into()
             }
         );
-        // DeclareAttacks(timeout) -> DeclareDefense -> ResolveAbilities -> ResolveEntityState
-        // -> Cleanup -> VictoryCheck -> ResetAttributes{enemy} (6 calls)
         for _ in 0..6 {
             eng.tick(1, 1);
         }
@@ -452,7 +250,7 @@ mod tests {
             }
         );
         assert_eq!(eng.turn_count, 1);
-        eng.tick(1, 1); // ResetAttributes{enemy} -> AnnounceState{enemy}, turn_count becomes 2
+        eng.tick(1, 1);
         assert_eq!(eng.turn_count, 2);
     }
 
@@ -460,7 +258,7 @@ mod tests {
     fn tick_declare_attacks_waits_for_timeout() {
         let mut eng = make_engagement();
         for _ in 0..3 {
-            eng.tick(1, 30); // -> DeclareAttacks{player}
+            eng.tick(1, 30);
         }
         let tick = eng.tick(1, 30);
         assert_eq!(
@@ -476,9 +274,9 @@ mod tests {
     fn tick_declare_attacks_advances_on_timeout() {
         let mut eng = make_engagement();
         for _ in 0..3 {
-            eng.tick(1, 1); // -> DeclareAttacks{player}
+            eng.tick(1, 1);
         }
-        let tick = eng.tick(1, 1); // timeout -> DeclareDefense{player}
+        let tick = eng.tick(1, 1);
         assert_eq!(
             eng.turn_phase,
             BattlePhase::DeclareDefense {
@@ -497,9 +295,9 @@ mod tests {
     fn tick_declare_defense_advances_on_timeout() {
         let mut eng = make_engagement();
         for _ in 0..4 {
-            eng.tick(1, 1); // -> DeclareDefense{player}
+            eng.tick(1, 1);
         }
-        let tick = eng.tick(1, 1); // timeout -> ResolveAbilities
+        let tick = eng.tick(1, 1);
         assert_eq!(eng.turn_phase, BattlePhase::ResolveAbilities);
         assert!(tick.messages.iter().any(|m| matches!(
             m,
@@ -513,13 +311,13 @@ mod tests {
     fn tick_resolve_abilities_drains_action_queue() {
         let mut eng = make_engagement();
         for _ in 0..3 {
-            eng.tick(1, 30); // -> DeclareAttacks{player}
+            eng.tick(1, 30);
         }
         let attrs = HashMap::new();
         eng.queue_ability(1, test_ability(), 2, &attrs);
-        eng.tick(1, 1); // all submitted -> DeclareDefense{player}
-        eng.tick(1, 1); // timeout -> ResolveAbilities
-        let tick = eng.tick(1, 1); // ResolveAbilities -> ResolveEntityState
+        eng.tick(1, 1);
+        eng.tick(1, 1);
+        let tick = eng.tick(1, 1);
         assert_eq!(eng.turn_phase, BattlePhase::ResolveEntityState);
         assert_eq!(tick.resolution_queue.len(), 1);
         assert_eq!(tick.resolution_queue[0].caster_id, 1);
@@ -529,14 +327,14 @@ mod tests {
     fn tick_cleanup_clears_skip_and_cost_state() {
         let mut eng = make_engagement();
         for _ in 0..3 {
-            eng.tick(1, 30); // -> DeclareAttacks{player}
+            eng.tick(1, 30);
         }
         eng.skip_phase(1);
-        eng.tick(1, 1); // all skipped -> DeclareDefense
-        eng.tick(1, 1); // timeout -> ResolveAbilities
-        eng.tick(1, 1); // ResolveAbilities -> ResolveEntityState
-        eng.tick(1, 1); // ResolveEntityState -> Cleanup
-        let tick = eng.tick(1, 1); // Cleanup -> VictoryCheck
+        eng.tick(1, 1);
+        eng.tick(1, 1);
+        eng.tick(1, 1);
+        eng.tick(1, 1);
+        let tick = eng.tick(1, 1);
         assert_eq!(eng.turn_phase, BattlePhase::VictoryCheck);
         assert_eq!(tick.completed_phase, BattlePhase::Cleanup);
         assert!(eng.unacted_planning_ids().contains(&1));
@@ -545,7 +343,7 @@ mod tests {
     #[test]
     fn tick_victory_check_transitions_to_concluded_when_one_faction_remains() {
         let mut eng = make_engagement();
-        eng.remove_entity(1); // only "enemy" faction remains
+        eng.remove_entity(1);
         eng.turn_phase = BattlePhase::VictoryCheck;
         let tick = eng.tick(1, 1);
         assert_eq!(eng.turn_phase, BattlePhase::Concluded);
@@ -591,11 +389,11 @@ mod tests {
     fn tick_declare_attacks_to_defense_includes_pending_actions() {
         let mut eng = make_engagement();
         for _ in 0..3 {
-            eng.tick(1, 30); // -> DeclareAttacks{player}
+            eng.tick(1, 30);
         }
         let attrs = HashMap::new();
         eng.queue_ability(1, test_ability(), 2, &attrs);
-        let tick = eng.tick(1, 1); // all submitted -> DeclareDefense{player}
+        let tick = eng.tick(1, 1);
         assert_eq!(
             eng.turn_phase,
             BattlePhase::DeclareDefense {
@@ -611,9 +409,9 @@ mod tests {
     fn tick_declare_attacks_to_defense_empty_pending_actions_when_no_queued() {
         let mut eng = make_engagement();
         for _ in 0..3 {
-            eng.tick(1, 1); // -> DeclareAttacks{player}
+            eng.tick(1, 1);
         }
-        let tick = eng.tick(1, 1); // timeout -> DeclareDefense{player}
+        let tick = eng.tick(1, 1);
         assert_eq!(
             eng.turn_phase,
             BattlePhase::DeclareDefense {

@@ -7,14 +7,11 @@ pub(super) enum TakeTarget<'a> {
 
 const FROM_SEPARATOR: &str = " from ";
 
-/// Splits `take <item> from <feature>` / `take all from <feature>` grammar out of the
-/// opaque target string sent by the client, falling back to `Named` (today's plain
-/// `take <item>` behavior) whenever the grammar doesn't apply. Case-insensitive on both the
-/// `from` keyword and the `all` keyword.
-///
-/// Uses `to_ascii_lowercase` rather than `to_lowercase` to find the separator: it only
-/// rewrites bytes in the ASCII range in place, so byte offsets found on the lowercased copy
-/// stay valid on the original string — full Unicode lowercasing can change byte length.
+/// Splits `take <item> from <feature>` / `take all from <feature>` grammar out of the target
+/// string, falling back to `Named` (plain `take <item>`) otherwise; case-insensitive on both
+/// `from` and `all`. Uses `to_ascii_lowercase` (not `to_lowercase`) to find the separator so
+/// byte offsets found on the lowercased copy stay valid on the original — full Unicode
+/// lowercasing can change byte length.
 pub(super) fn parse_take_target(target: &str) -> TakeTarget<'_> {
     let trimmed = target.trim();
     let Some(sep_idx) = trimmed.to_ascii_lowercase().find(FROM_SEPARATOR) else {

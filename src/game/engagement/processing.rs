@@ -5,16 +5,10 @@ use crate::game::engagement::battle;
 
 use super::conversation;
 
-/// Process all active engagements for the current game tick.
-///
-/// Pipeline per tick:
-/// 1. Compute `max_engage_ticks` from the mud config (`max_engage_ms / tick_rate_ms`).
-/// 2. [`Conversations::process_tick`] — advance every conversation engagement one step and
-///    return resolved actions for entities whose turn completed or timed out.
-/// 3. Dispatch each resolved action to [`conversation::handle`]; if it returns `true`
-///    the engagement ended and is removed from `conversations`.
-/// 4. [`battle::process_ticks`] — advance every battle through its full tick lifecycle
-///    (phase state machine → effect resolution → dead-entity removal → conclusion).
+/// Process all active engagements for the current game tick: advance every conversation one
+/// step via [`Conversations::process_tick`], dispatch resolved actions to
+/// [`conversation::handle`] (removing engagements it ends), then advance every battle through
+/// its full tick lifecycle via [`battle::process_ticks`].
 pub async fn process(game_state: &Arc<GameState>, _tick: u64) {
     let max_engage_ticks = (game_state.mud_config.game_loop.max_engage_ms
         / game_state.mud_config.game_loop.tick_rate_ms)

@@ -4,14 +4,10 @@ use crate::game::GameState;
 
 use super::victory;
 
-/// Ends a battle outside the normal tick-driven conclusion flow — e.g. a player disconnecting
-/// or leaving reduces the battle to a single surviving faction. Runs the same end-of-battle
-/// cleanup as a tick-driven conclusion (loot, `EndOfEngagement` attribute resets, battle-scoped
-/// effect clearing, `BattleEnded` notifications), then tears the engagement down.
-///
-/// `departed_entity_ids` are entities already removed from the engagement (e.g. the player who
-/// just left); they still receive attribute/effect cleanup but no `BattleEnded` notification —
-/// the caller notifies them directly.
+/// Ends a battle outside the normal tick-driven conclusion flow (e.g. a disconnect leaves a
+/// single surviving faction), running the same end-of-battle cleanup as a tick-driven
+/// conclusion. `departed_entity_ids` still get attribute/effect cleanup but no `BattleEnded`
+/// notification — the caller notifies them directly.
 pub async fn end_battle(
     game_state: &Arc<GameState>,
     engagement_id: i64,
