@@ -10,12 +10,9 @@ pub const MOUSE_SCROLL_LINES: usize = 3;
 /// Rows scrolled per modifier+arrow key press.
 pub const KEY_SCROLL_LINES: usize = 1;
 
-/// Scroll position for a bottom-pinned log, measured in wrapped rows above
-/// the bottom. An offset of 0 means pinned: the view follows new content.
-///
-/// `viewport_rows` and `max_offset` are refreshed by [`Self::sync`] each
-/// frame, so scroll requests clamp against the previous frame's metrics and
-/// are re-clamped on the next draw.
+/// Scroll position for a bottom-pinned log, measured in wrapped rows above the bottom. An
+/// offset of 0 means pinned: the view follows new content. `viewport_rows`/`max_offset` are
+/// refreshed by [`Self::sync`] each frame, so scroll requests re-clamp on the next draw.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ScrollState {
     offset: usize,

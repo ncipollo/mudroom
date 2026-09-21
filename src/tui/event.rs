@@ -73,15 +73,11 @@ async fn load_initial_players(app: &mut App) {
     }
 }
 
-/// Handles a terminal event, then drains any already-queued events (e.g. a
-/// trackpad momentum burst) before the next redraw, so a flick coalesces into
-/// one frame instead of one full redraw per wheel tick. Returns `false` if
-/// the event loop should exit.
-///
-/// The drain must poll with the real task waker (`poll_immediate`), not a
-/// no-op one like `now_or_never`: when the stream is empty, crossterm arms
-/// its background wake task with the waker from that poll and ignores wakers
-/// from later polls, so a dead waker would leave the loop deaf to input.
+/// Handles a terminal event, then drains any already-queued events (e.g. a trackpad momentum
+/// burst) before the next redraw, so a flick coalesces into one frame. Must poll with the
+/// real task waker (`poll_immediate`), not a no-op one like `now_or_never`: crossterm arms its
+/// background wake task with the waker from an empty poll and ignores later ones, so a dead
+/// waker would leave the loop deaf to input. Returns `false` if the event loop should exit.
 async fn handle_terminal_events(
     app: &mut App,
     event_stream: &mut EventStream,
@@ -166,12 +162,9 @@ fn scroll_target(app: &mut App) -> Option<&mut ScrollState> {
     }
 }
 
-/// Handles the shared scroll key bindings. Returns `true` if the key was a
-/// scroll binding and has been consumed.
-///
-/// Shift+Up/Down and Ctrl+Up/Down scroll by line (both are bound because
-/// terminals differ in which modifier+arrow combinations they report);
-/// PageUp/PageDown scroll by a full viewport.
+/// Handles the shared scroll key bindings. Shift+Up/Down and Ctrl+Up/Down scroll by line
+/// (both are bound because terminals differ in which modifier+arrow combos they report);
+/// PageUp/PageDown scroll by a full viewport. Returns `true` if the key was consumed.
 fn handle_scroll_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) -> bool {
     let line_scroll =
         modifiers.contains(KeyModifiers::SHIFT) || modifiers.contains(KeyModifiers::CONTROL);

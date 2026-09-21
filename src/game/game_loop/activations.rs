@@ -72,11 +72,9 @@ async fn register_in_game_state(
 }
 
 /// Removes any existing `active_players` entry for `entity_id` registered under a different
-/// client_id. A reconnect under a new client_id (e.g. a new process) can otherwise leave a stale
-/// entry behind if the old client_id's disconnect was never processed — leaving two entries
-/// pointing at the same character. That stale entry would be indistinguishable, by character-scoped
-/// activation epoch alone, from the fresh one when a disconnect eventually gets dispatched for
-/// it, risking exactly the character it aliases getting torn down out from under the live client.
+/// client_id. A reconnect can otherwise leave a stale entry behind (old client_id's disconnect
+/// never processed), indistinguishable from the fresh one by activation epoch alone — risking
+/// the live client's character getting torn down when that stale disconnect is dispatched.
 async fn evict_stale_client_registrations(
     game_state: &Arc<GameState>,
     entity_id: i64,

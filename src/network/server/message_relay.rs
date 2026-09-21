@@ -15,12 +15,10 @@ use crate::network::event::{
 
 use super::state::ConnectedClient;
 
-/// Spawns the message relay task.
-///
-/// Subscribes to the game's broadcast channel and forwards each PlayerMessage
-/// to the correct SSE client. Complete messages become NetworkEvent::Message;
-/// streaming chunks become NetworkEvent::MessageChunk. The player's client_id
-/// is resolved via active_players to find the right SSE channel.
+/// Spawns the message relay task: subscribes to the game's broadcast channel and forwards
+/// each `PlayerMessage` to the correct SSE client (complete → `NetworkEvent::Message`,
+/// streaming chunks → `NetworkEvent::MessageChunk`), resolving the client_id via
+/// `active_players`.
 pub fn spawn(
     mut msg_rx: broadcast::Receiver<PlayerMessage>,
     connections: Arc<RwLock<HashMap<String, ConnectedClient>>>,

@@ -5,13 +5,9 @@ use crate::tui::components::theme::MessageKind;
 use crate::tui::components::typewriter::{self, TypewriterState};
 
 impl App {
-    /// Starts revealing the message at `message_index`, if it's narration.
-    ///
-    /// A burst of narration messages (e.g. a move confirmation followed by a
-    /// room description) can be pushed within the same tick, well before the
-    /// first one finishes revealing. Rather than letting each new message
-    /// steal the reveal from the one in progress, later messages queue up
-    /// and reveal in turn.
+    /// Starts revealing the message at `message_index`, if it's narration. A burst of
+    /// narration messages pushed within the same tick queue up rather than each one
+    /// stealing the reveal from the one already in progress.
     pub fn start_reveal(&mut self, message_index: usize) {
         let is_narration = self
             .messages

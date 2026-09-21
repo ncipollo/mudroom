@@ -69,13 +69,10 @@ impl Drop for SseCleanupGuard {
 }
 
 /// Looks up the entity behind `client_id` and queues `Interaction::PlayerDisconnected` for it,
-/// capturing the entity's current activation epoch immediately beforehand — as early as possible
-/// after deciding to queue the disconnect — so a reactivation racing this call is reflected as a
-/// bumped epoch by the time dispatch checks it, rather than this stale disconnect picking up the
-/// reactivation's own epoch and looking fresh again. Every disconnect source (SSE drop, explicit
-/// session end, ping/pong timeout) routes through this so they all converge on the same
-/// epoch-guarded teardown path. Returns the entity id, or `None` if `client_id` has no registered
-/// player.
+/// capturing the activation epoch as early as possible so a racing reactivation is reflected
+/// as a bumped epoch by dispatch time rather than this disconnect looking fresh. Every
+/// disconnect source (SSE drop, explicit session end, ping/pong timeout) routes through here
+/// onto the same epoch-guarded teardown path. Returns `None` if `client_id` isn't registered.
 pub async fn queue_player_disconnected(
     game_state: &Arc<GameState>,
     client_id: &str,
