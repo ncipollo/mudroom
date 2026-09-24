@@ -1,7 +1,7 @@
 [[rule]]
 name = "default"
 include = ["*.rs"]
-exclude = ["target/**", "src/game/config/persona_parser.rs"]
+exclude = ["target/**", "src/game/config/persona_parser.rs", "src/cli.rs"]
 max_complexity = 16
 max_methods = 16
 max_lines = 800

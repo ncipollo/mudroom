@@ -73,6 +73,8 @@ pub enum InstructionsTopic {
     Classes,
     /// Entity config file (entities/*.toml) reference
     Entities,
+    /// Room feature config file (features/*.toml) reference
+    Features,
     /// Inventory config file (inventory.toml) reference
     Inventory,
     /// Item config file (items/*.toml) reference

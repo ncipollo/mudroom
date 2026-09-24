@@ -2,6 +2,7 @@ pub mod abilities;
 pub mod attributes;
 pub mod classes;
 pub mod entities;
+pub mod features;
 pub mod inventory;
 pub mod items;
 pub mod maps;
@@ -15,6 +16,7 @@ pub enum InstructionType {
     Attributes,
     Classes,
     Entities,
+    Features,
     Inventory,
     Items,
     Maps,
@@ -28,6 +30,7 @@ pub fn print_instructions(topic: InstructionType) {
         InstructionType::Attributes => attributes::render(),
         InstructionType::Classes => classes::render(),
         InstructionType::Entities => entities::render(),
+        InstructionType::Features => features::render(),
         InstructionType::Inventory => inventory::render(),
         InstructionType::Items => items::render(),
         InstructionType::Maps => maps::render(),
