@@ -19,9 +19,21 @@ pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
         }
         (_, KeyCode::Char(c)) => {
             app.input.push(c);
+            app.command_history.reset_navigation();
         }
         (_, KeyCode::Backspace) => {
             app.input.pop();
+            app.command_history.reset_navigation();
+        }
+        (_, KeyCode::Up) => {
+            if let Some(recalled) = app.command_history.prev(&app.input) {
+                app.input = recalled;
+            }
+        }
+        (_, KeyCode::Down) => {
+            if let Some(recalled) = app.command_history.next() {
+                app.input = recalled;
+            }
         }
         (_, KeyCode::Enter) => {
             app.skip_all_reveals();
@@ -29,6 +41,7 @@ pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
             if input.is_empty() {
                 return;
             }
+            app.command_history.push(input.clone());
             dispatch_command(app, &input);
             app.messages.push(AppMessage::command(input, &app.theme));
             app.log_scroll.pin_to_bottom();
@@ -143,4 +156,76 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     let input = Paragraph::new(Text::from(input_text)).block(input_block);
     frame.render_widget(input, areas[2]);
     cursor::place_at_end(frame, input_inner, 2, &app.input);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn press(app: &mut App, code: KeyCode) {
+        handle_key(app, KeyModifiers::NONE, code).await;
+    }
+
+    async fn type_str(app: &mut App, s: &str) {
+        for c in s.chars() {
+            press(app, KeyCode::Char(c)).await;
+        }
+    }
+
+    #[tokio::test]
+    async fn up_recalls_last_submitted_command() {
+        let mut app = App::new(false);
+        type_str(&mut app, "look").await;
+        press(&mut app, KeyCode::Enter).await;
+        press(&mut app, KeyCode::Up).await;
+        assert_eq!(app.input, "look");
+    }
+
+    #[tokio::test]
+    async fn up_up_down_returns_to_more_recent_entry() {
+        let mut app = App::new(false);
+        type_str(&mut app, "north").await;
+        press(&mut app, KeyCode::Enter).await;
+        type_str(&mut app, "look").await;
+        press(&mut app, KeyCode::Enter).await;
+        press(&mut app, KeyCode::Up).await;
+        press(&mut app, KeyCode::Up).await;
+        press(&mut app, KeyCode::Down).await;
+        assert_eq!(app.input, "look");
+    }
+
+    #[tokio::test]
+    async fn down_past_newest_restores_pre_navigation_draft() {
+        let mut app = App::new(false);
+        type_str(&mut app, "look").await;
+        press(&mut app, KeyCode::Enter).await;
+        type_str(&mut app, "partial").await;
+        press(&mut app, KeyCode::Up).await;
+        press(&mut app, KeyCode::Down).await;
+        assert_eq!(app.input, "partial");
+    }
+
+    #[tokio::test]
+    async fn editing_after_recall_exits_navigation() {
+        let mut app = App::new(false);
+        type_str(&mut app, "look").await;
+        press(&mut app, KeyCode::Enter).await;
+        press(&mut app, KeyCode::Up).await;
+        press(&mut app, KeyCode::Char('!')).await;
+        press(&mut app, KeyCode::Down).await;
+        assert_eq!(app.input, "look!");
+    }
+
+    #[tokio::test]
+    async fn enter_skips_duplicate_and_empty_history_entries() {
+        let mut app = App::new(false);
+        type_str(&mut app, "look").await;
+        press(&mut app, KeyCode::Enter).await;
+        type_str(&mut app, "look").await;
+        press(&mut app, KeyCode::Enter).await;
+        press(&mut app, KeyCode::Enter).await;
+        press(&mut app, KeyCode::Up).await;
+        press(&mut app, KeyCode::Up).await;
+        assert_eq!(app.input, "look");
+    }
 }

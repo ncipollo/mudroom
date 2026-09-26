@@ -1,4 +1,5 @@
 mod battle_state;
+mod command_history;
 mod conversation_state;
 mod interaction_send;
 mod inventory_state;
@@ -7,6 +8,7 @@ mod network_event_handler;
 mod reveal;
 
 pub use battle_state::{BattleFocus, BattleLogEntry, BattleState, QueuedAbilityInfo};
+pub use command_history::CommandHistory;
 pub use conversation_state::ConversationState;
 pub use inventory_state::{InventoryFocus, InventoryState, ItemAction};
 pub use message::AppMessage;
@@ -55,6 +57,7 @@ pub struct App {
     pub should_quit: bool,
     pub messages: Vec<AppMessage>,
     pub input: String,
+    pub command_history: CommandHistory,
     pub log_scroll: ScrollState,
     pub log_layout: LogLayout,
     pub mode: GameMode,
@@ -89,6 +92,7 @@ impl App {
                 AppMessage::system("Type commands and press Enter.", &theme),
             ],
             input: String::new(),
+            command_history: CommandHistory::default(),
             log_scroll: ScrollState::default(),
             log_layout: LogLayout::default(),
             mode: GameMode::Game,
@@ -124,6 +128,7 @@ impl App {
             should_quit: false,
             messages: Vec::<AppMessage>::new(),
             input: String::new(),
+            command_history: CommandHistory::default(),
             log_scroll: ScrollState::default(),
             log_layout: LogLayout::default(),
             mode: GameMode::PlayerSelect,
