@@ -3,6 +3,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use crate::game::config::agent_config::AgentConfig;
+use crate::game::config::battle_config::BattleConfig;
 use crate::game::config::env_resolver::deserialize_env_string;
 use crate::game::config::game_loop_config::GameLoopConfig;
 use crate::game::config::world_loot_config::WorldLootConfig;
@@ -41,6 +42,8 @@ pub struct MudConfig {
     pub max_clients_per_machine: usize,
     #[serde(default = "WorldLootConfig::default_config")]
     pub world_loot: WorldLootConfig,
+    #[serde(default = "BattleConfig::default_config")]
+    pub battle: BattleConfig,
 }
 
 impl MudConfig {
@@ -57,6 +60,7 @@ impl MudConfig {
             agent: AgentConfig::default_config(),
             max_clients_per_machine: default_max_clients_per_machine(),
             world_loot: WorldLootConfig::default_config(),
+            battle: BattleConfig::default_config(),
         }
     }
 }
@@ -79,6 +83,7 @@ mod tests {
         assert_eq!(config.spawn.dungeon_id, "default");
         assert_eq!(config.spawn.room_id, "default");
         assert_eq!(config.max_clients_per_machine, 2);
+        assert_eq!(config.battle.turn_order_attributes, vec!["speed"]);
     }
 
     #[test]
@@ -194,5 +199,46 @@ room_id = "default"
             }
             _ => panic!("expected default Ollama provider"),
         }
+    }
+
+    #[test]
+    fn load_parses_battle_section() {
+        let toml = r#"
+[game_loop]
+tick_rate_ms = 500
+max_engage_ms = 15000
+world_update_ms = 300000
+
+[spawn]
+world_id = "default"
+dungeon_id = "default"
+room_id = "default"
+
+[battle]
+turn_order_attributes = ["agility"]
+"#;
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(toml.as_bytes()).unwrap();
+        let config = MudConfig::load(file.path()).unwrap();
+        assert_eq!(config.battle.turn_order_attributes, vec!["agility"]);
+    }
+
+    #[test]
+    fn load_uses_battle_default_when_missing() {
+        let toml = r#"
+[game_loop]
+tick_rate_ms = 500
+max_engage_ms = 15000
+world_update_ms = 300000
+
+[spawn]
+world_id = "default"
+dungeon_id = "default"
+room_id = "default"
+"#;
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(toml.as_bytes()).unwrap();
+        let config = MudConfig::load(file.path()).unwrap();
+        assert_eq!(config.battle.turn_order_attributes, vec!["speed"]);
     }
 }
