@@ -30,16 +30,32 @@ pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
         }
         (_, KeyCode::Char(c)) => {
             app.input.push(c);
+            app.command_history.reset_navigation();
         }
         (_, KeyCode::Backspace) => {
             app.input.pop();
+            app.command_history.reset_navigation();
+        }
+        (_, KeyCode::Up) => {
+            if let Some(recalled) = app.command_history.prev(&app.input) {
+                app.input = recalled;
+            }
+        }
+        (_, KeyCode::Down) => {
+            if let Some(recalled) = app.command_history.next() {
+                app.input = recalled;
+            }
         }
         (_, KeyCode::Enter) => {
             app.skip_all_reveals();
             let input: String = std::mem::take(&mut app.input);
+            if input.is_empty() {
+                return;
+            }
+            app.command_history.push(input.clone());
             if input.trim() == "/exit" {
                 app.send_interaction_async(Interaction::EndConversation);
-            } else if !input.is_empty() {
+            } else {
                 let action = Interaction::EngagementAction(TurnAction::Respond {
                     content: input.clone(),
                 });
@@ -89,4 +105,59 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         .style(Style::default().fg(Color::DarkGray))
         .block(Block::default().borders(Borders::ALL));
     frame.render_widget(hint, areas[3]);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn press(app: &mut App, code: KeyCode) {
+        handle_key(app, KeyModifiers::NONE, code).await;
+    }
+
+    async fn type_str(app: &mut App, s: &str) {
+        for c in s.chars() {
+            press(app, KeyCode::Char(c)).await;
+        }
+    }
+
+    #[tokio::test]
+    async fn up_recalls_last_message() {
+        let mut app = App::new(false);
+        type_str(&mut app, "hello there").await;
+        press(&mut app, KeyCode::Enter).await;
+        press(&mut app, KeyCode::Up).await;
+        assert_eq!(app.input, "hello there");
+    }
+
+    #[tokio::test]
+    async fn up_recalls_slash_exit_too() {
+        let mut app = App::new(false);
+        type_str(&mut app, "/exit").await;
+        press(&mut app, KeyCode::Enter).await;
+        press(&mut app, KeyCode::Up).await;
+        assert_eq!(app.input, "/exit");
+    }
+
+    #[tokio::test]
+    async fn down_restores_draft() {
+        let mut app = App::new(false);
+        type_str(&mut app, "hello").await;
+        press(&mut app, KeyCode::Enter).await;
+        type_str(&mut app, "partial").await;
+        press(&mut app, KeyCode::Up).await;
+        press(&mut app, KeyCode::Down).await;
+        assert_eq!(app.input, "partial");
+    }
+
+    #[tokio::test]
+    async fn editing_after_recall_exits_navigation() {
+        let mut app = App::new(false);
+        type_str(&mut app, "hello").await;
+        press(&mut app, KeyCode::Enter).await;
+        press(&mut app, KeyCode::Up).await;
+        press(&mut app, KeyCode::Char('!')).await;
+        press(&mut app, KeyCode::Down).await;
+        assert_eq!(app.input, "hello!");
+    }
 }

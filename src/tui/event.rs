@@ -223,7 +223,7 @@ mod tests {
     use super::*;
     use crate::game::engagement::battle::BattlePhase;
     use crate::network::event::BattleSnapshot;
-    use crate::tui::app::BattleState;
+    use crate::tui::app::{BattleState, CommandHistory, InventoryState};
 
     fn battle_app() -> App {
         let mut app = App::new(false);
@@ -344,5 +344,33 @@ mod tests {
             KeyCode::PageUp
         ));
         assert_eq!(app.battle.as_ref().unwrap().entity_scroll, 0);
+    }
+
+    #[tokio::test]
+    async fn up_down_do_not_touch_input_or_command_history_in_menu_modes() {
+        for mode in [
+            GameMode::Battle,
+            GameMode::Inventory,
+            GameMode::StandardConversation,
+            GameMode::PlayerSelect,
+        ] {
+            let mut app = if mode == GameMode::Battle {
+                battle_app()
+            } else {
+                App::new(false)
+            };
+            app.mode = mode.clone();
+            if mode == GameMode::Inventory {
+                app.inventory = Some(InventoryState::new(vec![], vec![], 0));
+            }
+            dispatch_mode_key(&mut app, KeyModifiers::NONE, KeyCode::Up).await;
+            dispatch_mode_key(&mut app, KeyModifiers::NONE, KeyCode::Down).await;
+            assert_eq!(app.input, "", "mode {mode:?} must not touch app.input");
+            assert_eq!(
+                app.command_history,
+                CommandHistory::default(),
+                "mode {mode:?} must not touch command_history"
+            );
+        }
     }
 }
