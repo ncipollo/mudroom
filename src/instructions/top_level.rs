@@ -14,6 +14,10 @@ const TOPICS: &[(&str, &str)] = &[
     ("classes", "Class config file (classes/*.toml) reference"),
     ("entities", "Entity config file (entities/*.toml) reference"),
     (
+        "features",
+        "Room feature config file (features/*.toml) reference",
+    ),
+    (
         "inventory",
         "Inventory config file (inventory.toml) reference",
     ),
