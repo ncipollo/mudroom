@@ -30,6 +30,7 @@ pub async fn sync_universe_config(
     config_path: Option<&Path>,
     faction_config: &FactionConfig,
     resource_config: &ResourceConfig,
+    reset_features: bool,
 ) -> Result<(), Box<dyn Error>> {
     let universe = load_map(config_path)?;
     load_map_into_db(pool, &universe).await?;
@@ -44,7 +45,7 @@ pub async fn sync_universe_config(
         load_item_placements_into_db(pool, &universe).await?;
         let feature_map = build_feature_map(config_dir)?;
         sync_features_into_db(pool, &feature_map).await?;
-        load_feature_placements_into_db(pool, &universe, &feature_map).await?;
+        load_feature_placements_into_db(pool, &universe, &feature_map, reset_features).await?;
     }
     Ok(())
 }

@@ -138,6 +138,12 @@ pub struct SseQuery {
 }
 
 #[derive(Deserialize)]
+pub struct MapsReloadQuery {
+    #[serde(default)]
+    pub reset_features: bool,
+}
+
+#[derive(Deserialize)]
 pub struct PlayerListBody {
     pub client_id: String,
 }
