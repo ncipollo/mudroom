@@ -30,6 +30,10 @@ mod definition_cache;
 pub struct GameState {
     pub config_path: Option<PathBuf>,
     pub reload_pending: AtomicBool,
+    /// Set alongside `reload_pending` when an operator asks a running server to also reset
+    /// room features' items/state back to their configured defaults (see
+    /// `POST /maps/reload?reset_features=true`), consumed by the same reload tick.
+    pub reset_features_pending: AtomicBool,
     pub attribute_config: AttributeConfig,
     pub faction_config: FactionConfig,
     pub resource_config: ResourceConfig,
@@ -97,6 +101,7 @@ impl GameState {
         Ok(Self {
             config_path: config_dir.map(Path::to_path_buf),
             reload_pending: AtomicBool::new(false),
+            reset_features_pending: AtomicBool::new(false),
             attribute_config,
             faction_config,
             resource_config,

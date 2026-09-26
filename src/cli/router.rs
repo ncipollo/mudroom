@@ -9,8 +9,9 @@ impl CliRouter {
                 name,
                 config,
                 reload_maps,
+                reset_features,
                 debug,
-            }) => server::run(name, config, reload_maps, debug).await,
+            }) => server::run(name, config, reload_maps, reset_features, debug).await,
             Some(Commands::Client { url, debug }) => client::run(url, debug).await,
             Some(Commands::Players { command }) => players::run(command).await,
             Some(Commands::Completions { shell }) => {

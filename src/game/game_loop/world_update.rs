@@ -11,10 +11,14 @@ pub async fn process(game_state: &Arc<GameState>, db: &Database, tick: u64) {
 }
 
 async fn process_reload(game_state: &Arc<GameState>, db: &Database) {
-    if !game_state.reload_pending.swap(false, Ordering::AcqRel) {
+    let reload = game_state.reload_pending.swap(false, Ordering::AcqRel);
+    let reset_features = game_state
+        .reset_features_pending
+        .swap(false, Ordering::AcqRel);
+    if !reload && !reset_features {
         return;
     }
-    if !sync_universe_and_log(game_state, db).await {
+    if !sync_universe_and_log(game_state, db, reset_features).await {
         return;
     }
     refresh_definition_caches(game_state, db).await;
@@ -23,12 +27,17 @@ async fn process_reload(game_state: &Arc<GameState>, db: &Database) {
 /// Returns `true` on success. Kept as a standalone `async fn` so the non-`Send`
 /// `Box<dyn Error>` from `sync_universe_config` is fully resolved before returning, rather than
 /// living across the subsequent `refresh_definition_caches` await point in `process_reload`.
-async fn sync_universe_and_log(game_state: &Arc<GameState>, db: &Database) -> bool {
+async fn sync_universe_and_log(
+    game_state: &Arc<GameState>,
+    db: &Database,
+    reset_features: bool,
+) -> bool {
     let result = sync_universe_config(
         db.pool(),
         game_state.config_path.as_deref(),
         &game_state.faction_config,
         &game_state.resource_config,
+        reset_features,
     )
     .await;
     match result {

@@ -39,6 +39,10 @@ pub enum Commands {
         /// Force map reload from config on startup, even if maps were previously loaded
         #[arg(long)]
         reload_maps: bool,
+        /// Reset room feature items/state back to their configured defaults on this load
+        /// (implies a reload, even without --reload-maps)
+        #[arg(long)]
+        reset_features: bool,
         /// Enable debug output (e.g. show ping/pong messages)
         #[arg(long)]
         debug: bool,
@@ -171,6 +175,7 @@ mod tests {
                 name: None,
                 config: None,
                 reload_maps: false,
+                reset_features: false,
                 debug: false,
             })
         );
@@ -185,6 +190,7 @@ mod tests {
                 name: Some("myserver".to_string()),
                 config: None,
                 reload_maps: false,
+                reset_features: false,
                 debug: false,
             })
         );
@@ -199,6 +205,7 @@ mod tests {
                 name: None,
                 config: Some("muds/basic".to_string()),
                 reload_maps: false,
+                reset_features: false,
                 debug: false,
             })
         );
@@ -213,6 +220,7 @@ mod tests {
                 name: None,
                 config: None,
                 reload_maps: false,
+                reset_features: false,
                 debug: true,
             })
         );
@@ -271,6 +279,22 @@ mod tests {
                 name: None,
                 config: None,
                 reload_maps: true,
+                reset_features: false,
+                debug: false,
+            })
+        );
+    }
+
+    #[test]
+    fn server_subcommand_with_reset_features_parses() {
+        let cli = parse(&["mudroom", "server", "--reset-features"]);
+        assert_eq!(
+            cli.command,
+            Some(Commands::Server {
+                name: None,
+                config: None,
+                reload_maps: false,
+                reset_features: true,
                 debug: false,
             })
         );

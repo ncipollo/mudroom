@@ -46,8 +46,8 @@ use tokio_stream::wrappers::ReceiverStream;
 use tracing::info;
 
 use super::state::{
-    AppState, ConnectedClient, GuardedStream, PingBody, SessionEndBody, SessionStartBody,
-    SseCleanupGuard, SseQuery, queue_player_disconnected,
+    AppState, ConnectedClient, GuardedStream, MapsReloadQuery, PingBody, SessionEndBody,
+    SessionStartBody, SseCleanupGuard, SseQuery, queue_player_disconnected,
 };
 use std::sync::atomic::Ordering;
 
@@ -191,12 +191,19 @@ pub async fn session_end_handler(
     "ok"
 }
 
-pub async fn maps_reload_handler(State(state): State<Arc<AppState>>) -> &'static str {
-    info!("POST /maps/reload");
+pub async fn maps_reload_handler(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<MapsReloadQuery>,
+) -> &'static str {
+    info!(reset_features = query.reset_features, "POST /maps/reload");
     state
         .game_state
         .reload_pending
         .store(true, Ordering::Release);
+    state
+        .game_state
+        .reset_features_pending
+        .store(query.reset_features, Ordering::Release);
     "ok"
 }
 

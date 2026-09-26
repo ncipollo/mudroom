@@ -6,15 +6,20 @@ use sqlx::SqlitePool;
 use crate::game::{Location, Room, RoomFeature, Universe};
 use crate::persistence::room_feature_repo;
 
+/// Syncs every room's configured feature placements into the database. When `reset` is
+/// true, placements that already exist are forced back to their feature's default state and
+/// items (see [`room_feature_repo::reset_placement`]) — used for an operator-triggered
+/// feature reset, not a normal reload.
 pub async fn load_feature_placements_into_db(
     pool: &SqlitePool,
     universe: &Universe,
     feature_map: &HashMap<String, RoomFeature>,
+    reset: bool,
 ) -> Result<(), Box<dyn Error>> {
     for world in universe.worlds.values() {
         for dungeon in world.dungeons.values() {
             for room in dungeon.rooms.values() {
-                sync_room_features(pool, &world.id, &dungeon.id, room, feature_map).await?;
+                sync_room_features(pool, &world.id, &dungeon.id, room, feature_map, reset).await?;
             }
         }
     }
@@ -27,6 +32,7 @@ async fn sync_room_features(
     dungeon_id: &str,
     room: &Room,
     feature_map: &HashMap<String, RoomFeature>,
+    reset: bool,
 ) -> Result<(), Box<dyn Error>> {
     for feature_id in &room.features {
         if let Some(feature) = feature_map.get(feature_id) {
@@ -47,6 +53,16 @@ async fn sync_room_features(
                 &items,
             )
             .await?;
+            if reset {
+                room_feature_repo::reset_placement(
+                    pool,
+                    &location,
+                    feature_id,
+                    &feature.default_state,
+                    &items,
+                )
+                .await?;
+            }
         }
     }
     Ok(())
@@ -135,7 +151,7 @@ mod tests {
         let universe = make_universe_with_feature();
         load_map_into_db(db.pool(), &universe).await.unwrap();
 
-        load_feature_placements_into_db(db.pool(), &universe, &feature_map())
+        load_feature_placements_into_db(db.pool(), &universe, &feature_map(), false)
             .await
             .unwrap();
 
@@ -161,7 +177,7 @@ mod tests {
         let universe = make_universe_with_feature();
         load_map_into_db(db.pool(), &universe).await.unwrap();
 
-        load_feature_placements_into_db(db.pool(), &universe, &feature_map)
+        load_feature_placements_into_db(db.pool(), &universe, &feature_map, false)
             .await
             .unwrap();
 
@@ -178,10 +194,10 @@ mod tests {
         let universe = make_universe_with_feature();
         load_map_into_db(db.pool(), &universe).await.unwrap();
 
-        load_feature_placements_into_db(db.pool(), &universe, &feature_map())
+        load_feature_placements_into_db(db.pool(), &universe, &feature_map(), false)
             .await
             .unwrap();
-        load_feature_placements_into_db(db.pool(), &universe, &feature_map())
+        load_feature_placements_into_db(db.pool(), &universe, &feature_map(), false)
             .await
             .unwrap();
 
@@ -198,7 +214,7 @@ mod tests {
         let universe = make_universe_with_feature();
         load_map_into_db(db.pool(), &universe).await.unwrap();
 
-        load_feature_placements_into_db(db.pool(), &universe, &feature_map())
+        load_feature_placements_into_db(db.pool(), &universe, &feature_map(), false)
             .await
             .unwrap();
         let placed = room_feature_repo::find_by_location(db.pool(), &chest_location())
@@ -208,7 +224,7 @@ mod tests {
             .await
             .unwrap();
 
-        load_feature_placements_into_db(db.pool(), &universe, &feature_map())
+        load_feature_placements_into_db(db.pool(), &universe, &feature_map(), false)
             .await
             .unwrap();
 
@@ -224,7 +240,7 @@ mod tests {
         let universe = make_universe_with_feature();
         load_map_into_db(db.pool(), &universe).await.unwrap();
 
-        load_feature_placements_into_db(db.pool(), &universe, &HashMap::new())
+        load_feature_placements_into_db(db.pool(), &universe, &HashMap::new(), false)
             .await
             .unwrap();
 
@@ -232,5 +248,51 @@ mod tests {
             .await
             .unwrap();
         assert!(placed.is_empty());
+    }
+
+    #[tokio::test]
+    async fn load_feature_placements_into_db_with_reset_overwrites_modified_state_and_items() {
+        let db = Database::connect_in_memory().await.unwrap();
+        setup_feature_definition(&db).await;
+        let universe = make_universe_with_feature();
+        load_map_into_db(db.pool(), &universe).await.unwrap();
+
+        load_feature_placements_into_db(db.pool(), &universe, &feature_map(), false)
+            .await
+            .unwrap();
+        let placed = room_feature_repo::find_by_location(db.pool(), &chest_location())
+            .await
+            .unwrap();
+        room_feature_repo::update_state(db.pool(), placed[0].id, "open")
+            .await
+            .unwrap();
+
+        load_feature_placements_into_db(db.pool(), &universe, &feature_map(), true)
+            .await
+            .unwrap();
+
+        let placed = room_feature_repo::find_by_location(db.pool(), &chest_location())
+            .await
+            .unwrap();
+        assert_eq!(placed[0].current_state, "closed");
+        assert!(placed[0].items.is_empty());
+    }
+
+    #[tokio::test]
+    async fn load_feature_placements_into_db_with_reset_still_seeds_new_placements() {
+        let db = Database::connect_in_memory().await.unwrap();
+        setup_feature_definition(&db).await;
+        let universe = make_universe_with_feature();
+        load_map_into_db(db.pool(), &universe).await.unwrap();
+
+        load_feature_placements_into_db(db.pool(), &universe, &feature_map(), true)
+            .await
+            .unwrap();
+
+        let placed = room_feature_repo::find_by_location(db.pool(), &chest_location())
+            .await
+            .unwrap();
+        assert_eq!(placed.len(), 1);
+        assert_eq!(placed[0].current_state, "closed");
     }
 }

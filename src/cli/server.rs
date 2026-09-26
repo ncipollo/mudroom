@@ -6,13 +6,21 @@ pub async fn run(
     name: Option<String>,
     config: Option<String>,
     reload_maps: bool,
+    reset_features: bool,
     debug: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     crate::logging::init_tracing(debug);
     let (server_session, config_path_buf) = init_server_session(name, config).await?;
     let (game_state, db) = init_game_resources(&server_session, config_path_buf.as_deref()).await?;
-    if reload_maps || game::should_auto_load(db.pool()).await? {
-        load_maps_into_db(&db, config_path_buf.as_deref(), reload_maps, &game_state).await?;
+    if reload_maps || reset_features || game::should_auto_load(db.pool()).await? {
+        load_maps_into_db(
+            &db,
+            config_path_buf.as_deref(),
+            reload_maps,
+            reset_features,
+            &game_state,
+        )
+        .await?;
     }
     respawn_on_reboot(&db, &game_state).await?;
     game_state.refresh_definition_caches(db.pool()).await?;
@@ -105,14 +113,16 @@ async fn load_maps_into_db(
     db: &persistence::Database,
     config_path: Option<&Path>,
     forced: bool,
+    reset_features: bool,
     game_state: &game::GameState,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    tracing::info!("Loading maps from config (forced={forced})");
+    tracing::info!("Loading maps from config (forced={forced}, reset_features={reset_features})");
     game::sync_universe_config(
         db.pool(),
         config_path,
         &game_state.faction_config,
         &game_state.resource_config,
+        reset_features,
     )
     .await
 }
