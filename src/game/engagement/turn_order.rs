@@ -1,9 +1,7 @@
-use crate::game::component::AttributeCategory;
-use crate::game::config::AttributeConfig;
 use crate::game::entity::character::Character;
 
 /// Tracks the turn order for an engagement. Sorted by character ID ascending when using `new`;
-/// use `new_from_entities` to sort by Speed attribute descending.
+/// use `new_from_entities` to sort by the configured turn-order attributes descending.
 pub struct TurnOrder {
     order: Vec<i64>,
     current_index: usize,
@@ -19,22 +17,15 @@ impl TurnOrder {
         }
     }
 
-    /// Build a turn order from entities sorted by Speed attribute descending. Entities with
-    /// higher total speed go first; ties are broken by ascending character ID.
-    pub fn new_from_entities(entities: &[&Character], config: &AttributeConfig) -> Self {
-        let speed_def_ids: Vec<&str> = config
-            .attributes
-            .iter()
-            .filter(|def| def.attribute_category == AttributeCategory::Speed)
-            .map(|def| def.id.as_str())
-            .collect();
-
+    /// Build a turn order from entities sorted by the summed value of `turn_order_attributes`
+    /// descending. Ties are broken by ascending character ID.
+    pub fn new_from_entities(entities: &[&Character], turn_order_attributes: &[String]) -> Self {
         let mut entity_speeds: Vec<(i64, i64)> = entities
             .iter()
             .map(|character| {
-                let speed: i64 = speed_def_ids
+                let speed: i64 = turn_order_attributes
                     .iter()
-                    .filter_map(|&def_id| character.attributes.get(def_id))
+                    .filter_map(|id| character.attributes.get(id))
                     .map(|attr| attr.current_value)
                     .sum();
                 (character.id, speed)
@@ -114,24 +105,11 @@ mod tests {
 
     #[test]
     fn new_from_entities_sorts_by_speed_descending() {
+        use crate::game::component::Attribute;
         use crate::game::component::location::Location;
-        use crate::game::component::{
-            Attribute, AttributeCategory, AttributeDefinition, AttributeType,
-        };
         use crate::game::entity::character::{Character, CharacterType};
 
-        let config = AttributeConfig {
-            attributes: vec![AttributeDefinition {
-                id: "speed".to_string(),
-                title: "Speed".to_string(),
-                description: "Quickness.".to_string(),
-                min_value: 0,
-                max_value: 100,
-                attribute_type: AttributeType::Stat,
-                attribute_category: AttributeCategory::Speed,
-                reset_condition: Default::default(),
-            }],
-        };
+        let config = vec!["speed".to_string()];
 
         let loc = Location {
             world_id: "w".to_string(),
@@ -163,24 +141,11 @@ mod tests {
 
     #[test]
     fn new_from_entities_tie_breaks_by_entity_id_ascending() {
+        use crate::game::component::Attribute;
         use crate::game::component::location::Location;
-        use crate::game::component::{
-            Attribute, AttributeCategory, AttributeDefinition, AttributeType,
-        };
         use crate::game::entity::character::{Character, CharacterType};
 
-        let config = AttributeConfig {
-            attributes: vec![AttributeDefinition {
-                id: "speed".to_string(),
-                title: "Speed".to_string(),
-                description: "Quickness.".to_string(),
-                min_value: 0,
-                max_value: 100,
-                attribute_type: AttributeType::Stat,
-                attribute_category: AttributeCategory::Speed,
-                reset_condition: Default::default(),
-            }],
-        };
+        let config = vec!["speed".to_string()];
 
         let loc = Location {
             world_id: "w".to_string(),
@@ -209,7 +174,7 @@ mod tests {
         use crate::game::component::location::Location;
         use crate::game::entity::character::{Character, CharacterType};
 
-        let config = AttributeConfig { attributes: vec![] };
+        let config = vec!["speed".to_string()];
 
         let loc = Location {
             world_id: "w".to_string(),
@@ -222,5 +187,37 @@ mod tests {
 
         let order = TurnOrder::new_from_entities(&[&e3, &e1], &config);
         assert_eq!(order.order(), &[1, 3]);
+    }
+
+    #[test]
+    fn new_from_entities_sums_multiple_configured_attributes() {
+        use crate::game::component::Attribute;
+        use crate::game::component::location::Location;
+        use crate::game::entity::character::{Character, CharacterType};
+
+        let config = vec!["agility".to_string(), "dex".to_string()];
+        let loc = Location {
+            world_id: "w".to_string(),
+            dungeon_id: "d".to_string(),
+            room_id: "r".to_string(),
+        };
+
+        let mut a = Character::new(1, CharacterType::Enemy, loc.clone());
+        a.attributes.insert(
+            "agility".to_string(),
+            Attribute::new("agility".to_string(), 0, 100, 5),
+        );
+        let mut b = Character::new(2, CharacterType::Enemy, loc);
+        b.attributes.insert(
+            "agility".to_string(),
+            Attribute::new("agility".to_string(), 0, 100, 4),
+        );
+        b.attributes.insert(
+            "dex".to_string(),
+            Attribute::new("dex".to_string(), 0, 100, 3),
+        );
+
+        let order = TurnOrder::new_from_entities(&[&a, &b], &config);
+        assert_eq!(order.order(), &[2, 1]);
     }
 }

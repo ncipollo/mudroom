@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::game::GameState;
-use crate::game::config::AttributeConfig;
 use crate::game::engagement::TurnOrder;
 use crate::game::engagement::battle::{BattleMessage, QueuedAbility};
 use crate::game::entity::character::Character;
@@ -26,7 +25,7 @@ pub(in crate::game::engagement::battle) async fn apply_battle_effects(
             .map(|qa| qa.caster_id)
             .collect::<Vec<_>>(),
         &entities,
-        &game_state.attribute_config,
+        &game_state.mud_config.battle.turn_order_attributes,
     );
 
     let mut target_effects = HashMap::new();
@@ -63,7 +62,7 @@ pub(in crate::game::engagement::battle) async fn apply_battle_effects(
 fn speed_sort_casters(
     caster_ids: &[i64],
     entities: &HashMap<i64, Character>,
-    config: &AttributeConfig,
+    turn_order_attributes: &[String],
 ) -> Vec<i64> {
     let entity_refs: Vec<&Character> = caster_ids
         .iter()
@@ -71,7 +70,7 @@ fn speed_sort_casters(
         .into_iter()
         .filter_map(|&id| entities.get(&id))
         .collect();
-    TurnOrder::new_from_entities(&entity_refs, config)
+    TurnOrder::new_from_entities(&entity_refs, turn_order_attributes)
         .order()
         .to_vec()
 }

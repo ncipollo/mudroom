@@ -2,6 +2,7 @@ pub mod ability_config;
 pub mod agent_config;
 pub mod attribute_config;
 pub mod battle_ai_config;
+pub mod battle_config;
 pub mod character_config;
 pub mod class_config;
 pub mod config_path;
@@ -24,6 +25,7 @@ pub use ability_config::AbilityReference;
 pub use agent_config::{AgentConfig, AgentProviderConfig};
 pub use attribute_config::AttributeConfig;
 pub use battle_ai_config::{BattleAiConfig, BattleAiType};
+pub use battle_config::BattleConfig;
 pub use character_config::{
     CharacterConfig, CharacterTypeConfig, DialogLine, PersonaConfig, PlayerResponse,
     StartingAttribute, load_character_configs,
