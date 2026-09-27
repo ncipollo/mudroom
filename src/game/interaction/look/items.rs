@@ -65,6 +65,41 @@ pub async fn send_feature_item_descriptions(
     }
 }
 
+/// Fills `template`'s `{items}` placeholder with an indefinite-article, Oxford-comma list
+/// of `item_ids`'s resolved names. Returns `None` when no id resolves to a known item
+/// definition, so the caller can fall back to the plain state description.
+pub async fn format_item_summary(
+    game_state: &Arc<GameState>,
+    template: &str,
+    item_ids: &[String],
+) -> Option<String> {
+    let definitions = game_state.item_definitions.read().await;
+    let names: Vec<String> = item_ids
+        .iter()
+        .filter_map(|id| definitions.get(id))
+        .map(|def| def.name.clone())
+        .collect();
+    if names.is_empty() {
+        return None;
+    }
+    Some(template.replace("{items}", &join_items_with_and(&names)))
+}
+
+/// Joins item names into a natural-language, Oxford-comma list with an indefinite article:
+/// `"a X"`, `"a X and a Y"`, `"a X, a Y, and a Z"`.
+fn join_items_with_and(names: &[String]) -> String {
+    let phrased: Vec<String> = names.iter().map(|n| format!("a {n}")).collect();
+    match phrased.as_slice() {
+        [] => String::new(),
+        [only] => only.clone(),
+        [a, b] => format!("{a} and {b}"),
+        _ => {
+            let (last, rest) = phrased.split_last().unwrap();
+            format!("{}, and {last}", rest.join(", "))
+        }
+    }
+}
+
 async fn respawn_on_visit(db: &Database, mode: &RespawnMode, location: &Location) {
     let result = match mode {
         RespawnMode::OnRoomVisit => world_loot_repo::respawn_room(db.pool(), location).await,
@@ -231,6 +266,71 @@ mod tests {
             .await
             .unwrap();
         assert!(loot.is_empty());
+    }
+
+    async fn seed_item_definition(game_state: &Arc<GameState>, id: &str, name: &str) {
+        game_state.item_definitions.write().await.insert(
+            id.to_string(),
+            ItemDefinition {
+                id: id.to_string(),
+                name: name.to_string(),
+                description: Description::new(None),
+                use_type: ItemUseType::Passive,
+                item_type: "consumable".to_string(),
+                equipped_bonuses: EquippedBonuses::default(),
+                use_effects: vec![],
+                alternate_names: vec![],
+            },
+        );
+    }
+
+    #[tokio::test]
+    async fn format_item_summary_fills_placeholder_for_a_single_item() {
+        let game_state = setup_game_state(RespawnMode::Never).await;
+        seed_item_definition(&game_state, "torch", "Torch").await;
+
+        let summary = format_item_summary(
+            &game_state,
+            ", inside there is {items}.",
+            &["torch".to_string()],
+        )
+        .await;
+
+        assert_eq!(summary.as_deref(), Some(", inside there is a Torch."));
+    }
+
+    #[tokio::test]
+    async fn format_item_summary_oxford_joins_multiple_items() {
+        let game_state = setup_game_state(RespawnMode::Never).await;
+        seed_item_definition(&game_state, "torch", "Torch").await;
+        seed_item_definition(&game_state, "key", "Key").await;
+        seed_item_definition(&game_state, "rope", "Rope").await;
+
+        let summary = format_item_summary(
+            &game_state,
+            "Inside there is {items}.",
+            &["torch".to_string(), "key".to_string(), "rope".to_string()],
+        )
+        .await;
+
+        assert_eq!(
+            summary.as_deref(),
+            Some("Inside there is a Torch, a Key, and a Rope.")
+        );
+    }
+
+    #[tokio::test]
+    async fn format_item_summary_is_none_when_no_item_resolves() {
+        let game_state = setup_game_state(RespawnMode::Never).await;
+
+        let summary = format_item_summary(
+            &game_state,
+            ", inside there is {items}.",
+            &["unknown".to_string()],
+        )
+        .await;
+
+        assert!(summary.is_none());
     }
 
     #[tokio::test]

@@ -81,6 +81,7 @@ fn chest_feature(id: &str, name: &str, items: Vec<String>) -> RoomFeature {
             interact_script: None,
             interact_next_state: None,
             alt_verbs: vec![],
+            item_summary: None,
         },
     );
     RoomFeature {

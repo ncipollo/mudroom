@@ -89,28 +89,51 @@ async fn respond_to_look_at(
             player.id,
             format!("You don't see a '{target}' here."),
         ),
-        [look_match] => {
-            let theme = theme_config::resolve_theme_id(
-                &game_state.themes,
-                look_match.description.theme.as_deref(),
-            );
-            let content = look_match.description.text.clone().unwrap_or_else(|| {
-                format!("You see nothing special about the {}.", look_match.name)
-            });
-            messaging::message_themed(&game_state.message_tx, player.id, content, theme);
-            items::send_feature_item_descriptions(
-                game_state,
-                player,
-                &look_match.name,
-                &look_match.items,
-            )
-            .await;
-        }
+        [look_match] => send_look_match_description(game_state, player, look_match).await,
         _ => messaging::message(
             &game_state.message_tx,
             player.id,
             format!("Which '{target}' do you mean?"),
         ),
+    }
+}
+
+/// Sends the themed message(s) for a single unambiguous look-at match: the state
+/// description, combined with its held items into one sentence when the matched state
+/// configures an `item_summary` template, or followed by a separate themed message per
+/// held item (today's behavior) when it doesn't.
+async fn send_look_match_description(
+    game_state: &Arc<GameState>,
+    player: &Player,
+    look_match: &LookMatch,
+) {
+    let theme =
+        theme_config::resolve_theme_id(&game_state.themes, look_match.description.theme.as_deref());
+    let desc_text = look_match
+        .description
+        .text
+        .clone()
+        .unwrap_or_else(|| format!("You see nothing special about the {}.", look_match.name));
+
+    let content = match &look_match.item_summary {
+        Some(template) if !look_match.items.is_empty() => {
+            match items::format_item_summary(game_state, template, &look_match.items).await {
+                Some(summary) => format!("{desc_text}{summary}"),
+                None => desc_text.clone(),
+            }
+        }
+        _ => desc_text.clone(),
+    };
+    messaging::message_themed(&game_state.message_tx, player.id, content, theme);
+
+    if look_match.item_summary.is_none() && !look_match.items.is_empty() {
+        items::send_feature_item_descriptions(
+            game_state,
+            player,
+            &look_match.name,
+            &look_match.items,
+        )
+        .await;
     }
 }
 
@@ -169,7 +192,7 @@ mod tests {
         game_state
     }
 
-    fn chest_feature(items: Vec<String>) -> RoomFeature {
+    fn chest_feature(items: Vec<String>, item_summary: Option<String>) -> RoomFeature {
         let mut states = HashMap::new();
         states.insert(
             "open".to_string(),
@@ -179,6 +202,7 @@ mod tests {
                 interact_script: None,
                 interact_next_state: None,
                 alt_verbs: vec![],
+                item_summary,
             },
         );
         RoomFeature {
@@ -226,11 +250,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn look_at_feature_with_items_describes_state_then_each_item() {
+    async fn look_at_feature_with_items_and_no_summary_describes_state_then_each_item() {
         let db = Database::connect_in_memory().await.unwrap();
         setup_world(&db).await;
         let game_state = game_state_with_character(1).await;
-        let feature = chest_feature(vec!["medicine".to_string()]);
+        let feature = chest_feature(vec!["medicine".to_string()], None);
         seed_feature(&db, &feature).await;
         seed_item(&game_state, &db, "medicine", "Medicine").await;
 
@@ -261,7 +285,7 @@ mod tests {
         let db = Database::connect_in_memory().await.unwrap();
         setup_world(&db).await;
         let game_state = game_state_with_character(1).await;
-        let feature = chest_feature(vec![]);
+        let feature = chest_feature(vec![], None);
         seed_feature(&db, &feature).await;
 
         let mut rx = game_state.message_tx.subscribe();
@@ -269,5 +293,56 @@ mod tests {
 
         rx.try_recv().expect("expected state description");
         assert!(rx.try_recv().is_err(), "expected no item description");
+    }
+
+    #[tokio::test]
+    async fn look_at_feature_with_item_summary_sends_one_combined_message() {
+        let db = Database::connect_in_memory().await.unwrap();
+        setup_world(&db).await;
+        let game_state = game_state_with_character(1).await;
+        let feature = chest_feature(
+            vec!["medicine".to_string()],
+            Some(", inside there is {items}.".to_string()),
+        );
+        seed_feature(&db, &feature).await;
+        seed_item(&game_state, &db, "medicine", "Medicine").await;
+
+        let mut rx = game_state.message_tx.subscribe();
+        process_at(&game_state, &db, &test_player(1), "oak chest").await;
+
+        let msg = rx.try_recv().expect("expected a combined message");
+        match msg.message {
+            Message::Complete { content, .. } => {
+                assert_eq!(content, "An open oak chest., inside there is a Medicine.");
+            }
+            other => panic!("expected Complete message, got {other:?}"),
+        }
+
+        assert!(rx.try_recv().is_err(), "expected no further messages");
+    }
+
+    #[tokio::test]
+    async fn look_at_feature_with_item_summary_but_unresolved_item_sends_only_state_description() {
+        let db = Database::connect_in_memory().await.unwrap();
+        setup_world(&db).await;
+        let game_state = game_state_with_character(1).await;
+        let feature = chest_feature(
+            vec!["unknown".to_string()],
+            Some(", inside there is {items}.".to_string()),
+        );
+        seed_feature(&db, &feature).await;
+
+        let mut rx = game_state.message_tx.subscribe();
+        process_at(&game_state, &db, &test_player(1), "oak chest").await;
+
+        let msg = rx.try_recv().expect("expected state description");
+        match msg.message {
+            Message::Complete { content, .. } => {
+                assert_eq!(content, "An open oak chest.");
+            }
+            other => panic!("expected Complete message, got {other:?}"),
+        }
+
+        assert!(rx.try_recv().is_err(), "expected no further messages");
     }
 }

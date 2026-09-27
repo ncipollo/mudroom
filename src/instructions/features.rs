@@ -48,6 +48,18 @@ fn state_fields_section() -> String {
                                              this state (e.g. what `take ...
                                              from` can retrieve). Defaults to
                                              [] if omitted.
+  item_summary           string, optional   Template appended verbatim after
+                                             `description` when this state
+                                             currently holds items, e.g.
+                                             ", inside there is {items}."
+                                             {items} is replaced by an
+                                             indefinite-article, Oxford-comma
+                                             list of the held items' names
+                                             (e.g. "a Torch and a Key"). If
+                                             omitted, or if none of the held
+                                             items resolve, `look` instead
+                                             sends description then a
+                                             separate message per item.
   interact_script        table, optional    Stub for now; not yet used.
   interact_next_state    string, optional   Another state key to transition
                                              to when interacted with.
@@ -85,7 +97,8 @@ fn example_section() -> String {
   alt_verbs = ["open"]
 
   [states.open]
-  description = "The oak chest stands open, its lid tipped back."
+  description = "The oak chest stands open"
+  item_summary = ", inside there is {items}."  # -> "...open, inside there is a medicine."
   items = ["medicine"]                  # what `take medicine from chest` finds
   interact_next_state = "closed"        # `interact` (or `close`) closes it
   alt_verbs = ["close"]"#
@@ -109,6 +122,7 @@ mod tests {
         let text = render();
         assert!(text.contains("description"));
         assert!(text.contains("items"));
+        assert!(text.contains("item_summary"));
         assert!(text.contains("interact_script"));
         assert!(text.contains("interact_next_state"));
         assert!(text.contains("alt_verbs"));

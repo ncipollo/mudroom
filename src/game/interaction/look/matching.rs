@@ -16,6 +16,9 @@ pub(super) struct LookMatch {
     /// Item-definition ids the matched feature currently holds. Always empty for a
     /// floor-loot match — only features carry held items.
     pub(super) items: Vec<String>,
+    /// The matched feature's current-state item summary template, if configured. Always
+    /// `None` for a floor-loot match.
+    pub(super) item_summary: Option<String>,
 }
 
 pub(super) async fn matching_targets(
@@ -50,6 +53,7 @@ async fn matching_items(
             name: def.name.clone(),
             description: def.description.clone(),
             items: vec![],
+            item_summary: None,
         })
         .collect())
 }
@@ -79,6 +83,7 @@ async fn matching_features(
                 name: def.name.clone(),
                 description: state.description.clone(),
                 items: placement.items.clone(),
+                item_summary: state.item_summary.clone(),
             })
         })
         .collect())
@@ -153,6 +158,7 @@ mod tests {
                     interact_script: None,
                     interact_next_state: None,
                     alt_verbs: vec![],
+                    item_summary: None,
                 },
             );
         }
@@ -247,6 +253,38 @@ mod tests {
 
         assert_eq!(matches.len(), 1);
         assert_eq!(matches[0].items, vec!["medicine".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn matches_feature_carries_item_summary_template() {
+        let db = Database::connect_in_memory().await.unwrap();
+        setup_world(&db).await;
+        let game_state = Arc::new(GameState::load(None).unwrap());
+        let mut feature = chest_feature(vec![("open", "The oak chest stands open")], "open");
+        feature.states.get_mut("open").unwrap().item_summary =
+            Some(", inside there is {items}.".to_string());
+        room_feature_repo::upsert_definition(db.pool(), &feature)
+            .await
+            .unwrap();
+        room_feature_repo::insert_placement_if_missing(
+            db.pool(),
+            &test_location(),
+            &feature.id,
+            "open",
+            &["medicine".to_string()],
+        )
+        .await
+        .unwrap();
+
+        let matches = matching_targets(&game_state, &db, &test_location(), "oak chest")
+            .await
+            .unwrap();
+
+        assert_eq!(matches.len(), 1);
+        assert_eq!(
+            matches[0].item_summary.as_deref(),
+            Some(", inside there is {items}.")
+        );
     }
 
     #[tokio::test]
