@@ -44,6 +44,27 @@ pub async fn send_item_descriptions(
     }
 }
 
+/// Narrates the items a resolved room feature currently holds, following the same
+/// resolve/fallback shape as [`send_item_descriptions`] for floor loot.
+pub async fn send_feature_item_descriptions(
+    game_state: &Arc<GameState>,
+    player: &Player,
+    feature_name: &str,
+    item_ids: &[String],
+) {
+    let definitions = game_state.item_definitions.read().await;
+    for def in item_ids.iter().filter_map(|id| definitions.get(id)) {
+        let theme =
+            theme_config::resolve_theme_id(&game_state.themes, def.description.theme.as_deref());
+        let content = def
+            .description
+            .text
+            .clone()
+            .unwrap_or_else(|| format!("A {} is inside the {}.", def.name, feature_name));
+        messaging::message_themed(&game_state.message_tx, player.id, content, theme);
+    }
+}
+
 async fn respawn_on_visit(db: &Database, mode: &RespawnMode, location: &Location) {
     let result = match mode {
         RespawnMode::OnRoomVisit => world_loot_repo::respawn_room(db.pool(), location).await,
