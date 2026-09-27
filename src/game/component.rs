@@ -19,6 +19,7 @@ pub use attribute::Attribute;
 pub use attribute_definition::AttributeCategory;
 pub use attribute_definition::AttributeDefinition;
 pub use attribute_definition::AttributeType;
+pub use attribute_definition::OnZeroTrigger;
 pub use attribute_definition::ResetCondition;
 pub use description::Description;
 pub use effect::Effect;

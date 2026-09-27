@@ -2,40 +2,45 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::game::GameState;
-use crate::game::component::AttributeType;
+use crate::game::component::OnZeroTrigger;
 use crate::game::config::AttributeConfig;
 use crate::game::entity::character::Character;
 
-/// Detects which of the given entities have died (an HP-type attribute at or below its minimum).
+/// Detects which of the given entities have died (an attribute whose `on_zero` trigger is
+/// `Death` has hit its minimum value).
 /// Only call this when the current battle tick has just completed the `ResolveEntityState` phase.
 pub(super) async fn detect_dead_entities(
     game_state: &Arc<GameState>,
     entity_ids: &[i64],
     config: &AttributeConfig,
 ) -> Vec<i64> {
-    let hp_def_ids: Vec<&str> = config
+    let death_trigger_def_ids: Vec<&str> = config
         .attributes
         .iter()
-        .filter(|def| matches!(def.attribute_type, AttributeType::HP))
+        .filter(|def| def.on_zero == OnZeroTrigger::Death)
         .map(|def| def.id.as_str())
         .collect();
 
     let entities = game_state.active_characters.read().await;
     entity_ids
         .iter()
-        .filter(|&&id| is_entity_dead(id, &entities, &hp_def_ids))
+        .filter(|&&id| is_entity_dead(id, &entities, &death_trigger_def_ids))
         .copied()
         .collect()
 }
 
-fn is_entity_dead(entity_id: i64, entities: &HashMap<i64, Character>, hp_def_ids: &[&str]) -> bool {
+fn is_entity_dead(
+    entity_id: i64,
+    entities: &HashMap<i64, Character>,
+    death_trigger_def_ids: &[&str],
+) -> bool {
     let Some(character) = entities.get(&entity_id) else {
         return false;
     };
-    hp_def_ids.iter().any(|&hp_id| {
+    death_trigger_def_ids.iter().any(|&def_id| {
         character
             .attributes
-            .get(hp_id)
+            .get(def_id)
             .is_some_and(|attr| attr.current_value <= attr.min_value)
     })
 }
@@ -102,6 +107,21 @@ mod tests {
 
         let dead =
             detect_dead_entities(&game_state, &[99], &AttributeConfig::default_config()).await;
+
+        assert!(dead.is_empty());
+    }
+
+    #[tokio::test]
+    async fn detect_dead_entities_ignores_non_death_trigger_attribute_at_min() {
+        let mut character = Character::new(1, CharacterType::Player, test_location());
+        character.attributes.insert(
+            "mp".to_string(),
+            Attribute::new("mp".to_string(), 0, 100, 0),
+        );
+        let game_state = game_state_with_entities(vec![character]).await;
+
+        let dead =
+            detect_dead_entities(&game_state, &[1], &AttributeConfig::default_config()).await;
 
         assert!(dead.is_empty());
     }
