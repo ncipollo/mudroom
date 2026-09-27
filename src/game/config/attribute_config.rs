@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::game::component::AttributeDefinition;
 use crate::game::component::attribute_definition::{
-    AttributeCategory, AttributeType, ResetCondition,
+    AttributeCategory, AttributeType, OnZeroTrigger, ResetCondition,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,6 +37,7 @@ fn default_life_attributes() -> Vec<AttributeDefinition> {
             attribute_type: AttributeType::HP,
             attribute_category: AttributeCategory::Life,
             reset_condition: ResetCondition::Never,
+            on_zero: OnZeroTrigger::Death,
         },
         AttributeDefinition {
             id: "mp".to_string(),
@@ -47,6 +48,7 @@ fn default_life_attributes() -> Vec<AttributeDefinition> {
             attribute_type: AttributeType::MP,
             attribute_category: AttributeCategory::General,
             reset_condition: ResetCondition::Never,
+            on_zero: OnZeroTrigger::None,
         },
         AttributeDefinition {
             id: "level".to_string(),
@@ -57,6 +59,7 @@ fn default_life_attributes() -> Vec<AttributeDefinition> {
             attribute_type: AttributeType::Level,
             attribute_category: AttributeCategory::General,
             reset_condition: Default::default(),
+            on_zero: OnZeroTrigger::None,
         },
         AttributeDefinition {
             id: "xp".to_string(),
@@ -67,6 +70,7 @@ fn default_life_attributes() -> Vec<AttributeDefinition> {
             attribute_type: AttributeType::XP,
             attribute_category: AttributeCategory::General,
             reset_condition: Default::default(),
+            on_zero: OnZeroTrigger::None,
         },
     ]
 }
@@ -82,6 +86,7 @@ fn default_stat_attributes() -> Vec<AttributeDefinition> {
             attribute_type: AttributeType::Stat,
             attribute_category: AttributeCategory::General,
             reset_condition: Default::default(),
+            on_zero: OnZeroTrigger::None,
         },
         AttributeDefinition {
             id: "dexterity".to_string(),
@@ -92,6 +97,7 @@ fn default_stat_attributes() -> Vec<AttributeDefinition> {
             attribute_type: AttributeType::Stat,
             attribute_category: AttributeCategory::General,
             reset_condition: Default::default(),
+            on_zero: OnZeroTrigger::None,
         },
         AttributeDefinition {
             id: "constitution".to_string(),
@@ -102,6 +108,7 @@ fn default_stat_attributes() -> Vec<AttributeDefinition> {
             attribute_type: AttributeType::Stat,
             attribute_category: AttributeCategory::General,
             reset_condition: Default::default(),
+            on_zero: OnZeroTrigger::None,
         },
         AttributeDefinition {
             id: "intelligence".to_string(),
@@ -112,6 +119,7 @@ fn default_stat_attributes() -> Vec<AttributeDefinition> {
             attribute_type: AttributeType::Stat,
             attribute_category: AttributeCategory::General,
             reset_condition: Default::default(),
+            on_zero: OnZeroTrigger::None,
         },
         AttributeDefinition {
             id: "wisdom".to_string(),
@@ -122,6 +130,7 @@ fn default_stat_attributes() -> Vec<AttributeDefinition> {
             attribute_type: AttributeType::Stat,
             attribute_category: AttributeCategory::General,
             reset_condition: Default::default(),
+            on_zero: OnZeroTrigger::None,
         },
         AttributeDefinition {
             id: "charisma".to_string(),
@@ -132,6 +141,7 @@ fn default_stat_attributes() -> Vec<AttributeDefinition> {
             attribute_type: AttributeType::Stat,
             attribute_category: AttributeCategory::General,
             reset_condition: Default::default(),
+            on_zero: OnZeroTrigger::None,
         },
     ]
 }
@@ -157,7 +167,11 @@ mod tests {
         assert!(ids.contains(&"wisdom"));
         assert!(ids.contains(&"charisma"));
         assert_eq!(config.attributes.len(), 10);
+    }
 
+    #[test]
+    fn default_config_has_expected_reset_conditions() {
+        let config = AttributeConfig::default_config();
         let find = |id: &str| {
             config
                 .attributes
@@ -184,6 +198,33 @@ mod tests {
     }
 
     #[test]
+    fn default_config_only_hp_triggers_death() {
+        let config = AttributeConfig::default_config();
+        let on_zero = |id: &str| {
+            config
+                .attributes
+                .iter()
+                .find(|a| a.id == id)
+                .unwrap()
+                .on_zero
+        };
+        assert_eq!(on_zero("hp"), OnZeroTrigger::Death);
+        for id in [
+            "mp",
+            "level",
+            "xp",
+            "strength",
+            "dexterity",
+            "constitution",
+            "intelligence",
+            "wisdom",
+            "charisma",
+        ] {
+            assert_eq!(on_zero(id), OnZeroTrigger::None);
+        }
+    }
+
+    #[test]
     fn load_parses_toml() {
         let toml = r#"
 [[attributes]]
@@ -194,6 +235,7 @@ min_value = 0
 max_value = 100
 attribute_type = "hp"
 attribute_category = "life"
+on_zero = "death"
 
 [[attributes]]
 id = "test_stat"
@@ -209,6 +251,8 @@ attribute_category = "general"
         let config = AttributeConfig::load(file.path()).unwrap();
         assert_eq!(config.attributes.len(), 2);
         assert_eq!(config.attributes[0].id, "test_hp");
+        assert_eq!(config.attributes[0].on_zero, OnZeroTrigger::Death);
         assert_eq!(config.attributes[1].id, "test_stat");
+        assert_eq!(config.attributes[1].on_zero, OnZeroTrigger::None);
     }
 }

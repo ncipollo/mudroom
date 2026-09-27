@@ -33,6 +33,14 @@ pub enum AttributeType {
     Stat,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum OnZeroTrigger {
+    #[default]
+    None,
+    Death,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AttributeDefinition {
     pub id: String,
@@ -44,6 +52,8 @@ pub struct AttributeDefinition {
     pub attribute_category: AttributeCategory,
     #[serde(default)]
     pub reset_condition: ResetCondition,
+    #[serde(default)]
+    pub on_zero: OnZeroTrigger,
 }
 
 #[cfg(test)]
@@ -61,6 +71,7 @@ mod tests {
             attribute_type: AttributeType::HP,
             attribute_category: AttributeCategory::Life,
             reset_condition: ResetCondition::EndOfEngagement,
+            on_zero: OnZeroTrigger::Death,
         };
         let json = serde_json::to_string(&def).unwrap();
         let restored: AttributeDefinition = serde_json::from_str(&json).unwrap();
@@ -69,6 +80,7 @@ mod tests {
         assert_eq!(restored.min_value, def.min_value);
         assert_eq!(restored.max_value, def.max_value);
         assert_eq!(restored.reset_condition, def.reset_condition);
+        assert_eq!(restored.on_zero, def.on_zero);
     }
 
     #[test]
@@ -112,6 +124,27 @@ mod tests {
         }"#;
         let def: AttributeDefinition = serde_json::from_str(json).unwrap();
         assert_eq!(def.reset_condition, ResetCondition::EachEngagementTurn);
+        assert_eq!(def.on_zero, OnZeroTrigger::None);
+    }
+
+    #[test]
+    fn on_zero_trigger_serializes_snake_case() {
+        let cases = [
+            (OnZeroTrigger::None, r#""none""#),
+            (OnZeroTrigger::Death, r#""death""#),
+        ];
+        for (trigger, expected) in cases {
+            assert_eq!(serde_json::to_string(&trigger).unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn on_zero_trigger_serde_round_trip() {
+        for trigger in [OnZeroTrigger::None, OnZeroTrigger::Death] {
+            let json = serde_json::to_string(&trigger).unwrap();
+            let restored: OnZeroTrigger = serde_json::from_str(&json).unwrap();
+            assert_eq!(restored, trigger);
+        }
     }
 
     #[test]
@@ -138,6 +171,7 @@ mod tests {
             attribute_type: AttributeType::Stat,
             attribute_category: AttributeCategory::General,
             reset_condition: ResetCondition::EachEngagementTurn,
+            on_zero: OnZeroTrigger::None,
         };
         let json = serde_json::to_string(&def).unwrap();
         let restored: AttributeDefinition = serde_json::from_str(&json).unwrap();
