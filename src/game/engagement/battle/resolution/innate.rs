@@ -37,7 +37,12 @@ pub(in crate::game::engagement::battle) async fn apply_innate_effects(
             .collect();
 
         if !triggered.is_empty() {
-            let applied = resolve_effects(entity_id, triggered, &mut entities);
+            let applied = resolve_effects(
+                entity_id,
+                triggered,
+                &mut entities,
+                &game_state.attribute_config,
+            );
             messages.extend(applied);
         }
 

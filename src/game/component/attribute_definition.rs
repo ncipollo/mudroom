@@ -54,6 +54,14 @@ pub struct AttributeDefinition {
     pub reset_condition: ResetCondition,
     #[serde(default)]
     pub on_zero: OnZeroTrigger,
+    /// Whether this attribute can be the target of an `AttributeUpdate` effect. Defaults to
+    /// `true` so existing configs (hp, mp, xp, level, stats) keep behaving as before.
+    #[serde(default = "default_updatable")]
+    pub updatable: bool,
+}
+
+fn default_updatable() -> bool {
+    true
 }
 
 #[cfg(test)]
@@ -72,6 +80,7 @@ mod tests {
             attribute_category: AttributeCategory::Life,
             reset_condition: ResetCondition::EndOfEngagement,
             on_zero: OnZeroTrigger::Death,
+            updatable: true,
         };
         let json = serde_json::to_string(&def).unwrap();
         let restored: AttributeDefinition = serde_json::from_str(&json).unwrap();
@@ -81,6 +90,7 @@ mod tests {
         assert_eq!(restored.max_value, def.max_value);
         assert_eq!(restored.reset_condition, def.reset_condition);
         assert_eq!(restored.on_zero, def.on_zero);
+        assert_eq!(restored.updatable, def.updatable);
     }
 
     #[test]
@@ -125,6 +135,26 @@ mod tests {
         let def: AttributeDefinition = serde_json::from_str(json).unwrap();
         assert_eq!(def.reset_condition, ResetCondition::EachEngagementTurn);
         assert_eq!(def.on_zero, OnZeroTrigger::None);
+        assert!(def.updatable);
+    }
+
+    #[test]
+    fn attribute_definition_updatable_false_round_trips() {
+        let def = AttributeDefinition {
+            id: "derived_stat".to_string(),
+            title: "Derived Stat".to_string(),
+            description: "Computed from other attributes.".to_string(),
+            min_value: 0,
+            max_value: 100,
+            attribute_type: AttributeType::Stat,
+            attribute_category: AttributeCategory::General,
+            reset_condition: ResetCondition::EachEngagementTurn,
+            on_zero: OnZeroTrigger::None,
+            updatable: false,
+        };
+        let json = serde_json::to_string(&def).unwrap();
+        let restored: AttributeDefinition = serde_json::from_str(&json).unwrap();
+        assert!(!restored.updatable);
     }
 
     #[test]
@@ -172,6 +202,7 @@ mod tests {
             attribute_category: AttributeCategory::General,
             reset_condition: ResetCondition::EachEngagementTurn,
             on_zero: OnZeroTrigger::None,
+            updatable: true,
         };
         let json = serde_json::to_string(&def).unwrap();
         let restored: AttributeDefinition = serde_json::from_str(&json).unwrap();

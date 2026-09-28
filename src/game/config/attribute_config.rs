@@ -24,6 +24,15 @@ impl AttributeConfig {
         attributes.extend(default_stat_attributes());
         Self { attributes }
     }
+
+    /// Whether `attribute_id` can be the target of an `AttributeUpdate` effect. Fails open (`true`)
+    /// for an id with no matching definition, preserving prior behavior for undeclared attributes.
+    pub fn is_updatable(&self, attribute_id: &str) -> bool {
+        self.attributes
+            .iter()
+            .find(|a| a.id == attribute_id)
+            .is_none_or(|a| a.updatable)
+    }
 }
 
 fn default_life_attributes() -> Vec<AttributeDefinition> {
@@ -38,6 +47,7 @@ fn default_life_attributes() -> Vec<AttributeDefinition> {
             attribute_category: AttributeCategory::Life,
             reset_condition: ResetCondition::Never,
             on_zero: OnZeroTrigger::Death,
+            updatable: true,
         },
         AttributeDefinition {
             id: "mp".to_string(),
@@ -49,6 +59,7 @@ fn default_life_attributes() -> Vec<AttributeDefinition> {
             attribute_category: AttributeCategory::General,
             reset_condition: ResetCondition::Never,
             on_zero: OnZeroTrigger::None,
+            updatable: true,
         },
         AttributeDefinition {
             id: "level".to_string(),
@@ -60,6 +71,7 @@ fn default_life_attributes() -> Vec<AttributeDefinition> {
             attribute_category: AttributeCategory::General,
             reset_condition: Default::default(),
             on_zero: OnZeroTrigger::None,
+            updatable: true,
         },
         AttributeDefinition {
             id: "xp".to_string(),
@@ -71,6 +83,7 @@ fn default_life_attributes() -> Vec<AttributeDefinition> {
             attribute_category: AttributeCategory::General,
             reset_condition: Default::default(),
             on_zero: OnZeroTrigger::None,
+            updatable: true,
         },
     ]
 }
@@ -87,6 +100,7 @@ fn default_stat_attributes() -> Vec<AttributeDefinition> {
             attribute_category: AttributeCategory::General,
             reset_condition: Default::default(),
             on_zero: OnZeroTrigger::None,
+            updatable: true,
         },
         AttributeDefinition {
             id: "dexterity".to_string(),
@@ -98,6 +112,7 @@ fn default_stat_attributes() -> Vec<AttributeDefinition> {
             attribute_category: AttributeCategory::General,
             reset_condition: Default::default(),
             on_zero: OnZeroTrigger::None,
+            updatable: true,
         },
         AttributeDefinition {
             id: "constitution".to_string(),
@@ -109,6 +124,7 @@ fn default_stat_attributes() -> Vec<AttributeDefinition> {
             attribute_category: AttributeCategory::General,
             reset_condition: Default::default(),
             on_zero: OnZeroTrigger::None,
+            updatable: true,
         },
         AttributeDefinition {
             id: "intelligence".to_string(),
@@ -120,6 +136,7 @@ fn default_stat_attributes() -> Vec<AttributeDefinition> {
             attribute_category: AttributeCategory::General,
             reset_condition: Default::default(),
             on_zero: OnZeroTrigger::None,
+            updatable: true,
         },
         AttributeDefinition {
             id: "wisdom".to_string(),
@@ -131,6 +148,7 @@ fn default_stat_attributes() -> Vec<AttributeDefinition> {
             attribute_category: AttributeCategory::General,
             reset_condition: Default::default(),
             on_zero: OnZeroTrigger::None,
+            updatable: true,
         },
         AttributeDefinition {
             id: "charisma".to_string(),
@@ -142,6 +160,7 @@ fn default_stat_attributes() -> Vec<AttributeDefinition> {
             attribute_category: AttributeCategory::General,
             reset_condition: Default::default(),
             on_zero: OnZeroTrigger::None,
+            updatable: true,
         },
     ]
 }
@@ -195,6 +214,31 @@ mod tests {
         ] {
             assert_eq!(find(id), ResetCondition::EachEngagementTurn);
         }
+    }
+
+    #[test]
+    fn default_config_attributes_are_all_updatable() {
+        let config = AttributeConfig::default_config();
+        assert!(config.attributes.iter().all(|a| a.updatable));
+    }
+
+    #[test]
+    fn is_updatable_reads_definition_flag() {
+        let mut config = AttributeConfig::default_config();
+        config
+            .attributes
+            .iter_mut()
+            .find(|a| a.id == "hp")
+            .unwrap()
+            .updatable = false;
+        assert!(!config.is_updatable("hp"));
+        assert!(config.is_updatable("mp"));
+    }
+
+    #[test]
+    fn is_updatable_fails_open_for_unknown_attribute() {
+        let config = AttributeConfig::default_config();
+        assert!(config.is_updatable("nonexistent"));
     }
 
     #[test]
