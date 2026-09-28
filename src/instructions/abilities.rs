@@ -109,6 +109,12 @@ effect_type variants:
   { type = "attribute_shield", attribute_id = "<id>", absorb_amount = <integer> }
     Grants a shield absorbing up to `absorb_amount` of damage to
     `attribute_id` before it is reduced directly.
+  { type = "attribute_buff", attribute_id = "<id>", value = <integer> }
+    Temporarily adds `value` to `attribute_id` for as long as the effect
+    stays active (cleared on expiry or when the effect's scope ends, e.g.
+    battle end for `scope = "battle"`) — unlike `attribute_update`, it never
+    changes the stored value, only what's read while it's active, clamped to
+    the attribute's min/max.
   { type = "entity_spawn", entity_id = "<id>", location = <table, optional> }
     Spawns an entity with the given `entity_id`, optionally at a specific
     location (world_id, dungeon_id, room_id). Omit `location` to spawn near
@@ -153,6 +159,7 @@ mod tests {
         let text = render();
         assert!(text.contains("attribute_update"));
         assert!(text.contains("attribute_shield"));
+        assert!(text.contains("attribute_buff"));
         assert!(text.contains("entity_spawn"));
     }
 

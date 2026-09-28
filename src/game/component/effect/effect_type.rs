@@ -13,6 +13,10 @@ pub enum EffectType {
         attribute_id: String,
         absorb_amount: i64,
     },
+    AttributeBuff {
+        attribute_id: String,
+        value: i64,
+    },
     EntitySpawn {
         entity_id: String,
         location: Option<Location>,
@@ -23,16 +27,19 @@ impl EffectType {
     pub fn resolution_order(&self) -> u8 {
         match self {
             EffectType::AttributeShield { .. } => 0,
-            EffectType::AttributeUpdate { .. } => 1,
-            EffectType::EntitySpawn { .. } => 2,
+            EffectType::AttributeBuff { .. } => 1,
+            EffectType::AttributeUpdate { .. } => 2,
+            EffectType::EntitySpawn { .. } => 3,
         }
     }
 
     pub fn variable_map(&self) -> VariableMap {
         match self {
-            EffectType::AttributeUpdate { value, .. } => VariableMap::new()
-                .insert("value", value.to_string())
-                .insert("abs_value", value.abs().to_string()),
+            EffectType::AttributeUpdate { value, .. } | EffectType::AttributeBuff { value, .. } => {
+                VariableMap::new()
+                    .insert("value", value.to_string())
+                    .insert("abs_value", value.abs().to_string())
+            }
             EffectType::AttributeShield { absorb_amount, .. } => VariableMap::new()
                 .insert("value", absorb_amount.to_string())
                 .insert("abs_value", absorb_amount.abs().to_string()),
@@ -65,6 +72,17 @@ mod tests {
         .variable_map();
         assert_eq!(vars.get("value"), Some("10"));
         assert_eq!(vars.get("abs_value"), Some("10"));
+    }
+
+    #[test]
+    fn variable_map_attribute_buff_provides_value_and_abs_value() {
+        let vars = EffectType::AttributeBuff {
+            attribute_id: "strength".to_string(),
+            value: -3,
+        }
+        .variable_map();
+        assert_eq!(vars.get("value"), Some("-3"));
+        assert_eq!(vars.get("abs_value"), Some("3"));
     }
 
     #[test]

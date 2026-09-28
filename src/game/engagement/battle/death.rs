@@ -39,8 +39,7 @@ fn is_entity_dead(
     };
     death_trigger_def_ids.iter().any(|&def_id| {
         character
-            .attributes
-            .get(def_id)
+            .effective_attribute(def_id)
             .is_some_and(|attr| attr.current_value <= attr.min_value)
     })
 }
@@ -144,5 +143,39 @@ mod tests {
     fn is_entity_dead_false_for_unknown_entity() {
         let entities = HashMap::new();
         assert!(!is_entity_dead(1, &entities, &["hp"]));
+    }
+
+    fn buff_effect(attribute_id: &str, value: i64) -> crate::game::component::effect::Effect {
+        use crate::game::component::effect::{
+            EffectDescription, EffectScope, EffectType, TriggerInfo,
+        };
+        crate::game::component::effect::Effect {
+            name: "buff".to_string(),
+            effect_type: EffectType::AttributeBuff {
+                attribute_id: attribute_id.to_string(),
+                value,
+            },
+            trigger_info: TriggerInfo::Once,
+            description: EffectDescription::default(),
+            scope: EffectScope::default(),
+        }
+    }
+
+    #[test]
+    fn is_entity_dead_false_when_a_buff_keeps_effective_hp_above_zero() {
+        let mut entities = HashMap::new();
+        let mut character = entity_with_hp(1, 0);
+        character.active_effects.push(buff_effect("hp", 10));
+        entities.insert(1, character);
+        assert!(!is_entity_dead(1, &entities, &["hp"]));
+    }
+
+    #[test]
+    fn is_entity_dead_true_when_a_debuff_pushes_effective_hp_to_zero() {
+        let mut entities = HashMap::new();
+        let mut character = entity_with_hp(1, 5);
+        character.active_effects.push(buff_effect("hp", -5));
+        entities.insert(1, character);
+        assert!(is_entity_dead(1, &entities, &["hp"]));
     }
 }

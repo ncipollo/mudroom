@@ -50,6 +50,19 @@ fn shield_effect(absorb_amount: i64, trigger: TriggerInfo) -> Effect {
     }
 }
 
+fn buff_effect(attribute_id: &str, value: i64, trigger: TriggerInfo) -> Effect {
+    Effect {
+        name: "strength_buff".to_string(),
+        effect_type: EffectType::AttributeBuff {
+            attribute_id: attribute_id.to_string(),
+            value,
+        },
+        trigger_info: trigger,
+        description: EffectDescription::default(),
+        scope: EffectScope::default(),
+    }
+}
+
 fn attack_ability(damage: i64) -> Ability {
     Ability {
         id: "attack".to_string(),
@@ -243,6 +256,42 @@ fn non_updatable_attribute_is_left_unchanged() {
 
     let character = entities.get(&1).unwrap();
     assert_eq!(character.attributes["hp"].current_value, 100);
+}
+
+#[test]
+fn once_triggered_buff_is_pushed_onto_active_effects() {
+    let mut entities = single_entity(100);
+    resolve_effects(
+        1,
+        vec![buff_effect("hp", 20, TriggerInfo::Once)],
+        &mut entities,
+        &config(),
+    );
+
+    let character = entities.get(&1).unwrap();
+    // Buffs never mutate current_value directly — only the effective read path does.
+    assert_eq!(character.attributes["hp"].current_value, 100);
+    assert_eq!(character.active_effects.len(), 1);
+}
+
+#[test]
+fn over_time_buff_is_also_pushed_onto_active_effects() {
+    let mut entities = single_entity(100);
+    let over_time_buff = buff_effect(
+        "hp",
+        20,
+        TriggerInfo::OverTime {
+            start: 0,
+            end: Some(3),
+            rate: 3,
+        },
+    );
+
+    resolve_effects(1, vec![over_time_buff], &mut entities, &config());
+
+    let character = entities.get(&1).unwrap();
+    assert_eq!(character.attributes["hp"].current_value, 100);
+    assert_eq!(character.active_effects.len(), 1);
 }
 
 #[test]

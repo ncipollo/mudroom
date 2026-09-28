@@ -14,6 +14,7 @@ use crate::game::component::effect::Effect;
 use crate::game::config::BattleAiConfig;
 use crate::game::entity::Entity;
 
+mod attribute_buffs;
 mod item_bonuses;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -102,11 +103,10 @@ impl Character {
         }
     }
 
-    /// Returns `(current_value, max_value)` for the given attribute id, or `(0, 0)` if the
-    /// character has no such attribute.
+    /// Returns `(current_value, max_value)` for the given attribute id, reflecting any active
+    /// `AttributeBuff` effects, or `(0, 0)` if the character has no such attribute.
     pub fn attribute_range(&self, attribute_id: &str) -> (i64, i64) {
-        self.attributes
-            .get(attribute_id)
+        self.effective_attribute(attribute_id)
             .map(|a| (a.current_value, a.max_value))
             .unwrap_or((0, 0))
     }
@@ -148,6 +148,30 @@ mod tests {
     fn attribute_range_defaults_when_missing() {
         let character = Character::new(1, CharacterType::Player, test_location());
         assert_eq!(character.attribute_range("mp"), (0, 0));
+    }
+
+    #[test]
+    fn attribute_range_reflects_an_active_buff() {
+        use crate::game::component::effect::{
+            Effect, EffectDescription, EffectScope, EffectType, TriggerInfo,
+        };
+
+        let mut character = Character::new(1, CharacterType::Player, test_location());
+        character.attributes.insert(
+            "hp".to_string(),
+            Attribute::new("hp".to_string(), 0, 100, 40),
+        );
+        character.active_effects.push(Effect {
+            name: "buff".to_string(),
+            effect_type: EffectType::AttributeBuff {
+                attribute_id: "hp".to_string(),
+                value: 10,
+            },
+            trigger_info: TriggerInfo::Once,
+            description: EffectDescription::default(),
+            scope: EffectScope::default(),
+        });
+        assert_eq!(character.attribute_range("hp"), (50, 100));
     }
 
     #[test]

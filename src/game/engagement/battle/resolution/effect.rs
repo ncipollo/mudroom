@@ -38,11 +38,19 @@ fn resolve_effect(
 ) {
     match &effect.effect_type {
         EffectType::AttributeShield { .. } => apply_attribute_shield(effect, character, context),
+        EffectType::AttributeBuff { .. } => apply_attribute_buff(effect, character),
         EffectType::AttributeUpdate { .. } => {
             apply_attribute_update(effect, character, context, attribute_config)
         }
         EffectType::EntitySpawn { .. } => apply_entity_spawn(effect, character, context),
     }
+}
+
+/// A buff is inherently durational (unlike a `Once` attribute update, which permanently mutates
+/// `current_value`), so it always lands in `active_effects` regardless of its trigger kind.
+/// Callers read the effective value through `Character::effective_attribute` rather than here.
+fn apply_attribute_buff(effect: &Effect, character: &mut Character) {
+    character.active_effects.push(effect.clone());
 }
 
 fn apply_attribute_shield(
