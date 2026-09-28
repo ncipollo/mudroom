@@ -178,6 +178,7 @@ mod tests {
                 interact_script: None,
                 interact_next_state: has_next_state.then(|| "open".to_string()),
                 alt_verbs: alt_verbs.into_iter().map(str::to_string).collect(),
+                item_summary: None,
             },
         );
         states.insert(
@@ -188,6 +189,7 @@ mod tests {
                 interact_script: None,
                 interact_next_state: None,
                 alt_verbs: vec![],
+                item_summary: None,
             },
         );
         RoomFeature {

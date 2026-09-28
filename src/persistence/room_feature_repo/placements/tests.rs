@@ -32,6 +32,7 @@ fn chest_feature() -> RoomFeature {
             interact_script: None,
             interact_next_state: Some("open".to_string()),
             alt_verbs: vec![],
+            item_summary: None,
         },
     );
     states.insert(
@@ -42,6 +43,7 @@ fn chest_feature() -> RoomFeature {
             interact_script: None,
             interact_next_state: None,
             alt_verbs: vec![],
+            item_summary: None,
         },
     );
     RoomFeature {

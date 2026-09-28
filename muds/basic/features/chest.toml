@@ -8,7 +8,8 @@ interact_next_state = "open"
 alt_verbs = ["open"]
 
 [states.open]
-description = "The oak chest stands open, its lid tipped back."
+description = "The oak chest stands open"
+item_summary = ", inside there is {items}."
 items = ["medicine"]
 interact_next_state = "closed"
 alt_verbs = ["close"]

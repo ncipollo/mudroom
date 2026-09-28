@@ -216,6 +216,7 @@ mod tests {
                 interact_script: None,
                 interact_next_state: None,
                 alt_verbs: vec![],
+                item_summary: None,
             },
         );
         room_feature_repo::upsert_definition(
