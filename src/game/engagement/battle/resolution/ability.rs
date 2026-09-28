@@ -54,7 +54,12 @@ pub(in crate::game::engagement::battle) async fn apply_battle_effects(
     }
 
     for (target_id, effects) in target_effects {
-        let applied = resolve_effects(target_id, effects, &mut entities);
+        let applied = resolve_effects(
+            target_id,
+            effects,
+            &mut entities,
+            &game_state.attribute_config,
+        );
         messages.extend(applied);
     }
 }

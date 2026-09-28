@@ -7,6 +7,7 @@ use crate::game::component::{
     Attribute, Effect, EffectType, Item, ItemDefinition, ItemUseType, Modifier, Operator,
     TriggerInfo, UseEffect,
 };
+use crate::game::config::AttributeConfig;
 use crate::game::interaction::inventory;
 use crate::game::player::Player;
 use crate::game::{GameState, messaging};
@@ -41,7 +42,11 @@ pub async fn process(game_state: &Arc<GameState>, db: &Database, player: &Player
     }
 
     let mut attributes = snapshot.attributes.clone();
-    let over_time_effects = apply_use_effects(&snapshot.definition.use_effects, &mut attributes);
+    let over_time_effects = apply_use_effects(
+        &snapshot.definition.use_effects,
+        &mut attributes,
+        &game_state.attribute_config,
+    );
 
     persist_use(db, &snapshot, &attributes, &over_time_effects).await;
     apply_in_memory(game_state, player, &snapshot, attributes, over_time_effects).await;
@@ -89,12 +94,15 @@ async fn character_snapshot(
 fn apply_use_effects(
     effects: &[UseEffect],
     attributes: &mut HashMap<String, Attribute>,
+    attribute_config: &AttributeConfig,
 ) -> Vec<Effect> {
     let mut over_time = Vec::new();
     for effect in effects {
         match effect {
             UseEffect::StatBoost(modifier) => apply_modifier(attributes, modifier),
-            UseEffect::ApplyEffect(effect) => apply_use_effect(effect, attributes, &mut over_time),
+            UseEffect::ApplyEffect(effect) => {
+                apply_use_effect(effect, attributes, &mut over_time, attribute_config)
+            }
         }
     }
     over_time
@@ -118,14 +126,19 @@ fn apply_use_effect(
     effect: &Effect,
     attributes: &mut HashMap<String, Attribute>,
     over_time: &mut Vec<Effect>,
+    attribute_config: &AttributeConfig,
 ) {
     match effect.trigger_info {
-        TriggerInfo::Once => apply_once_effect(effect, attributes),
+        TriggerInfo::Once => apply_once_effect(effect, attributes, attribute_config),
         TriggerInfo::OverTime { .. } => over_time.push(effect.clone()),
     }
 }
 
-fn apply_once_effect(effect: &Effect, attributes: &mut HashMap<String, Attribute>) {
+fn apply_once_effect(
+    effect: &Effect,
+    attributes: &mut HashMap<String, Attribute>,
+    attribute_config: &AttributeConfig,
+) {
     let EffectType::AttributeUpdate {
         attribute_id,
         value,
@@ -133,6 +146,9 @@ fn apply_once_effect(effect: &Effect, attributes: &mut HashMap<String, Attribute
     else {
         return;
     };
+    if !attribute_config.is_updatable(attribute_id) {
+        return;
+    }
     let Some(attr) = attributes.get_mut(attribute_id) else {
         return;
     };
@@ -349,6 +365,38 @@ mod tests {
             Message::Complete { content, .. } => assert_eq!(content, "You use the Tonic."),
             other => panic!("expected Complete message, got {other:?}"),
         }
+    }
+
+    #[tokio::test]
+    async fn use_item_skips_non_updatable_attribute() {
+        let db = Database::connect_in_memory().await.unwrap();
+        let character_id = setup(&db).await;
+        let mut game_state = GameState::load(None).unwrap();
+        game_state
+            .attribute_config
+            .attributes
+            .iter_mut()
+            .find(|a| a.id == "hp")
+            .unwrap()
+            .updatable = false;
+        let game_state = Arc::new(game_state);
+        let definition = tonic_definition(vec![UseEffect::ApplyEffect(Effect {
+            name: "heal".to_string(),
+            effect_type: EffectType::AttributeUpdate {
+                attribute_id: "hp".to_string(),
+                value: 20,
+            },
+            trigger_info: TriggerInfo::Once,
+            description: EffectDescription::default(),
+            scope: Default::default(),
+        })]);
+        let item_id = seed_character(&game_state, &db, character_id, definition).await;
+        let player = test_player(character_id);
+
+        process(&game_state, &db, &player, item_id).await;
+
+        let characters = game_state.active_characters.read().await;
+        assert_eq!(characters[&character_id].attributes["hp"].current_value, 50);
     }
 
     #[tokio::test]
