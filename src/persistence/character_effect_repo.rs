@@ -128,6 +128,27 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn attribute_buff_round_trips_through_persistence() {
+        let db = Database::connect_in_memory().await.unwrap();
+        let character_id = setup(&db).await;
+        let effect = Effect {
+            name: "strength_buff".to_string(),
+            effect_type: EffectType::AttributeBuff {
+                attribute_id: "strength".to_string(),
+                value: 5,
+            },
+            trigger_info: TriggerInfo::Once,
+            description: EffectDescription::default(),
+            scope: Default::default(),
+        };
+        insert(db.pool(), character_id, &effect).await.unwrap();
+
+        let found = find_by_character(db.pool(), character_id).await.unwrap();
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0], effect);
+    }
+
+    #[tokio::test]
     async fn find_by_character_returns_empty_for_unknown() {
         let db = Database::connect_in_memory().await.unwrap();
         let found = find_by_character(db.pool(), 999).await.unwrap();

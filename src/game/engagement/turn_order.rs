@@ -25,7 +25,7 @@ impl TurnOrder {
             .map(|character| {
                 let speed: i64 = turn_order_attributes
                     .iter()
-                    .filter_map(|id| character.attributes.get(id))
+                    .filter_map(|id| character.effective_attribute(id))
                     .map(|attr| attr.current_value)
                     .sum();
                 (character.id, speed)
@@ -218,6 +218,49 @@ mod tests {
         );
 
         let order = TurnOrder::new_from_entities(&[&a, &b], &config);
+        assert_eq!(order.order(), &[2, 1]);
+    }
+
+    #[test]
+    fn new_from_entities_reflects_a_speed_buff() {
+        use crate::game::component::Attribute;
+        use crate::game::component::effect::{
+            Effect, EffectDescription, EffectScope, EffectType, TriggerInfo,
+        };
+        use crate::game::component::location::Location;
+        use crate::game::entity::character::{Character, CharacterType};
+
+        let config = vec!["speed".to_string()];
+        let loc = Location {
+            world_id: "w".to_string(),
+            dungeon_id: "d".to_string(),
+            room_id: "r".to_string(),
+        };
+
+        let mut slow = Character::new(1, CharacterType::Enemy, loc.clone());
+        slow.attributes.insert(
+            "speed".to_string(),
+            Attribute::new("speed".to_string(), 0, 100, 5),
+        );
+
+        let mut buffed = Character::new(2, CharacterType::Enemy, loc);
+        buffed.attributes.insert(
+            "speed".to_string(),
+            Attribute::new("speed".to_string(), 0, 100, 5),
+        );
+        buffed.active_effects.push(Effect {
+            name: "haste".to_string(),
+            effect_type: EffectType::AttributeBuff {
+                attribute_id: "speed".to_string(),
+                value: 10,
+            },
+            trigger_info: TriggerInfo::Once,
+            description: EffectDescription::default(),
+            scope: EffectScope::default(),
+        });
+
+        // Without the buff, entity 2 would tie entity 1 and lose the tie-break (higher id).
+        let order = TurnOrder::new_from_entities(&[&slow, &buffed], &config);
         assert_eq!(order.order(), &[2, 1]);
     }
 }

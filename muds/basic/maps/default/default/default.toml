@@ -1,7 +1,8 @@
 features = ["chest"]
+items = ["amulet_of_vigor"]
 
 [description]
-text = "You stand at the crossroads of a small town. A **tavern** lies to the north. A dark corridor leads to the east. An oak chest sits at the edge of the square."
+text = "You stand at the crossroads of a small town. A **tavern** lies to the north. A dark corridor leads to the east. An oak chest sits at the edge of the square. A tarnished amulet glints in the dirt."
 
 [north]
 room_id = "tavern"

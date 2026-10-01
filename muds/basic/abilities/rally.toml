@@ -1,0 +1,14 @@
+name = "Rally"
+description = "Steel your resolve, temporarily bolstering your strength."
+action_text = "{{character}} rallies with fierce resolve"
+engagement_types = ["battle"]
+costs = []
+role = "defend"
+targets = ["self"]
+
+[[effects]]
+name = "strength_buff"
+trigger_info = { type = "once" }
+effect_type = { type = "attribute_buff", attribute_id = "strength", value = 5 }
+description = { text = "Strength surges by {{value}}" }
+scope = "battle"

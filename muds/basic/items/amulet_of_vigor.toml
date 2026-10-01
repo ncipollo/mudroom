@@ -1,0 +1,8 @@
+name = "Amulet of Vigor"
+description = "A tarnished amulet that hums with restrained vigor."
+use_type = "passive"
+item_type = "amulet"
+alternate_names = ["amulet"]
+
+[equipped_bonuses]
+equipped = ["rally"]

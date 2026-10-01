@@ -89,6 +89,23 @@ mod tests {
     }
 
     #[test]
+    fn attribute_buff_serde_round_trip() {
+        let effect = Effect {
+            name: "strength_buff".to_string(),
+            effect_type: EffectType::AttributeBuff {
+                attribute_id: "strength".to_string(),
+                value: 5,
+            },
+            trigger_info: TriggerInfo::Once,
+            description: EffectDescription::default(),
+            scope: EffectScope::default(),
+        };
+        let json = serde_json::to_string(&effect).unwrap();
+        let restored: Effect = serde_json::from_str(&json).unwrap();
+        assert_eq!(effect, restored);
+    }
+
+    #[test]
     fn once_trigger_serde_round_trip() {
         let effect = Effect {
             name: "spawn_entity".to_string(),
