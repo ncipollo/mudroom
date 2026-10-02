@@ -23,9 +23,6 @@ Fields:
                       attribute mechanically. See values below.
   attribute_category  enum — groups the attribute for display/organization
                       purposes. See values below.
-  reset_condition     enum, optional — when this attribute's value resets
-                      to its default during engagements. Defaults to
-                      each_engagement_turn if omitted. See values below.
 
 attribute_type values:
   hp     — a hit point pool; tracks damage an entity can sustain.
@@ -40,15 +37,6 @@ attribute_category values:
   speed    — attributes that affect turn order or action speed.
   general  — everything else (stats, level, xp, mp, etc).
 
-reset_condition values:
-  each_engagement_turn  — the attribute resets at the start of every turn
-                          within an engagement (battle). This is the
-                          default when the field is omitted.
-  end_of_engagement     — the attribute resets once, when the engagement
-                          ends.
-  never                 — the attribute is never automatically reset; its
-                          value persists across turns and engagements.
-
 Example (from muds/basic/attributes.toml):
 
   [[attributes]]
@@ -59,7 +47,6 @@ Example (from muds/basic/attributes.toml):
   max_value = 999
   attribute_type = "hp"
   attribute_category = "life"
-  reset_condition = "never"
 
   [[attributes]]
   id = "strength"
@@ -68,8 +55,7 @@ Example (from muds/basic/attributes.toml):
   min_value = 1
   max_value = 20
   attribute_type = "stat"
-  attribute_category = "general"
-  # reset_condition omitted — defaults to each_engagement_turn"#
+  attribute_category = "general""#
         .to_string()
 }
 
@@ -85,7 +71,6 @@ mod tests {
         assert!(text.contains("max_value"));
         assert!(text.contains("attribute_type"));
         assert!(text.contains("attribute_category"));
-        assert!(text.contains("reset_condition"));
     }
 
     #[test]
@@ -104,14 +89,6 @@ mod tests {
         assert!(text.contains("life     —"));
         assert!(text.contains("speed    —"));
         assert!(text.contains("general  —"));
-    }
-
-    #[test]
-    fn render_lists_reset_condition_values() {
-        let text = render();
-        assert!(text.contains("each_engagement_turn"));
-        assert!(text.contains("end_of_engagement"));
-        assert!(text.contains("never"));
     }
 
     #[test]

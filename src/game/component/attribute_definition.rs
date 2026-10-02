@@ -1,14 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum ResetCondition {
-    #[default]
-    EachEngagementTurn,
-    EndOfEngagement,
-    Never,
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum AttributeCategory {
     #[serde(rename = "life")]
@@ -51,8 +42,6 @@ pub struct AttributeDefinition {
     pub attribute_type: AttributeType,
     pub attribute_category: AttributeCategory,
     #[serde(default)]
-    pub reset_condition: ResetCondition,
-    #[serde(default)]
     pub on_zero: OnZeroTrigger,
     /// Whether this attribute can be the target of an `AttributeUpdate` effect. Defaults to
     /// `true` so existing configs (hp, mp, xp, level, stats) keep behaving as before.
@@ -78,7 +67,6 @@ mod tests {
             max_value: 100,
             attribute_type: AttributeType::HP,
             attribute_category: AttributeCategory::Life,
-            reset_condition: ResetCondition::EndOfEngagement,
             on_zero: OnZeroTrigger::Death,
             updatable: true,
         };
@@ -88,41 +76,12 @@ mod tests {
         assert_eq!(restored.title, def.title);
         assert_eq!(restored.min_value, def.min_value);
         assert_eq!(restored.max_value, def.max_value);
-        assert_eq!(restored.reset_condition, def.reset_condition);
         assert_eq!(restored.on_zero, def.on_zero);
         assert_eq!(restored.updatable, def.updatable);
     }
 
     #[test]
-    fn reset_condition_serializes_snake_case() {
-        let cases = [
-            (
-                ResetCondition::EachEngagementTurn,
-                r#""each_engagement_turn""#,
-            ),
-            (ResetCondition::EndOfEngagement, r#""end_of_engagement""#),
-            (ResetCondition::Never, r#""never""#),
-        ];
-        for (condition, expected) in cases {
-            assert_eq!(serde_json::to_string(&condition).unwrap(), expected);
-        }
-    }
-
-    #[test]
-    fn reset_condition_serde_round_trip() {
-        for condition in [
-            ResetCondition::EachEngagementTurn,
-            ResetCondition::EndOfEngagement,
-            ResetCondition::Never,
-        ] {
-            let json = serde_json::to_string(&condition).unwrap();
-            let restored: ResetCondition = serde_json::from_str(&json).unwrap();
-            assert_eq!(restored, condition);
-        }
-    }
-
-    #[test]
-    fn attribute_definition_missing_reset_condition_defaults() {
+    fn attribute_definition_missing_optional_fields_defaults() {
         let json = r#"{
             "id": "strength",
             "title": "Strength",
@@ -133,7 +92,6 @@ mod tests {
             "attribute_category": "general"
         }"#;
         let def: AttributeDefinition = serde_json::from_str(json).unwrap();
-        assert_eq!(def.reset_condition, ResetCondition::EachEngagementTurn);
         assert_eq!(def.on_zero, OnZeroTrigger::None);
         assert!(def.updatable);
     }
@@ -148,7 +106,6 @@ mod tests {
             max_value: 100,
             attribute_type: AttributeType::Stat,
             attribute_category: AttributeCategory::General,
-            reset_condition: ResetCondition::EachEngagementTurn,
             on_zero: OnZeroTrigger::None,
             updatable: false,
         };
@@ -200,7 +157,6 @@ mod tests {
             max_value: 20,
             attribute_type: AttributeType::Stat,
             attribute_category: AttributeCategory::General,
-            reset_condition: ResetCondition::EachEngagementTurn,
             on_zero: OnZeroTrigger::None,
             updatable: true,
         };
