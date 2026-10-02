@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::game::component::AttributeDefinition;
 use crate::game::component::attribute_definition::{
-    AttributeCategory, AttributeType, OnZeroTrigger, ResetCondition,
+    AttributeCategory, AttributeType, OnZeroTrigger,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,7 +45,6 @@ fn default_life_attributes() -> Vec<AttributeDefinition> {
             max_value: 999,
             attribute_type: AttributeType::HP,
             attribute_category: AttributeCategory::Life,
-            reset_condition: ResetCondition::Never,
             on_zero: OnZeroTrigger::Death,
             updatable: true,
         },
@@ -57,7 +56,6 @@ fn default_life_attributes() -> Vec<AttributeDefinition> {
             max_value: 999,
             attribute_type: AttributeType::MP,
             attribute_category: AttributeCategory::General,
-            reset_condition: ResetCondition::Never,
             on_zero: OnZeroTrigger::None,
             updatable: true,
         },
@@ -69,7 +67,6 @@ fn default_life_attributes() -> Vec<AttributeDefinition> {
             max_value: 100,
             attribute_type: AttributeType::Level,
             attribute_category: AttributeCategory::General,
-            reset_condition: Default::default(),
             on_zero: OnZeroTrigger::None,
             updatable: true,
         },
@@ -81,7 +78,6 @@ fn default_life_attributes() -> Vec<AttributeDefinition> {
             max_value: i64::MAX,
             attribute_type: AttributeType::XP,
             attribute_category: AttributeCategory::General,
-            reset_condition: Default::default(),
             on_zero: OnZeroTrigger::None,
             updatable: true,
         },
@@ -98,7 +94,6 @@ fn default_stat_attributes() -> Vec<AttributeDefinition> {
             max_value: 20,
             attribute_type: AttributeType::Stat,
             attribute_category: AttributeCategory::General,
-            reset_condition: Default::default(),
             on_zero: OnZeroTrigger::None,
             updatable: true,
         },
@@ -110,7 +105,6 @@ fn default_stat_attributes() -> Vec<AttributeDefinition> {
             max_value: 20,
             attribute_type: AttributeType::Stat,
             attribute_category: AttributeCategory::General,
-            reset_condition: Default::default(),
             on_zero: OnZeroTrigger::None,
             updatable: true,
         },
@@ -122,7 +116,6 @@ fn default_stat_attributes() -> Vec<AttributeDefinition> {
             max_value: 20,
             attribute_type: AttributeType::Stat,
             attribute_category: AttributeCategory::General,
-            reset_condition: Default::default(),
             on_zero: OnZeroTrigger::None,
             updatable: true,
         },
@@ -134,7 +127,6 @@ fn default_stat_attributes() -> Vec<AttributeDefinition> {
             max_value: 20,
             attribute_type: AttributeType::Stat,
             attribute_category: AttributeCategory::General,
-            reset_condition: Default::default(),
             on_zero: OnZeroTrigger::None,
             updatable: true,
         },
@@ -146,7 +138,6 @@ fn default_stat_attributes() -> Vec<AttributeDefinition> {
             max_value: 20,
             attribute_type: AttributeType::Stat,
             attribute_category: AttributeCategory::General,
-            reset_condition: Default::default(),
             on_zero: OnZeroTrigger::None,
             updatable: true,
         },
@@ -158,7 +149,6 @@ fn default_stat_attributes() -> Vec<AttributeDefinition> {
             max_value: 20,
             attribute_type: AttributeType::Stat,
             attribute_category: AttributeCategory::General,
-            reset_condition: Default::default(),
             on_zero: OnZeroTrigger::None,
             updatable: true,
         },
@@ -186,34 +176,6 @@ mod tests {
         assert!(ids.contains(&"wisdom"));
         assert!(ids.contains(&"charisma"));
         assert_eq!(config.attributes.len(), 10);
-    }
-
-    #[test]
-    fn default_config_has_expected_reset_conditions() {
-        let config = AttributeConfig::default_config();
-        let find = |id: &str| {
-            config
-                .attributes
-                .iter()
-                .find(|a| a.id == id)
-                .unwrap()
-                .reset_condition
-                .clone()
-        };
-        assert_eq!(find("hp"), ResetCondition::Never);
-        assert_eq!(find("mp"), ResetCondition::Never);
-        for id in [
-            "level",
-            "xp",
-            "strength",
-            "dexterity",
-            "constitution",
-            "intelligence",
-            "wisdom",
-            "charisma",
-        ] {
-            assert_eq!(find(id), ResetCondition::EachEngagementTurn);
-        }
     }
 
     #[test]

@@ -1,7 +1,6 @@
 pub mod abilities;
 pub mod action_queue;
 pub mod ai;
-pub mod attribute_snapshot;
 pub mod collection;
 pub mod death;
 pub mod end;
@@ -21,7 +20,6 @@ use std::collections::HashMap;
 
 pub use abilities::entity_battle_abilities;
 pub use ai::{BattleAiContext, run_battle_ai};
-pub use attribute_snapshot::{AttributeSnapshot, AttributeSnapshots};
 pub use collection::Battles;
 pub use end::end_battle;
 pub use message::BattleMessage;

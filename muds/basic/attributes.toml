@@ -6,7 +6,6 @@ min_value = 0
 max_value = 999
 attribute_type = "hp"
 attribute_category = "life"
-reset_condition = "never"
 on_zero = "death"
 
 [[attributes]]
@@ -17,7 +16,6 @@ min_value = 0
 max_value = 999
 attribute_type = "mp"
 attribute_category = "general"
-reset_condition = "never"
 
 [[attributes]]
 id = "level"
