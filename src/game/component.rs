@@ -16,9 +16,7 @@ pub use crate::game::config::item_config::{
     AttributeBonus, EquippedBonuses, ItemDefinition, ItemUseType, UseEffect,
 };
 pub use attribute::Attribute;
-pub use attribute_definition::AttributeCategory;
 pub use attribute_definition::AttributeDefinition;
-pub use attribute_definition::AttributeType;
 pub use attribute_definition::OnZeroTrigger;
 pub use description::Description;
 pub use effect::Effect;

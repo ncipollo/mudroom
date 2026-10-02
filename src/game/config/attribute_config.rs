@@ -3,9 +3,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use crate::game::component::AttributeDefinition;
-use crate::game::component::attribute_definition::{
-    AttributeCategory, AttributeType, OnZeroTrigger,
-};
+use crate::game::component::attribute_definition::OnZeroTrigger;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AttributeConfig {
@@ -43,8 +41,6 @@ fn default_life_attributes() -> Vec<AttributeDefinition> {
             description: "The amount of damage you can sustain before falling.".to_string(),
             min_value: 0,
             max_value: 999,
-            attribute_type: AttributeType::HP,
-            attribute_category: AttributeCategory::Life,
             on_zero: OnZeroTrigger::Death,
             updatable: true,
         },
@@ -54,8 +50,6 @@ fn default_life_attributes() -> Vec<AttributeDefinition> {
             description: "The magical energy available for spells and abilities.".to_string(),
             min_value: 0,
             max_value: 999,
-            attribute_type: AttributeType::MP,
-            attribute_category: AttributeCategory::General,
             on_zero: OnZeroTrigger::None,
             updatable: true,
         },
@@ -65,8 +59,6 @@ fn default_life_attributes() -> Vec<AttributeDefinition> {
             description: "Your overall experience level.".to_string(),
             min_value: 1,
             max_value: 100,
-            attribute_type: AttributeType::Level,
-            attribute_category: AttributeCategory::General,
             on_zero: OnZeroTrigger::None,
             updatable: true,
         },
@@ -76,8 +68,6 @@ fn default_life_attributes() -> Vec<AttributeDefinition> {
             description: "Points accumulated through deeds and adventure.".to_string(),
             min_value: 0,
             max_value: i64::MAX,
-            attribute_type: AttributeType::XP,
-            attribute_category: AttributeCategory::General,
             on_zero: OnZeroTrigger::None,
             updatable: true,
         },
@@ -92,8 +82,6 @@ fn default_stat_attributes() -> Vec<AttributeDefinition> {
             description: "Raw physical power and carrying capacity.".to_string(),
             min_value: 1,
             max_value: 20,
-            attribute_type: AttributeType::Stat,
-            attribute_category: AttributeCategory::General,
             on_zero: OnZeroTrigger::None,
             updatable: true,
         },
@@ -103,8 +91,6 @@ fn default_stat_attributes() -> Vec<AttributeDefinition> {
             description: "Agility, reflexes, and hand-eye coordination.".to_string(),
             min_value: 1,
             max_value: 20,
-            attribute_type: AttributeType::Stat,
-            attribute_category: AttributeCategory::General,
             on_zero: OnZeroTrigger::None,
             updatable: true,
         },
@@ -114,8 +100,6 @@ fn default_stat_attributes() -> Vec<AttributeDefinition> {
             description: "Endurance, stamina, and resistance to harm.".to_string(),
             min_value: 1,
             max_value: 20,
-            attribute_type: AttributeType::Stat,
-            attribute_category: AttributeCategory::General,
             on_zero: OnZeroTrigger::None,
             updatable: true,
         },
@@ -125,8 +109,6 @@ fn default_stat_attributes() -> Vec<AttributeDefinition> {
             description: "Reasoning ability, memory, and arcane aptitude.".to_string(),
             min_value: 1,
             max_value: 20,
-            attribute_type: AttributeType::Stat,
-            attribute_category: AttributeCategory::General,
             on_zero: OnZeroTrigger::None,
             updatable: true,
         },
@@ -136,8 +118,6 @@ fn default_stat_attributes() -> Vec<AttributeDefinition> {
             description: "Perception, intuition, and willpower.".to_string(),
             min_value: 1,
             max_value: 20,
-            attribute_type: AttributeType::Stat,
-            attribute_category: AttributeCategory::General,
             on_zero: OnZeroTrigger::None,
             updatable: true,
         },
@@ -147,8 +127,6 @@ fn default_stat_attributes() -> Vec<AttributeDefinition> {
             description: "Force of personality, persuasiveness, and leadership.".to_string(),
             min_value: 1,
             max_value: 20,
-            attribute_type: AttributeType::Stat,
-            attribute_category: AttributeCategory::General,
             on_zero: OnZeroTrigger::None,
             updatable: true,
         },
@@ -239,8 +217,6 @@ title = "Test HP"
 description = "Test hit points."
 min_value = 0
 max_value = 100
-attribute_type = "hp"
-attribute_category = "life"
 on_zero = "death"
 
 [[attributes]]
@@ -249,8 +225,6 @@ title = "Test Stat"
 description = "A test stat."
 min_value = 1
 max_value = 20
-attribute_type = "stat"
-attribute_category = "general"
 "#;
         let mut file = NamedTempFile::new().unwrap();
         file.write_all(toml.as_bytes()).unwrap();

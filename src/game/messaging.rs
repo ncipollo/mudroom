@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 
 use crate::game::component::Ability;
-use crate::game::component::attribute_definition::AttributeType;
 use crate::game::engagement::battle::{BattleMessage, BattlePhase};
 use crate::game::map::universe::room::Room;
 
@@ -229,24 +228,26 @@ pub fn message_room_description(
 }
 
 pub fn hp_attribute_id(attribute_config: &crate::game::config::AttributeConfig) -> String {
-    attribute_id_for(attribute_config, |t| matches!(t, AttributeType::HP), "hp")
+    attribute_id_for(attribute_config, "hp")
 }
 
 pub fn mp_attribute_id(attribute_config: &crate::game::config::AttributeConfig) -> String {
-    attribute_id_for(attribute_config, |t| matches!(t, AttributeType::MP), "mp")
+    attribute_id_for(attribute_config, "mp")
 }
 
+/// Looks up `well_known_id` among the configured attributes, falling back to the literal id
+/// itself when undeclared — preserving the lookup's prior fail-open behavior now that it's a
+/// plain id match rather than an `AttributeType` scan.
 fn attribute_id_for(
     attribute_config: &crate::game::config::AttributeConfig,
-    matches_type: impl Fn(&AttributeType) -> bool,
-    fallback: &str,
+    well_known_id: &str,
 ) -> String {
     attribute_config
         .attributes
         .iter()
-        .find(|def| matches_type(&def.attribute_type))
+        .find(|def| def.id == well_known_id)
         .map(|def| def.id.clone())
-        .unwrap_or_else(|| fallback.to_string())
+        .unwrap_or_else(|| well_known_id.to_string())
 }
 
 #[cfg(test)]
