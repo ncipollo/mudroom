@@ -68,3 +68,10 @@ title = "Charisma"
 description = "Force of personality, persuasiveness, and leadership."
 min_value = 1
 max_value = 20
+
+[[attributes]]
+id = "speed"
+title = "Speed"
+description = "Determines turn order in battle; faster entities act first."
+min_value = 1
+max_value = 20

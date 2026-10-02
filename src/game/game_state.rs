@@ -219,14 +219,14 @@ mod tests {
     #[test]
     fn load_without_config_dir_uses_defaults() {
         let state = GameState::load(None).unwrap();
-        assert_eq!(state.attribute_config.attributes.len(), 10);
+        assert_eq!(state.attribute_config.attributes.len(), 11);
     }
 
     #[test]
     fn load_with_dir_missing_file_uses_defaults() {
         let dir = TempDir::new().unwrap();
         let state = GameState::load(Some(dir.path())).unwrap();
-        assert_eq!(state.attribute_config.attributes.len(), 10);
+        assert_eq!(state.attribute_config.attributes.len(), 11);
     }
 
     #[test]
