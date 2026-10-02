@@ -20,6 +20,7 @@ impl AttributeConfig {
     pub fn default_config() -> Self {
         let mut attributes = default_life_attributes();
         attributes.extend(default_stat_attributes());
+        attributes.push(default_speed_attribute());
         Self { attributes }
     }
 
@@ -133,6 +134,20 @@ fn default_stat_attributes() -> Vec<AttributeDefinition> {
     ]
 }
 
+/// The attribute `BattleConfig::default_config`'s `turn_order_attributes` names by default, so a
+/// fresh mud gets working turn order without any explicit configuration.
+fn default_speed_attribute() -> AttributeDefinition {
+    AttributeDefinition {
+        id: "speed".to_string(),
+        title: "Speed".to_string(),
+        description: "Determines turn order in battle; faster entities act first.".to_string(),
+        min_value: 1,
+        max_value: 20,
+        on_zero: OnZeroTrigger::None,
+        updatable: true,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -153,7 +168,8 @@ mod tests {
         assert!(ids.contains(&"intelligence"));
         assert!(ids.contains(&"wisdom"));
         assert!(ids.contains(&"charisma"));
-        assert_eq!(config.attributes.len(), 10);
+        assert!(ids.contains(&"speed"));
+        assert_eq!(config.attributes.len(), 11);
     }
 
     #[test]
@@ -203,6 +219,7 @@ mod tests {
             "intelligence",
             "wisdom",
             "charisma",
+            "speed",
         ] {
             assert_eq!(on_zero(id), OnZeroTrigger::None);
         }
