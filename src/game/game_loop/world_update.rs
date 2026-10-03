@@ -37,6 +37,7 @@ async fn sync_universe_and_log(
         game_state.config_path.as_deref(),
         &game_state.faction_config,
         &game_state.resource_config,
+        &game_state.attribute_config,
         reset_features,
     )
     .await;

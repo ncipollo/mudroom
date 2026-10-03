@@ -1,9 +1,11 @@
+use std::collections::HashMap;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::game::component::AttributeDefinition;
 use crate::game::component::attribute_definition::OnZeroTrigger;
+use crate::game::component::{Attribute, AttributeDefinition};
+use crate::game::config::character_config::StartingAttribute;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AttributeConfig {
@@ -31,6 +33,37 @@ impl AttributeConfig {
             .iter()
             .find(|a| a.id == attribute_id)
             .is_none_or(|a| a.updatable)
+    }
+
+    /// Builds a character's starting attribute set: every declared `AttributeDefinition` defaults
+    /// to its own `min_value`, then each `overrides` entry replaces just its own id. An override
+    /// id with no matching definition is still inserted, failing open like `is_updatable`.
+    pub fn starting_attributes(
+        &self,
+        overrides: &[StartingAttribute],
+    ) -> HashMap<String, Attribute> {
+        let mut attrs: HashMap<String, Attribute> = self
+            .attributes
+            .iter()
+            .map(|def| {
+                (
+                    def.id.clone(),
+                    Attribute::new(def.id.clone(), def.min_value, def.max_value, def.min_value),
+                )
+            })
+            .collect();
+        for sa in overrides {
+            attrs.insert(
+                sa.definition_id.clone(),
+                Attribute::new(
+                    sa.definition_id.clone(),
+                    sa.min_value,
+                    sa.max_value,
+                    sa.current_value,
+                ),
+            );
+        }
+        attrs
     }
 }
 
@@ -195,6 +228,50 @@ mod tests {
     fn is_updatable_fails_open_for_unknown_attribute() {
         let config = AttributeConfig::default_config();
         assert!(config.is_updatable("nonexistent"));
+    }
+
+    #[test]
+    fn starting_attributes_defaults_every_definition_to_min_value() {
+        let config = AttributeConfig::default_config();
+        let attrs = config.starting_attributes(&[]);
+        assert_eq!(attrs.len(), config.attributes.len());
+        for def in &config.attributes {
+            let attr = &attrs[&def.id];
+            assert_eq!(attr.min_value, def.min_value);
+            assert_eq!(attr.max_value, def.max_value);
+            assert_eq!(attr.current_value, def.min_value);
+        }
+    }
+
+    #[test]
+    fn starting_attributes_override_replaces_only_its_own_id() {
+        let config = AttributeConfig::default_config();
+        let overrides = [StartingAttribute {
+            definition_id: "hp".to_string(),
+            min_value: 0,
+            max_value: 120,
+            current_value: 120,
+        }];
+        let attrs = config.starting_attributes(&overrides);
+        assert_eq!(attrs["hp"], Attribute::new("hp".to_string(), 0, 120, 120));
+        let mp_def = config.attributes.iter().find(|a| a.id == "mp").unwrap();
+        assert_eq!(attrs["mp"].current_value, mp_def.min_value);
+    }
+
+    #[test]
+    fn starting_attributes_inserts_unknown_override_id() {
+        let config = AttributeConfig::default_config();
+        let overrides = [StartingAttribute {
+            definition_id: "nonexistent".to_string(),
+            min_value: 0,
+            max_value: 10,
+            current_value: 5,
+        }];
+        let attrs = config.starting_attributes(&overrides);
+        assert_eq!(
+            attrs["nonexistent"],
+            Attribute::new("nonexistent".to_string(), 0, 10, 5)
+        );
     }
 
     #[test]

@@ -1,7 +1,5 @@
-use std::collections::HashMap;
-
 use crate::game;
-use crate::game::component::{Ability, Attribute};
+use crate::game::component::Ability;
 use crate::game::config::class_config::ClassConfig;
 use crate::paths;
 use crate::persistence::{self, ability_repo, character_repo, player_repo};
@@ -51,7 +49,9 @@ async fn reset_player(
         .get(&class)
         .ok_or_else(|| format!("class '{class}' not found"))?;
     let abilities = resolve_abilities(&game_state, class_config).await?;
-    let attributes = build_class_attributes(class_config);
+    let attributes = game_state
+        .attribute_config
+        .starting_attributes(&class_config.attributes);
     character_repo::update_attributes(db.pool(), p.entity_id, &attributes).await?;
     for ability in &abilities {
         ability_repo::upsert(db.pool(), ability).await?;
@@ -71,24 +71,6 @@ async fn open_players_db(
             .ok_or("no server found — start the server at least once first")?,
     };
     Ok(persistence::Database::connect(&server_key).await?)
-}
-
-fn build_class_attributes(class: &ClassConfig) -> HashMap<String, Attribute> {
-    class
-        .attributes
-        .iter()
-        .map(|sa| {
-            (
-                sa.definition_id.clone(),
-                Attribute::new(
-                    sa.definition_id.clone(),
-                    sa.min_value,
-                    sa.max_value,
-                    sa.current_value,
-                ),
-            )
-        })
-        .collect()
 }
 
 async fn resolve_abilities(

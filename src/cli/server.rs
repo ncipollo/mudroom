@@ -122,6 +122,7 @@ async fn load_maps_into_db(
         config_path,
         &game_state.faction_config,
         &game_state.resource_config,
+        &game_state.attribute_config,
         reset_features,
     )
     .await
