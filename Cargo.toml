@@ -32,6 +32,7 @@ walkdir = "2.5.0"
 pulldown-cmark = "0.13.3"
 serde-saphyr = "0.0.23"
 clap_complete = "4.6.7"
+boa_engine = "0.21.1"
 
 [lints.clippy]
 cognitive_complexity = "warn"

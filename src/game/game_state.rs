@@ -16,6 +16,7 @@ use crate::game::entity::character::Character;
 use crate::game::mailbox::Mailboxes;
 use crate::game::messaging::PlayerMessage;
 use crate::game::player::Player;
+use crate::game::script::Script;
 use crate::persistence::PersistenceError;
 
 pub struct PendingActivation {
@@ -41,6 +42,7 @@ pub struct GameState {
     pub mud_config: MudConfig,
     pub abilities: RwLock<HashMap<String, Ability>>,
     pub item_definitions: RwLock<HashMap<String, ItemDefinition>>,
+    pub scripts: HashMap<String, Script>,
     pub character_configs: HashMap<String, CharacterConfig>,
     pub classes: HashMap<String, ClassConfig>,
     pub themes: HashMap<String, ThemeConfig>,
@@ -109,6 +111,7 @@ impl GameState {
             mud_config,
             abilities: RwLock::new(HashMap::new()),
             item_definitions: RwLock::new(HashMap::new()),
+            scripts: HashMap::new(),
             character_configs,
             classes,
             themes,
@@ -390,5 +393,11 @@ modifiers = ["bold"]
         let state = GameState::load(None).unwrap();
         let dungeons = state.active_dungeons.read().await;
         assert!(dungeons.is_empty());
+    }
+
+    #[test]
+    fn load_initializes_empty_scripts() {
+        let state = GameState::load(None).unwrap();
+        assert!(state.scripts.is_empty());
     }
 }
