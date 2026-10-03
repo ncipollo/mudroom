@@ -1,14 +1,17 @@
 mod log_entry;
 mod reveal;
+mod target_dialog;
 
 pub use log_entry::BattleLogEntry;
+pub use target_dialog::TargetDialog;
 
 use std::collections::VecDeque;
 
-use crate::game::component::{Ability, AbilityRole, AbilityTargetType, Description};
+use crate::game::component::{Ability, AbilityRole, Description};
 use crate::game::engagement::battle::BattlePhase;
-use crate::network::event::{BattleSnapshot, ParticipantInfo};
+use crate::network::event::BattleSnapshot;
 use crate::tui::components::scroll::ScrollState;
+use crate::tui::components::status_dialog::{AttributeRow, StatusDialog};
 use crate::tui::components::typewriter::TypewriterState;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -24,13 +27,6 @@ pub struct QueuedAbilityInfo {
 }
 
 #[derive(Debug, Clone)]
-pub struct TargetDialog {
-    pub pending_ability_id: String,
-    pub selected_index: usize,
-    pub targets: Vec<ParticipantInfo>,
-}
-
-#[derive(Debug, Clone)]
 pub struct BattleState {
     pub engagement_id: i64,
     pub snapshot: BattleSnapshot,
@@ -41,6 +37,7 @@ pub struct BattleState {
     pub entity_scroll: usize,
     pub focus: BattleFocus,
     pub dialog: Option<TargetDialog>,
+    pub status_dialog: Option<StatusDialog>,
     pub queued_ability: Option<QueuedAbilityInfo>,
     pub reveal: Option<TypewriterState>,
     pub reveal_queue: VecDeque<usize>,
@@ -58,6 +55,7 @@ impl BattleState {
             entity_scroll: 0,
             focus: BattleFocus::Abilities,
             dialog: None,
+            status_dialog: None,
             queued_ability: None,
             reveal: None,
             reveal_queue: VecDeque::new(),
@@ -149,81 +147,34 @@ impl BattleState {
         };
     }
 
-    pub fn open_target_dialog(&mut self, ability_id: String, target_types: Vec<AbilityTargetType>) {
-        let targets = self.filter_targets(&target_types);
-        self.dialog = Some(TargetDialog {
-            pending_ability_id: ability_id,
-            selected_index: 0,
-            targets,
-        });
+    pub fn is_dialog_open(&self) -> bool {
+        self.dialog.is_some() || self.status_dialog.is_some()
     }
 
-    fn filter_targets(&self, target_types: &[AbilityTargetType]) -> Vec<ParticipantInfo> {
-        if target_types.is_empty() {
-            return self
-                .snapshot
-                .participants
-                .values()
-                .flat_map(|infos| infos.iter().cloned())
-                .collect();
-        }
-        let player_faction = match self.snapshot.factions.first() {
-            Some(f) => f,
-            None => {
-                return self
-                    .snapshot
-                    .participants
-                    .values()
-                    .flat_map(|infos| infos.iter().cloned())
-                    .collect();
-            }
+    pub fn open_status_dialog(&mut self, entity_id: i64) {
+        let Some(participant) = self
+            .snapshot
+            .participants
+            .values()
+            .flatten()
+            .find(|p| p.id == entity_id)
+        else {
+            return;
         };
-        let mut targets: Vec<ParticipantInfo> = Vec::new();
-        for target_type in target_types {
-            match target_type {
-                AbilityTargetType::SelfTarget | AbilityTargetType::Allies => {
-                    if let Some(infos) = self.snapshot.participants.get(player_faction) {
-                        targets.extend(infos.iter().cloned());
-                    }
-                }
-                AbilityTargetType::Opponent => {
-                    for (faction, infos) in &self.snapshot.participants {
-                        if faction != player_faction {
-                            targets.extend(infos.iter().cloned());
-                        }
-                    }
-                }
-            }
-        }
-        targets.dedup_by_key(|p| p.id);
-        targets
+        let rows = participant
+            .attributes
+            .iter()
+            .map(|a| AttributeRow {
+                title: a.title.clone(),
+                current: a.current,
+                max: a.max,
+            })
+            .collect();
+        self.status_dialog = Some(StatusDialog::new(participant.name.clone(), rows));
     }
 
-    pub fn close_target_dialog(&mut self) {
-        self.dialog = None;
-    }
-
-    pub fn target_dialog_next(&mut self) {
-        if let Some(dialog) = &mut self.dialog {
-            let len = dialog.targets.len();
-            if len > 0 {
-                dialog.selected_index = (dialog.selected_index + 1) % len;
-            }
-        }
-    }
-
-    pub fn target_dialog_prev(&mut self) {
-        if let Some(dialog) = &mut self.dialog {
-            let len = dialog.targets.len();
-            if len > 0 {
-                dialog.selected_index = (dialog.selected_index + len - 1) % len;
-            }
-        }
-    }
-
-    pub fn dialog_target_id(&self) -> Option<i64> {
-        let dialog = self.dialog.as_ref()?;
-        dialog.targets.get(dialog.selected_index).map(|p| p.id)
+    pub fn close_status_dialog(&mut self) {
+        self.status_dialog = None;
     }
 
     pub fn is_player_turn(&self) -> bool {
@@ -241,7 +192,7 @@ mod tests {
     use std::collections::HashMap;
 
     use super::*;
-    use crate::network::event::BattleSnapshot;
+    use crate::network::event::{AttributeInfo, BattleSnapshot, ParticipantInfo};
 
     fn make_snapshot(phase: BattlePhase) -> BattleSnapshot {
         BattleSnapshot {
@@ -257,6 +208,21 @@ mod tests {
 
     fn make_state(phase: BattlePhase) -> BattleState {
         BattleState::new(1, make_snapshot(phase))
+    }
+
+    fn participant_with_attributes(id: i64, name: &str) -> ParticipantInfo {
+        ParticipantInfo {
+            id,
+            name: name.to_string(),
+            hp_current: 42,
+            hp_max: 100,
+            attributes: vec![AttributeInfo {
+                id: "strength".to_string(),
+                title: "Strength".to_string(),
+                current: 12,
+                max: 20,
+            }],
+        }
     }
 
     #[test]
@@ -319,5 +285,63 @@ mod tests {
     #[test]
     fn is_player_turn_false_during_concluded() {
         assert!(!make_state(BattlePhase::Concluded).is_player_turn());
+    }
+
+    #[test]
+    fn open_status_dialog_builds_rows_from_matching_participant() {
+        let mut state = make_state(BattlePhase::ResolveAbilities);
+        state.snapshot.participants.insert(
+            "player".to_string(),
+            vec![participant_with_attributes(1, "Hero")],
+        );
+
+        state.open_status_dialog(1);
+
+        let dialog = state.status_dialog.expect("expected status dialog to open");
+        assert_eq!(dialog.entity_name, "Hero");
+        assert_eq!(dialog.rows.len(), 1);
+        assert_eq!(dialog.rows[0].title, "Strength");
+        assert_eq!(dialog.rows[0].current, 12);
+        assert_eq!(dialog.rows[0].max, 20);
+    }
+
+    #[test]
+    fn open_status_dialog_does_nothing_for_unknown_entity() {
+        let mut state = make_state(BattlePhase::ResolveAbilities);
+
+        state.open_status_dialog(99);
+
+        assert!(state.status_dialog.is_none());
+    }
+
+    #[test]
+    fn close_status_dialog_clears_it() {
+        let mut state = make_state(BattlePhase::ResolveAbilities);
+        state.snapshot.participants.insert(
+            "player".to_string(),
+            vec![participant_with_attributes(1, "Hero")],
+        );
+        state.open_status_dialog(1);
+
+        state.close_status_dialog();
+
+        assert!(state.status_dialog.is_none());
+    }
+
+    #[test]
+    fn is_dialog_open_true_when_status_dialog_open() {
+        let mut state = make_state(BattlePhase::ResolveAbilities);
+        state.snapshot.participants.insert(
+            "player".to_string(),
+            vec![participant_with_attributes(1, "Hero")],
+        );
+        state.open_status_dialog(1);
+
+        assert!(state.is_dialog_open());
+    }
+
+    #[test]
+    fn is_dialog_open_false_when_no_dialog_open() {
+        assert!(!make_state(BattlePhase::ResolveAbilities).is_dialog_open());
     }
 }

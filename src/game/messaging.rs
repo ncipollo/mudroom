@@ -1,3 +1,4 @@
+mod attributes;
 pub mod stream;
 
 use std::collections::HashMap;
@@ -5,10 +6,11 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 
-use crate::game::component::Ability;
+use crate::game::component::{Ability, AttributeRenderInfo};
 use crate::game::engagement::battle::{BattleMessage, BattlePhase};
 use crate::game::map::universe::room::Room;
 
+pub use attributes::{hp_attribute_id, mp_attribute_id, participant_attributes};
 pub use stream::stream_message;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -30,6 +32,7 @@ pub struct BattleParticipantInfo {
     pub name: String,
     pub hp_current: i64,
     pub hp_max: i64,
+    pub attributes: Vec<AttributeRenderInfo>,
 }
 
 #[derive(Debug, Clone)]
@@ -227,55 +230,9 @@ pub fn message_room_description(
     message_themed(tx, player_id, content, theme);
 }
 
-pub fn hp_attribute_id(attribute_config: &crate::game::config::AttributeConfig) -> String {
-    attribute_id_for(attribute_config, "hp")
-}
-
-pub fn mp_attribute_id(attribute_config: &crate::game::config::AttributeConfig) -> String {
-    attribute_id_for(attribute_config, "mp")
-}
-
-/// Looks up `well_known_id` among the configured attributes, falling back to the literal id
-/// itself when undeclared — preserving the lookup's prior fail-open behavior now that it's a
-/// plain id match rather than an `AttributeType` scan.
-fn attribute_id_for(
-    attribute_config: &crate::game::config::AttributeConfig,
-    well_known_id: &str,
-) -> String {
-    attribute_config
-        .attributes
-        .iter()
-        .find(|def| def.id == well_known_id)
-        .map(|def| def.id.clone())
-        .unwrap_or_else(|| well_known_id.to_string())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::config::AttributeConfig;
-
-    #[test]
-    fn hp_attribute_id_reads_default_config() {
-        assert_eq!(hp_attribute_id(&AttributeConfig::default_config()), "hp");
-    }
-
-    #[test]
-    fn mp_attribute_id_reads_default_config() {
-        assert_eq!(mp_attribute_id(&AttributeConfig::default_config()), "mp");
-    }
-
-    #[test]
-    fn hp_attribute_id_falls_back_when_missing() {
-        let config = AttributeConfig { attributes: vec![] };
-        assert_eq!(hp_attribute_id(&config), "hp");
-    }
-
-    #[test]
-    fn mp_attribute_id_falls_back_when_missing() {
-        let config = AttributeConfig { attributes: vec![] };
-        assert_eq!(mp_attribute_id(&config), "mp");
-    }
 
     #[tokio::test]
     async fn player_stats_updated_sends_expected_message() {

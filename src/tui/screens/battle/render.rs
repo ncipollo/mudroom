@@ -9,9 +9,11 @@ use ratatui::{
 use crate::game::engagement::battle::{BattleMessage, BattlePhase};
 use crate::network::event::ParticipantInfo;
 use crate::tui::app::{App, BattleFocus, BattleLogEntry, BattleState};
+use crate::tui::components::dialog::centered_rect;
 use crate::tui::components::focus::focus_style;
 use crate::tui::components::scroll;
 use crate::tui::components::selection::selection_style;
+use crate::tui::components::status_dialog;
 use crate::tui::components::theme::{BattleKind, MessageTheme, StyleKey};
 use crate::tui::components::typewriter;
 
@@ -34,6 +36,8 @@ pub fn render(frame: &mut Frame, app: &mut App) {
 
     if battle.dialog.is_some() {
         render_target_dialog(frame, battle, frame.area());
+    } else if let Some(dialog) = &battle.status_dialog {
+        status_dialog::render(frame, dialog, frame.area());
     }
 }
 
@@ -295,8 +299,10 @@ fn render_status_bar(frame: &mut Frame, battle: &BattleState, area: Rect) {
 
     let hints = if battle.dialog.is_some() {
         "↑↓ Navigate  Enter Confirm  Esc Cancel".to_string()
+    } else if battle.status_dialog.is_some() {
+        "Esc Close".to_string()
     } else {
-        "↑↓ Navigate  Tab Switch Focus  Enter Select Ability  Esc Leave".to_string()
+        "↑↓ Navigate  Tab Switch Focus  Enter Select Ability  s Status  Esc Leave".to_string()
     };
 
     let timer_str = match &battle.snapshot.phase {
@@ -322,12 +328,6 @@ fn render_status_bar(frame: &mut Frame, battle: &BattleState, area: Rect) {
     let status =
         Paragraph::new(status_text).block(Block::default().title("Status").borders(Borders::ALL));
     frame.render_widget(status, area);
-}
-
-fn centered_rect(width: u16, height: u16, area: Rect) -> Rect {
-    let x = area.x + area.width.saturating_sub(width) / 2;
-    let y = area.y + area.height.saturating_sub(height) / 2;
-    Rect::new(x, y, width.min(area.width), height.min(area.height))
 }
 
 fn render_target_dialog(frame: &mut Frame, battle: &BattleState, area: Rect) {

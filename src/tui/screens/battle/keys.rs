@@ -6,7 +6,15 @@ use crate::tui::app::{App, BattleFocus, GameMode, QueuedAbilityInfo};
 
 pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
     if app.battle.as_ref().is_some_and(|b| b.dialog.is_some()) {
-        handle_dialog_key(app, modifiers, code).await;
+        handle_target_dialog_key(app, modifiers, code).await;
+        return;
+    }
+    if app
+        .battle
+        .as_ref()
+        .is_some_and(|b| b.status_dialog.is_some())
+    {
+        handle_status_dialog_key(app, modifiers, code);
         return;
     }
     match (modifiers, code) {
@@ -19,12 +27,13 @@ pub async fn handle_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
             }
         }
         (_, KeyCode::Enter) => handle_ability_selected(app).await,
+        (_, KeyCode::Char('s')) => handle_open_status_dialog(app),
         (_, KeyCode::Esc) => handle_leave_battle(app).await,
         _ => {}
     }
 }
 
-async fn handle_dialog_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
+async fn handle_target_dialog_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
     match (modifiers, code) {
         (KeyModifiers::CONTROL, KeyCode::Char('c')) => app.should_quit = true,
         (_, KeyCode::Up) => {
@@ -44,6 +53,27 @@ async fn handle_dialog_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode
             }
         }
         _ => {}
+    }
+}
+
+fn handle_status_dialog_key(app: &mut App, modifiers: KeyModifiers, code: KeyCode) {
+    match (modifiers, code) {
+        (KeyModifiers::CONTROL, KeyCode::Char('c')) => app.should_quit = true,
+        (_, KeyCode::Esc) => {
+            if let Some(battle) = &mut app.battle {
+                battle.close_status_dialog();
+            }
+        }
+        _ => {}
+    }
+}
+
+fn handle_open_status_dialog(app: &mut App) {
+    let Some(entity_id) = app.current_entity_id else {
+        return;
+    };
+    if let Some(battle) = &mut app.battle {
+        battle.open_status_dialog(entity_id);
     }
 }
 

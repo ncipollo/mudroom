@@ -13,3 +13,57 @@ definition_id = "mp"
 min_value = 0
 max_value = 20
 current_value = 20
+
+[[attributes]]
+definition_id = "level"
+min_value = 1
+max_value = 100
+current_value = 1
+
+[[attributes]]
+definition_id = "xp"
+min_value = 0
+max_value = 9223372036854775807
+current_value = 0
+
+[[attributes]]
+definition_id = "strength"
+min_value = 1
+max_value = 20
+current_value = 14
+
+[[attributes]]
+definition_id = "dexterity"
+min_value = 1
+max_value = 20
+current_value = 10
+
+[[attributes]]
+definition_id = "constitution"
+min_value = 1
+max_value = 20
+current_value = 13
+
+[[attributes]]
+definition_id = "intelligence"
+min_value = 1
+max_value = 20
+current_value = 8
+
+[[attributes]]
+definition_id = "wisdom"
+min_value = 1
+max_value = 20
+current_value = 10
+
+[[attributes]]
+definition_id = "charisma"
+min_value = 1
+max_value = 20
+current_value = 9
+
+[[attributes]]
+definition_id = "speed"
+min_value = 1
+max_value = 20
+current_value = 10

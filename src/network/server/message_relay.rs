@@ -5,12 +5,14 @@ use tokio::sync::RwLock;
 use tokio::sync::broadcast;
 
 use crate::game::GameState;
+use crate::game::component::AttributeRenderInfo;
 use crate::game::messaging::{
-    BattleStartedMessage, BattleUpdateMessage, InventoryOpenedMessage, Message, PlayerMessage,
-    StreamingState,
+    BattleParticipantInfo, BattleStartedMessage, BattleUpdateMessage, InventoryOpenedMessage,
+    Message, PlayerMessage, StreamingState,
 };
 use crate::network::event::{
-    BattleSnapshot, InventoryItemInfo, InventorySlotInfo, NetworkEvent, ParticipantInfo,
+    AttributeInfo, BattleSnapshot, InventoryItemInfo, InventorySlotInfo, NetworkEvent,
+    ParticipantInfo,
 };
 
 use super::state::ConnectedClient;
@@ -136,22 +138,7 @@ fn inventory_item_info(item: crate::game::messaging::InventoryItemInfo) -> Inven
 }
 
 fn battle_update_snapshot(data: BattleUpdateMessage) -> BattleSnapshot {
-    let participants = data
-        .participants
-        .into_iter()
-        .map(|(faction, infos)| {
-            let converted = infos
-                .into_iter()
-                .map(|p| ParticipantInfo {
-                    id: p.id,
-                    name: p.name,
-                    hp_current: p.hp_current,
-                    hp_max: p.hp_max,
-                })
-                .collect();
-            (faction, converted)
-        })
-        .collect();
+    let participants = convert_participants(data.participants);
     BattleSnapshot {
         factions: data.factions,
         participants,
@@ -164,22 +151,7 @@ fn battle_update_snapshot(data: BattleUpdateMessage) -> BattleSnapshot {
 }
 
 fn battle_snapshot_from_message(data: BattleStartedMessage) -> BattleSnapshot {
-    let participants = data
-        .participants
-        .into_iter()
-        .map(|(faction, infos)| {
-            let converted = infos
-                .into_iter()
-                .map(|p| ParticipantInfo {
-                    id: p.id,
-                    name: p.name,
-                    hp_current: p.hp_current,
-                    hp_max: p.hp_max,
-                })
-                .collect();
-            (faction, converted)
-        })
-        .collect();
+    let participants = convert_participants(data.participants);
     BattleSnapshot {
         factions: data.factions,
         participants,
@@ -188,5 +160,36 @@ fn battle_snapshot_from_message(data: BattleStartedMessage) -> BattleSnapshot {
         countdown_secs: data.countdown_secs,
         max_turn_secs: data.max_turn_secs,
         available_abilities: data.available_abilities,
+    }
+}
+
+fn convert_participants(
+    participants: HashMap<String, Vec<BattleParticipantInfo>>,
+) -> HashMap<String, Vec<ParticipantInfo>> {
+    participants
+        .into_iter()
+        .map(|(faction, infos)| {
+            let converted = infos.into_iter().map(participant_info).collect();
+            (faction, converted)
+        })
+        .collect()
+}
+
+fn participant_info(p: BattleParticipantInfo) -> ParticipantInfo {
+    ParticipantInfo {
+        id: p.id,
+        name: p.name,
+        hp_current: p.hp_current,
+        hp_max: p.hp_max,
+        attributes: p.attributes.into_iter().map(attribute_info).collect(),
+    }
+}
+
+fn attribute_info(a: AttributeRenderInfo) -> AttributeInfo {
+    AttributeInfo {
+        id: a.id,
+        title: a.title,
+        current: a.current,
+        max: a.max,
     }
 }
