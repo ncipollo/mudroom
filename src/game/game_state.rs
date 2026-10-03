@@ -9,7 +9,7 @@ use tokio::sync::broadcast;
 use crate::game::component::{Ability, ItemDefinition};
 use crate::game::config::{
     AttributeConfig, CharacterConfig, ClassConfig, FactionConfig, InventoryConfig, MudConfig,
-    ResourceConfig, ThemeConfig, load_character_configs, load_classes, load_themes,
+    ResourceConfig, ThemeConfig, load_character_configs, load_classes, load_scripts, load_themes,
 };
 use crate::game::engagement::Engagements;
 use crate::game::entity::character::Character;
@@ -97,6 +97,7 @@ impl GameState {
         let character_configs = load_dir_config(config_dir, load_character_configs);
         let classes = load_dir_config(config_dir, load_classes);
         let themes = load_dir_config(config_dir, load_themes);
+        let scripts = load_dir_config(config_dir, load_scripts);
 
         let (message_tx, _) = broadcast::channel::<PlayerMessage>(512);
 
@@ -111,7 +112,7 @@ impl GameState {
             mud_config,
             abilities: RwLock::new(HashMap::new()),
             item_definitions: RwLock::new(HashMap::new()),
-            scripts: HashMap::new(),
+            scripts,
             character_configs,
             classes,
             themes,
@@ -399,5 +400,17 @@ modifiers = ["bold"]
     fn load_initializes_empty_scripts() {
         let state = GameState::load(None).unwrap();
         assert!(state.scripts.is_empty());
+    }
+
+    #[test]
+    fn load_with_scripts_dir_reads_files() {
+        let dir = TempDir::new().unwrap();
+        let scripts_dir = dir.path().join("scripts").join("abilities");
+        std::fs::create_dir_all(&scripts_dir).unwrap();
+        std::fs::write(scripts_dir.join("damage_bonus.js"), "// placeholder").unwrap();
+
+        let state = GameState::load(Some(dir.path())).unwrap();
+        assert_eq!(state.scripts.len(), 1);
+        assert!(state.scripts.contains_key("abilities/damage_bonus"));
     }
 }
