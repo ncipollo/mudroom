@@ -23,13 +23,14 @@ use std::path::Path;
 use crate::game::config::character_config::load_character_configs;
 use crate::game::config::feature_config::build_feature_map;
 use crate::game::config::map_config::load_map;
-use crate::game::config::{FactionConfig, ResourceConfig};
+use crate::game::config::{AttributeConfig, FactionConfig, ResourceConfig};
 
 pub async fn sync_universe_config(
     pool: &SqlitePool,
     config_path: Option<&Path>,
     faction_config: &FactionConfig,
     resource_config: &ResourceConfig,
+    attribute_config: &AttributeConfig,
     reset_features: bool,
 ) -> Result<(), Box<dyn Error>> {
     let universe = load_map(config_path)?;
@@ -40,7 +41,14 @@ pub async fn sync_universe_config(
         let character_configs = load_character_configs(config_dir)?;
         let ability_cache = ability_cache::build_ability_cache(config_dir)?;
         sync_abilities_into_db(pool, &ability_cache).await?;
-        load_characters_into_db(pool, &universe, &character_configs, &ability_cache).await?;
+        load_characters_into_db(
+            pool,
+            &universe,
+            &character_configs,
+            &ability_cache,
+            attribute_config,
+        )
+        .await?;
         sync_items_into_db(pool, config_dir).await?;
         load_item_placements_into_db(pool, &universe).await?;
         let feature_map = build_feature_map(config_dir)?;

@@ -7,7 +7,6 @@ use axum::http::StatusCode;
 use tracing::info;
 
 use crate::game::component::{Ability, Attribute};
-use crate::game::config::class_config::ClassConfig;
 use crate::game::{Character, CharacterType, Location, Player};
 use crate::network::event::{
     ClassInfo, ClassListResponse, NetworkEvent, PlayerInfo, PlayerListResponse,
@@ -142,6 +141,7 @@ async fn resolve_class_data(
     state: &AppState,
     body: &PlayerCreateBody,
 ) -> Result<(HashMap<String, Attribute>, Vec<Ability>), StatusCode> {
+    let attribute_config = &state.game_state.attribute_config;
     if let Some(class_id) = &body.class_id {
         let class = state
             .game_state
@@ -159,28 +159,13 @@ async fn resolve_class_data(
                     .ok_or(StatusCode::BAD_REQUEST)
             })
             .collect::<Result<Vec<Ability>, StatusCode>>()?;
-        Ok((class_attributes(class), abilities))
+        Ok((
+            attribute_config.starting_attributes(&class.attributes),
+            abilities,
+        ))
     } else {
-        Ok((default_player_attributes(), vec![]))
+        Ok((attribute_config.starting_attributes(&[]), vec![]))
     }
-}
-
-fn class_attributes(class: &ClassConfig) -> HashMap<String, Attribute> {
-    class
-        .attributes
-        .iter()
-        .map(|sa| {
-            (
-                sa.definition_id.clone(),
-                Attribute::new(
-                    sa.definition_id.clone(),
-                    sa.min_value,
-                    sa.max_value,
-                    sa.current_value,
-                ),
-            )
-        })
-        .collect()
 }
 
 async fn apply_class_abilities(
@@ -201,19 +186,6 @@ async fn apply_class_abilities(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(())
-}
-
-fn default_player_attributes() -> HashMap<String, Attribute> {
-    let mut attrs = HashMap::new();
-    attrs.insert(
-        "hp".to_string(),
-        Attribute::new("hp".to_string(), 0, 100, 100),
-    );
-    attrs.insert(
-        "mp".to_string(),
-        Attribute::new("mp".to_string(), 0, 50, 50),
-    );
-    attrs
 }
 
 async fn notify_player_selected(state: &AppState, client_id: &str, player: &Player) {

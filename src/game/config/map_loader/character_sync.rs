@@ -2,7 +2,8 @@ use sqlx::SqlitePool;
 use std::collections::HashMap;
 use std::error::Error;
 
-use crate::game::component::{Ability, Attribute, FactionRelations};
+use crate::game::component::{Ability, FactionRelations};
+use crate::game::config::AttributeConfig;
 use crate::game::config::character_config::CharacterTypeConfig;
 use crate::game::{CharacterConfig, CharacterType, Location, Room, Universe};
 use crate::persistence::{
@@ -14,6 +15,7 @@ pub async fn load_characters_into_db(
     universe: &Universe,
     character_configs: &HashMap<String, CharacterConfig>,
     ability_cache: &HashMap<String, Ability>,
+    attribute_config: &AttributeConfig,
 ) -> Result<(), Box<dyn Error>> {
     for world in universe.worlds.values() {
         for dungeon in world.dungeons.values() {
@@ -25,6 +27,7 @@ pub async fn load_characters_into_db(
                     room,
                     character_configs,
                     ability_cache,
+                    attribute_config,
                 )
                 .await?;
             }
@@ -40,6 +43,7 @@ async fn sync_room_characters(
     room: &Room,
     character_configs: &HashMap<String, CharacterConfig>,
     ability_cache: &HashMap<String, Ability>,
+    attribute_config: &AttributeConfig,
 ) -> Result<(), Box<dyn Error>> {
     for config_id in &room.entities {
         if let Some(config) = character_configs.get(config_id) {
@@ -49,7 +53,16 @@ async fn sync_room_characters(
                 dungeon_id: dungeon_id.to_string(),
                 room_id: room.id.clone(),
             };
-            sync_character(pool, &location, config_id, name, config, ability_cache).await?;
+            sync_character(
+                pool,
+                &location,
+                config_id,
+                name,
+                config,
+                ability_cache,
+                attribute_config,
+            )
+            .await?;
         }
     }
     Ok(())
@@ -62,6 +75,7 @@ async fn sync_character(
     name: &str,
     config: &CharacterConfig,
     ability_cache: &HashMap<String, Ability>,
+    attribute_config: &AttributeConfig,
 ) -> Result<(), Box<dyn Error>> {
     let character_type = match config.entity_type {
         CharacterTypeConfig::Character => CharacterType::Character,
@@ -82,9 +96,7 @@ async fn sync_character(
             character_effect_repo::insert(pool, character_id, effect).await?;
         }
     }
-    if !config.attributes.is_empty() {
-        sync_character_attributes(pool, character_id, config).await?;
-    }
+    sync_character_attributes(pool, character_id, config, attribute_config).await?;
     let factions = effective_factions(&character_type, &config.factions);
     faction_repo::set_character_factions(pool, character_id, &factions).await?;
     let relations = effective_faction_relations(&character_type, config.faction_relations.as_ref());
@@ -124,28 +136,16 @@ async fn sync_character_attributes(
     pool: &SqlitePool,
     character_id: i64,
     config: &CharacterConfig,
+    attribute_config: &AttributeConfig,
 ) -> Result<(), Box<dyn Error>> {
     let existing = character_repo::find_by_id(pool, character_id).await?;
     let db_attrs = existing.map(|e| e.attributes).unwrap_or_default();
-    let attrs: HashMap<String, Attribute> = config
-        .attributes
-        .iter()
-        .map(|sa| {
-            let current_value = db_attrs
-                .get(&sa.definition_id)
-                .map(|a| a.current_value.clamp(sa.min_value, sa.max_value))
-                .unwrap_or(sa.current_value);
-            (
-                sa.definition_id.clone(),
-                Attribute::new(
-                    sa.definition_id.clone(),
-                    sa.min_value,
-                    sa.max_value,
-                    current_value,
-                ),
-            )
-        })
-        .collect();
+    let mut attrs = attribute_config.starting_attributes(&config.attributes);
+    for attr in attrs.values_mut() {
+        if let Some(db_attr) = db_attrs.get(&attr.definition_id) {
+            attr.current_value = db_attr.current_value.clamp(attr.min_value, attr.max_value);
+        }
+    }
     character_repo::update_attributes(pool, character_id, &attrs).await?;
     Ok(())
 }
@@ -177,6 +177,9 @@ fn effective_faction_relations(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::game::component::Attribute;
+    use crate::game::component::AttributeDefinition;
+    use crate::game::component::attribute_definition::OnZeroTrigger;
     use crate::game::config::BattleAiConfig;
     use crate::game::config::character_config::{CharacterConfig, CharacterTypeConfig};
     use crate::game::{Description, Dungeon, Room, World};
@@ -184,6 +187,31 @@ mod tests {
     use crate::persistence::database::Database;
 
     use super::super::universe_sync::load_map_into_db;
+
+    fn test_attribute_config() -> AttributeConfig {
+        AttributeConfig {
+            attributes: vec![
+                AttributeDefinition {
+                    id: "hp".to_string(),
+                    title: "Hit Points".to_string(),
+                    description: "Test hit points.".to_string(),
+                    min_value: 0,
+                    max_value: 999,
+                    on_zero: OnZeroTrigger::Death,
+                    updatable: true,
+                },
+                AttributeDefinition {
+                    id: "mp".to_string(),
+                    title: "Mana Points".to_string(),
+                    description: "Test mana points.".to_string(),
+                    min_value: 0,
+                    max_value: 999,
+                    on_zero: OnZeroTrigger::None,
+                    updatable: true,
+                },
+            ],
+        }
+    }
 
     fn make_universe_with_character() -> Universe {
         let mut universe = Universe::default();
@@ -263,9 +291,15 @@ mod tests {
     async fn load_innkeeper(db: &Database, configs: &HashMap<String, CharacterConfig>) {
         let universe = make_universe_with_character();
         load_map_into_db(db.pool(), &universe).await.unwrap();
-        load_characters_into_db(db.pool(), &universe, configs, &HashMap::new())
-            .await
-            .unwrap();
+        load_characters_into_db(
+            db.pool(),
+            &universe,
+            configs,
+            &HashMap::new(),
+            &test_attribute_config(),
+        )
+        .await
+        .unwrap();
     }
 
     async fn find_innkeeper_attrs(db: &Database) -> HashMap<String, Attribute> {
@@ -296,12 +330,25 @@ mod tests {
         let universe = make_universe_with_character();
         load_map_into_db(db.pool(), &universe).await.unwrap();
         let configs = make_character_configs();
-        load_characters_into_db(db.pool(), &universe, &configs, &HashMap::new())
-            .await
-            .unwrap();
-        load_characters_into_db(db.pool(), &universe, &configs, &HashMap::new())
-            .await
-            .unwrap();
+        let attribute_config = test_attribute_config();
+        load_characters_into_db(
+            db.pool(),
+            &universe,
+            &configs,
+            &HashMap::new(),
+            &attribute_config,
+        )
+        .await
+        .unwrap();
+        load_characters_into_db(
+            db.pool(),
+            &universe,
+            &configs,
+            &HashMap::new(),
+            &attribute_config,
+        )
+        .await
+        .unwrap();
 
         let characters = character_repo::find_by_location(db.pool(), &innkeeper_location())
             .await
@@ -320,24 +367,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn load_entities_restores_empty_attributes_from_config() {
+    async fn load_entities_defaults_attributes_absent_from_config() {
         let db = Database::connect_in_memory().await.unwrap();
         load_innkeeper(&db, &make_character_configs()).await;
-        assert!(find_innkeeper_attrs(&db).await.is_empty());
-
-        let universe = make_universe_with_character();
-        load_characters_into_db(
-            db.pool(),
-            &universe,
-            &make_character_configs_with_attributes(),
-            &HashMap::new(),
-        )
-        .await
-        .unwrap();
 
         let attrs = find_innkeeper_attrs(&db).await;
-        assert_eq!(attrs["hp"], Attribute::new("hp".to_string(), 0, 100, 100));
-        assert_eq!(attrs["mp"], Attribute::new("mp".to_string(), 0, 50, 50));
+        assert_eq!(attrs["hp"], Attribute::new("hp".to_string(), 0, 999, 0));
+        assert_eq!(attrs["mp"], Attribute::new("mp".to_string(), 0, 999, 0));
     }
 
     #[tokio::test]
@@ -390,9 +426,15 @@ mod tests {
             },
         );
         let universe = make_universe_with_character();
-        load_characters_into_db(db.pool(), &universe, &new_configs, &HashMap::new())
-            .await
-            .unwrap();
+        load_characters_into_db(
+            db.pool(),
+            &universe,
+            &new_configs,
+            &HashMap::new(),
+            &test_attribute_config(),
+        )
+        .await
+        .unwrap();
 
         let attrs = find_innkeeper_attrs(&db).await;
         // hp current_value 75 preserved, range updated to 10..90
@@ -455,9 +497,15 @@ mod tests {
         setup_enemy_faction(&db).await;
         let universe = make_universe_with_enemy();
         load_map_into_db(db.pool(), &universe).await.unwrap();
-        load_characters_into_db(db.pool(), &universe, &make_enemy_configs(), &HashMap::new())
-            .await
-            .unwrap();
+        load_characters_into_db(
+            db.pool(),
+            &universe,
+            &make_enemy_configs(),
+            &HashMap::new(),
+            &test_attribute_config(),
+        )
+        .await
+        .unwrap();
 
         let characters = character_repo::find_by_location(db.pool(), &innkeeper_location())
             .await
@@ -474,9 +522,15 @@ mod tests {
         setup_enemy_faction(&db).await;
         let universe = make_universe_with_enemy();
         load_map_into_db(db.pool(), &universe).await.unwrap();
-        load_characters_into_db(db.pool(), &universe, &make_enemy_configs(), &HashMap::new())
-            .await
-            .unwrap();
+        load_characters_into_db(
+            db.pool(),
+            &universe,
+            &make_enemy_configs(),
+            &HashMap::new(),
+            &test_attribute_config(),
+        )
+        .await
+        .unwrap();
 
         let characters = character_repo::find_by_location(db.pool(), &innkeeper_location())
             .await
