@@ -10,6 +10,7 @@ pub mod map;
 pub mod messaging;
 pub mod narration;
 pub mod player;
+pub mod script;
 
 pub use component::Ability;
 pub use component::Attribute;
@@ -64,3 +65,4 @@ pub use map::World;
 pub use messaging::PlayerMessage;
 pub use messaging::message;
 pub use player::Player;
+pub use script::Script;
