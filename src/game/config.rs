@@ -18,6 +18,7 @@ pub mod map_loader;
 pub mod mud_config;
 mod persona_parser;
 pub mod resource_config;
+pub mod script_config;
 pub mod theme_config;
 pub mod world_loot_config;
 
@@ -47,5 +48,6 @@ pub use persona_parser::{
     CompareOp, PersonaCondition, PersonaContext, PersonaFile, PersonaFrontMatter, PersonaSection,
 };
 pub use resource_config::ResourceConfig;
+pub use script_config::{ScriptLookupError, find_script, load_scripts};
 pub use theme_config::{ThemeConfig, ThemeStyleConfig, load_themes, resolve_theme_id};
 pub use world_loot_config::{RespawnMode, WorldLootConfig};
