@@ -42,6 +42,10 @@ pub(in crate::game::engagement::battle) async fn build_battle_update(
                         name,
                         hp_current,
                         hp_max,
+                        attributes: messaging::participant_attributes(
+                            character,
+                            &game_state.attribute_config,
+                        ),
                     }
                 })
                 .collect();
@@ -133,6 +137,10 @@ mod tests {
         assert_eq!(infos[0].name, "Hero");
         assert_eq!(infos[0].hp_current, 42);
         assert_eq!(infos[0].hp_max, 100);
+        assert_eq!(infos[0].attributes.len(), 1);
+        assert_eq!(infos[0].attributes[0].id, "hp");
+        assert_eq!(infos[0].attributes[0].current, 42);
+        assert_eq!(infos[0].attributes[0].max, 100);
     }
 
     #[tokio::test]
@@ -147,6 +155,7 @@ mod tests {
         assert_eq!(infos[0].name, "Character 99");
         assert_eq!(infos[0].hp_current, 0);
         assert_eq!(infos[0].hp_max, 0);
+        assert!(infos[0].attributes.is_empty());
     }
 
     #[tokio::test]

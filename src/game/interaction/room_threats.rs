@@ -4,6 +4,7 @@ use std::sync::Arc;
 use tracing;
 
 use crate::game::component::faction_relations::FactionRelation;
+use crate::game::config::AttributeConfig;
 use crate::game::engagement::battle::{BattlePhase, entity_battle_abilities};
 use crate::game::entity::character::Character;
 use crate::game::messaging::{BattleParticipantInfo, BattleStartedMessage};
@@ -130,7 +131,13 @@ pub(crate) async fn build_battle_started_message(
     let abilities = game_state.abilities.read().await;
     let hp_attr_id = messaging::hp_attribute_id(&game_state.attribute_config);
 
-    let participant_infos = build_participant_infos(participants, &entities, &players, &hp_attr_id);
+    let participant_infos = build_participant_infos(
+        participants,
+        &entities,
+        &players,
+        &hp_attr_id,
+        &game_state.attribute_config,
+    );
 
     let available_abilities = entities
         .get(&player.entity_id)
@@ -163,6 +170,7 @@ fn build_participant_infos(
     entities: &HashMap<i64, Character>,
     players: &HashMap<String, Player>,
     hp_attr_id: &str,
+    attribute_config: &AttributeConfig,
 ) -> HashMap<String, Vec<BattleParticipantInfo>> {
     participants
         .iter()
@@ -181,6 +189,7 @@ fn build_participant_infos(
                         name,
                         hp_current,
                         hp_max,
+                        attributes: messaging::participant_attributes(character, attribute_config),
                     }
                 })
                 .collect();
@@ -222,5 +231,83 @@ fn entity_threat_toward_player(
         RoomThreat::Unfriendly
     } else {
         RoomThreat::None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::game::component::{Attribute, AttributeDefinition, Location, OnZeroTrigger};
+    use crate::game::entity::character::CharacterType;
+
+    fn test_location() -> Location {
+        Location {
+            world_id: "w".to_string(),
+            dungeon_id: "d".to_string(),
+            room_id: "r".to_string(),
+        }
+    }
+
+    fn attribute_config_with(ids: &[&str]) -> AttributeConfig {
+        AttributeConfig {
+            attributes: ids
+                .iter()
+                .map(|id| AttributeDefinition {
+                    id: id.to_string(),
+                    title: id.to_string(),
+                    description: String::new(),
+                    min_value: 0,
+                    max_value: 100,
+                    on_zero: OnZeroTrigger::None,
+                    updatable: true,
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn build_participant_infos_includes_attributes_in_config_order() {
+        let mut character = Character::new(1, CharacterType::Player, test_location());
+        character.attributes.insert(
+            "hp".to_string(),
+            Attribute::new("hp".to_string(), 0, 100, 42),
+        );
+        character.attributes.insert(
+            "strength".to_string(),
+            Attribute::new("strength".to_string(), 0, 20, 12),
+        );
+        let mut entities = HashMap::new();
+        entities.insert(1, character);
+
+        let mut participants = HashMap::new();
+        participants.insert("player".to_string(), vec![1]);
+
+        let config = attribute_config_with(&["hp", "strength"]);
+        let infos =
+            build_participant_infos(&participants, &entities, &HashMap::new(), "hp", &config);
+
+        let attributes = &infos.get("player").unwrap()[0].attributes;
+        assert_eq!(attributes.len(), 2);
+        assert_eq!(attributes[0].id, "hp");
+        assert_eq!(attributes[0].current, 42);
+        assert_eq!(attributes[1].id, "strength");
+        assert_eq!(attributes[1].current, 12);
+    }
+
+    #[test]
+    fn build_participant_infos_empty_attributes_for_missing_entity() {
+        let mut participants = HashMap::new();
+        participants.insert("player".to_string(), vec![99]);
+
+        let config = attribute_config_with(&["hp"]);
+        let infos = build_participant_infos(
+            &participants,
+            &HashMap::new(),
+            &HashMap::new(),
+            "hp",
+            &config,
+        );
+
+        assert!(infos.get("player").unwrap()[0].attributes.is_empty());
     }
 }

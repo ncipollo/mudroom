@@ -59,11 +59,20 @@ pub struct ThemeListResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AttributeInfo {
+    pub id: String,
+    pub title: String,
+    pub current: i64,
+    pub max: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ParticipantInfo {
     pub id: i64,
     pub name: String,
     pub hp_current: i64,
     pub hp_max: i64,
+    pub attributes: Vec<AttributeInfo>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -288,6 +297,25 @@ mod tests {
         let json = serde_json::to_string(&theme).unwrap();
         let decoded: ThemeInfo = serde_json::from_str(&json).unwrap();
         assert_eq!(theme, decoded);
+    }
+
+    #[test]
+    fn round_trip_participant_info_with_attributes() {
+        let info = ParticipantInfo {
+            id: 1,
+            name: "Hero".to_string(),
+            hp_current: 42,
+            hp_max: 100,
+            attributes: vec![AttributeInfo {
+                id: "strength".to_string(),
+                title: "Strength".to_string(),
+                current: 12,
+                max: 20,
+            }],
+        };
+        let json = serde_json::to_string(&info).unwrap();
+        let decoded: ParticipantInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(info, decoded);
     }
 
     #[test]
