@@ -5,9 +5,10 @@ use tokio::sync::RwLock;
 use tokio::sync::broadcast;
 
 use crate::game::GameState;
+use crate::game::component::AttributeRenderInfo;
 use crate::game::messaging::{
-    BattleAttributeInfo, BattleParticipantInfo, BattleStartedMessage, BattleUpdateMessage,
-    InventoryOpenedMessage, Message, PlayerMessage, StreamingState,
+    BattleParticipantInfo, BattleStartedMessage, BattleUpdateMessage, InventoryOpenedMessage,
+    Message, PlayerMessage, StreamingState,
 };
 use crate::network::event::{
     AttributeInfo, BattleSnapshot, InventoryItemInfo, InventorySlotInfo, NetworkEvent,
@@ -184,7 +185,7 @@ fn participant_info(p: BattleParticipantInfo) -> ParticipantInfo {
     }
 }
 
-fn attribute_info(a: BattleAttributeInfo) -> AttributeInfo {
+fn attribute_info(a: AttributeRenderInfo) -> AttributeInfo {
     AttributeInfo {
         id: a.id,
         title: a.title,

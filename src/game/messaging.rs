@@ -6,13 +6,11 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 
-use crate::game::component::Ability;
+use crate::game::component::{Ability, AttributeRenderInfo};
 use crate::game::engagement::battle::{BattleMessage, BattlePhase};
 use crate::game::map::universe::room::Room;
 
-pub use attributes::{
-    BattleAttributeInfo, hp_attribute_id, mp_attribute_id, participant_attributes,
-};
+pub use attributes::{hp_attribute_id, mp_attribute_id, participant_attributes};
 pub use stream::stream_message;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -34,7 +32,7 @@ pub struct BattleParticipantInfo {
     pub name: String,
     pub hp_current: i64,
     pub hp_max: i64,
-    pub attributes: Vec<BattleAttributeInfo>,
+    pub attributes: Vec<AttributeRenderInfo>,
 }
 
 #[derive(Debug, Clone)]

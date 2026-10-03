@@ -1,13 +1,6 @@
+use crate::game::component::AttributeRenderInfo;
 use crate::game::config::AttributeConfig;
 use crate::game::entity::character::Character;
-
-#[derive(Debug, Clone)]
-pub struct BattleAttributeInfo {
-    pub id: String,
-    pub title: String,
-    pub current: i64,
-    pub max: i64,
-}
 
 pub fn hp_attribute_id(attribute_config: &AttributeConfig) -> String {
     attribute_id_for(attribute_config, "hp")
@@ -32,7 +25,7 @@ fn attribute_id_for(attribute_config: &AttributeConfig, well_known_id: &str) -> 
 pub fn participant_attributes(
     character: Option<&Character>,
     attribute_config: &AttributeConfig,
-) -> Vec<BattleAttributeInfo> {
+) -> Vec<AttributeRenderInfo> {
     let Some(character) = character else {
         return Vec::new();
     };
@@ -42,7 +35,7 @@ pub fn participant_attributes(
         .filter_map(|def| {
             character
                 .effective_attribute(&def.id)
-                .map(|attr| BattleAttributeInfo {
+                .map(|attr| AttributeRenderInfo {
                     id: def.id.clone(),
                     title: def.title.clone(),
                     current: attr.current_value,

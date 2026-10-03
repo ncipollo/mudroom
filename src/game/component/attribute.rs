@@ -1,3 +1,7 @@
+pub mod render_info;
+
+pub use render_info::AttributeRenderInfo;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
