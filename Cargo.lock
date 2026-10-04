@@ -315,6 +315,7 @@ dependencies = [
  "indexmap",
  "num-bigint",
  "rustc-hash",
+ "serde",
 ]
 
 [[package]]
@@ -394,6 +395,7 @@ dependencies = [
  "once_cell",
  "phf 0.13.1",
  "rustc-hash",
+ "serde",
  "static_assertions",
 ]
 
