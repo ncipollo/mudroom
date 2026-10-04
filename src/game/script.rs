@@ -1,19 +1,27 @@
 use std::path::PathBuf;
 
-/// A loaded script file. `source` holds the raw script text loaded from disk; it is not yet a
-/// Boa-compiled artifact. `boa_engine::Script`/`CodeBlock` use GC-managed pointers and are not
-/// `Send`/`Sync`, so they can't be cached here — `GameState` must stay `Send + Sync` since it's
-/// shared via `Arc` across tokio tasks. Compilation happens per-invocation in a short-lived
-/// `Context` (see the script compiler, issue #341).
+pub mod compiler;
+
+pub use compiler::{CompiledScript, ScriptCompileError, compile};
+
+/// A loaded script file. `source` is the raw text loaded from disk; `compiled` is the
+/// serialized snapshot produced by [`compile`]. Boa's own compiled forms are GC-managed and
+/// not `Send`/`Sync` (unlike `GameState`, shared via `Arc`), so only the serialized form is
+/// cached here — see [`CompiledScript`] for what rebuilding an executable form still needs.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Script {
     pub path: PathBuf,
     pub source: Option<String>,
+    pub compiled: Option<CompiledScript>,
 }
 
 impl Script {
     pub fn new(path: PathBuf) -> Self {
-        Self { path, source: None }
+        Self {
+            path,
+            source: None,
+            compiled: None,
+        }
     }
 }
 
@@ -31,5 +39,11 @@ mod tests {
     fn new_defaults_source_to_none() {
         let script = Script::new(PathBuf::from("abilities/fireball.js"));
         assert_eq!(script.source, None);
+    }
+
+    #[test]
+    fn new_defaults_compiled_to_none() {
+        let script = Script::new(PathBuf::from("abilities/fireball.js"));
+        assert_eq!(script.compiled, None);
     }
 }
