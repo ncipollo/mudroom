@@ -42,7 +42,7 @@ pub struct GameState {
     pub mud_config: MudConfig,
     pub abilities: RwLock<HashMap<String, Ability>>,
     pub item_definitions: RwLock<HashMap<String, ItemDefinition>>,
-    pub scripts: HashMap<String, Script>,
+    pub scripts: RwLock<HashMap<String, Script>>,
     pub character_configs: HashMap<String, CharacterConfig>,
     pub classes: HashMap<String, ClassConfig>,
     pub themes: HashMap<String, ThemeConfig>,
@@ -112,7 +112,7 @@ impl GameState {
             mud_config,
             abilities: RwLock::new(HashMap::new()),
             item_definitions: RwLock::new(HashMap::new()),
-            scripts,
+            scripts: RwLock::new(scripts),
             character_configs,
             classes,
             themes,
@@ -396,21 +396,22 @@ modifiers = ["bold"]
         assert!(dungeons.is_empty());
     }
 
-    #[test]
-    fn load_initializes_empty_scripts() {
+    #[tokio::test]
+    async fn load_initializes_empty_scripts() {
         let state = GameState::load(None).unwrap();
-        assert!(state.scripts.is_empty());
+        assert!(state.scripts.read().await.is_empty());
     }
 
-    #[test]
-    fn load_with_scripts_dir_reads_files() {
+    #[tokio::test]
+    async fn load_with_scripts_dir_reads_files() {
         let dir = TempDir::new().unwrap();
         let scripts_dir = dir.path().join("scripts").join("abilities");
         std::fs::create_dir_all(&scripts_dir).unwrap();
         std::fs::write(scripts_dir.join("damage_bonus.js"), "// placeholder").unwrap();
 
         let state = GameState::load(Some(dir.path())).unwrap();
-        assert_eq!(state.scripts.len(), 1);
-        assert!(state.scripts.contains_key("abilities/damage_bonus"));
+        let scripts = state.scripts.read().await;
+        assert_eq!(scripts.len(), 1);
+        assert!(scripts.contains_key("abilities/damage_bonus"));
     }
 }

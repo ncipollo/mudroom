@@ -1,14 +1,17 @@
 use std::path::PathBuf;
 
+pub mod cache;
 pub mod compiler;
 pub mod context;
+pub mod execution;
 
 pub use compiler::{CompiledScript, ScriptCompileError, compile};
 
 /// A loaded script file. `source` is the raw text loaded from disk; `compiled` is the
 /// serialized snapshot produced by [`compile`]. Boa's own compiled forms are GC-managed and
 /// not `Send`/`Sync` (unlike `GameState`, shared via `Arc`), so only the serialized form is
-/// cached here — see [`CompiledScript`] for what rebuilding an executable form still needs.
+/// cached here — see [`CompiledScript`] for why `source` (not `compiled`) is what execution
+/// actually runs.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Script {
     pub path: PathBuf,

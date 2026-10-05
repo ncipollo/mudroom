@@ -13,43 +13,42 @@ type AbilityRow = (
     String,
     String,
     String,
-    String,
+    Option<String>,
     Option<String>,
 );
 
 pub async fn upsert(pool: &SqlitePool, ability: &Ability) -> Result<(), PersistenceError> {
     let effects_json = serde_json::to_string(&ability.effects).unwrap_or_default();
     let costs_json = serde_json::to_string(&ability.costs).unwrap_or_default();
-    let modifiers_json = serde_json::to_string(&ability.modifiers).unwrap_or_default();
     let engagement_types_json =
         serde_json::to_string(&ability.engagement_types).unwrap_or_default();
     let targets_json = serde_json::to_string(&ability.targets).unwrap_or_default();
     let role_str = ability_role_to_str(&ability.role);
     sqlx::query(
         "INSERT INTO abilities \
-         (id, name, description, effects_json, costs_json, modifiers_json, engagement_types_json, role, targets_json, action_text) \
+         (id, name, description, effects_json, costs_json, engagement_types_json, role, targets_json, action_text, script) \
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) \
          ON CONFLICT(id) DO UPDATE SET \
              name = excluded.name, \
              description = excluded.description, \
              effects_json = excluded.effects_json, \
              costs_json = excluded.costs_json, \
-             modifiers_json = excluded.modifiers_json, \
              engagement_types_json = excluded.engagement_types_json, \
              role = excluded.role, \
              targets_json = excluded.targets_json, \
-             action_text = excluded.action_text",
+             action_text = excluded.action_text, \
+             script = excluded.script",
     )
     .bind(&ability.id)
     .bind(&ability.name)
     .bind(&ability.description.text)
     .bind(&effects_json)
     .bind(&costs_json)
-    .bind(&modifiers_json)
     .bind(&engagement_types_json)
     .bind(role_str)
     .bind(&targets_json)
     .bind(&ability.action_text)
+    .bind(&ability.script)
     .execute(pool)
     .await?;
     Ok(())
@@ -61,7 +60,7 @@ pub async fn find_by_character(
 ) -> Result<Vec<Ability>, PersistenceError> {
     let rows: Vec<AbilityRow> = sqlx::query_as(
         "SELECT a.id, a.name, a.description, a.effects_json, a.costs_json, \
-             a.modifiers_json, a.engagement_types_json, a.role, a.targets_json, a.action_text \
+             a.engagement_types_json, a.role, a.targets_json, a.action_text, a.script \
              FROM abilities a \
              JOIN character_abilities ea ON a.id = ea.ability_id \
              WHERE ea.character_id = ?",
@@ -76,7 +75,7 @@ pub async fn find_by_character(
 pub async fn find_all(pool: &SqlitePool) -> Result<Vec<Ability>, PersistenceError> {
     let rows: Vec<AbilityRow> = sqlx::query_as(
         "SELECT id, name, description, effects_json, costs_json, \
-             modifiers_json, engagement_types_json, role, targets_json, action_text \
+             engagement_types_json, role, targets_json, action_text, script \
              FROM abilities",
     )
     .fetch_all(pool)
@@ -94,11 +93,11 @@ fn rows_to_abilities(rows: Vec<AbilityRow>) -> Vec<Ability> {
                 description,
                 effects_json,
                 costs_json,
-                modifiers_json,
                 et_json,
                 role_str,
                 targets_json,
                 action_text,
+                script,
             )| {
                 let effects = serde_json::from_str(&effects_json).unwrap_or_else(|e| {
                     tracing::warn!("Failed to deserialize effects for ability {id}: {e}");
@@ -106,10 +105,6 @@ fn rows_to_abilities(rows: Vec<AbilityRow>) -> Vec<Ability> {
                 });
                 let costs = serde_json::from_str(&costs_json).unwrap_or_else(|e| {
                     tracing::warn!("Failed to deserialize costs for ability {id}: {e}");
-                    vec![]
-                });
-                let modifiers = serde_json::from_str(&modifiers_json).unwrap_or_else(|e| {
-                    tracing::warn!("Failed to deserialize modifiers for ability {id}: {e}");
                     vec![]
                 });
                 let engagement_types = serde_json::from_str(&et_json).unwrap_or_else(|e| {
@@ -127,7 +122,7 @@ fn rows_to_abilities(rows: Vec<AbilityRow>) -> Vec<Ability> {
                     description: Description::new(description),
                     effects,
                     costs,
-                    modifiers,
+                    script,
                     engagement_types,
                     role: ability_role_from_str(&role_str),
                     targets,
@@ -218,7 +213,7 @@ mod tests {
                 scope: EffectScope::default(),
             }],
             costs: vec![],
-            modifiers: vec![],
+            script: None,
             engagement_types: vec![EngagementType::Battle],
             role: AbilityRole::Attack,
             targets: vec![AbilityTargetType::Opponent],
@@ -233,7 +228,7 @@ mod tests {
             description: Description::default(),
             effects: vec![],
             costs: vec![],
-            modifiers: vec![],
+            script: None,
             engagement_types: vec![EngagementType::Battle],
             role: AbilityRole::Defend,
             targets: vec![AbilityTargetType::SelfTarget],

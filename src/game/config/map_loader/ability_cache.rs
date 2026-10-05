@@ -21,6 +21,28 @@ pub async fn sync_abilities_into_db(
     Ok(())
 }
 
+pub(super) fn build_ability_cache(
+    config_dir: &Path,
+) -> Result<HashMap<String, Ability>, Box<dyn Error>> {
+    let mut cache = HashMap::new();
+    let abilities_dir = config_dir.join("abilities");
+    if !abilities_dir.exists() {
+        return Ok(cache);
+    }
+    for entry in walkdir::WalkDir::new(&abilities_dir)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("toml"))
+    {
+        let path = entry.path();
+        let mut ability = load_ability(path)?;
+        let rel = path.strip_prefix(&abilities_dir)?.with_extension("");
+        ability.id = rel.to_string_lossy().to_string();
+        cache.insert(ability.id.clone(), ability);
+    }
+    Ok(cache)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -35,7 +57,7 @@ mod tests {
             description: Description::default(),
             effects: vec![],
             costs: vec![],
-            modifiers: vec![],
+            script: None,
             engagement_types: vec![],
             role: crate::game::component::AbilityRole::Attack,
             targets: vec![],
@@ -68,26 +90,4 @@ mod tests {
                 .unwrap();
         assert_eq!(row.as_deref(), Some("{{character}} strikes {{target}}"));
     }
-}
-
-pub(super) fn build_ability_cache(
-    config_dir: &Path,
-) -> Result<HashMap<String, Ability>, Box<dyn Error>> {
-    let mut cache = HashMap::new();
-    let abilities_dir = config_dir.join("abilities");
-    if !abilities_dir.exists() {
-        return Ok(cache);
-    }
-    for entry in walkdir::WalkDir::new(&abilities_dir)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().and_then(|s| s.to_str()) == Some("toml"))
-    {
-        let path = entry.path();
-        let mut ability = load_ability(path)?;
-        let rel = path.strip_prefix(&abilities_dir)?.with_extension("");
-        ability.id = rel.to_string_lossy().to_string();
-        cache.insert(ability.id.clone(), ability);
-    }
-    Ok(cache)
 }

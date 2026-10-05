@@ -38,11 +38,12 @@ fn fields_section() -> String {
   targets           array of strings   Who the ability can target. See
                                        "targets" below. Defaults to [] if
                                        omitted.
-  modifiers         array of tables    Optional attribute-scaling modifiers.
-                                       Each has attribute_id (string) and
-                                       operator ("add", "subtract",
-                                       "multiply", or "divide"). Defaults to
-                                       [] if omitted.
+  script            string, optional  Scripts-folder-relative name of a JS
+                                       script (e.g. "abilities/damage_bonus")
+                                       that computes this ability's effect
+                                       values dynamically from the caster's
+                                       attributes. Omit to use the static
+                                       values in "effects" as-is.
   [[effects]]       array of tables     One or more effect blocks describing
                                        what the ability does. See "effects"
                                        below."#

@@ -1,6 +1,5 @@
 use crate::game::component::description::Description;
 use crate::game::component::effect::Effect;
-pub use crate::game::component::modifier::{Modifier, Operator};
 use crate::game::engagement::EngagementType;
 use serde::{Deserialize, Serialize};
 
@@ -41,8 +40,10 @@ pub struct Ability {
     pub effects: Vec<Effect>,
     pub engagement_types: Vec<EngagementType>,
     pub costs: Vec<Cost>,
+    /// Scripts-folder-relative name of a JS script (see `script::cache::load_source`) that
+    /// computes this ability's effect values dynamically. `None` means `effects` is used as-is.
     #[serde(default)]
-    pub modifiers: Vec<Modifier>,
+    pub script: Option<String>,
     #[serde(default)]
     pub role: AbilityRole,
     #[serde(default)]
@@ -92,7 +93,7 @@ mod tests {
                 resource_id: "stamina".to_string(),
                 amount: 5,
             }],
-            modifiers: vec![],
+            script: None,
             role: AbilityRole::Attack,
             targets: vec![],
             action_text: None,
@@ -103,7 +104,7 @@ mod tests {
     }
 
     #[test]
-    fn ability_with_modifiers_serde_round_trip() {
+    fn ability_with_script_serde_round_trip() {
         let ability = Ability {
             id: "attack".to_string(),
             name: "Attack".to_string(),
@@ -114,18 +115,7 @@ mod tests {
                 resource_id: "stamina".to_string(),
                 amount: 5,
             }],
-            modifiers: vec![
-                Modifier {
-                    attribute_id: "strength".to_string(),
-                    operator: Operator::Multiply,
-                    amount: 2,
-                },
-                Modifier {
-                    attribute_id: "dexterity".to_string(),
-                    operator: Operator::Add,
-                    amount: 1,
-                },
-            ],
+            script: Some("abilities/damage_bonus".to_string()),
             role: AbilityRole::Attack,
             targets: vec![],
             action_text: None,
@@ -153,7 +143,7 @@ mod tests {
             }],
             engagement_types: vec![EngagementType::Battle],
             costs: vec![],
-            modifiers: vec![],
+            script: None,
             role: AbilityRole::Attack,
             targets: vec![],
             action_text: None,
@@ -164,7 +154,7 @@ mod tests {
     }
 
     #[test]
-    fn ability_missing_modifiers_field_deserializes() {
+    fn ability_missing_script_field_deserializes() {
         let json = r#"{
             "id": "heal",
             "name": "Heal",
@@ -174,7 +164,7 @@ mod tests {
             "costs": []
         }"#;
         let ability: Ability = serde_json::from_str(json).unwrap();
-        assert!(ability.modifiers.is_empty());
+        assert!(ability.script.is_none());
     }
 
     #[test]
@@ -204,7 +194,7 @@ mod tests {
             effects: vec![attack_effect()],
             engagement_types: vec![],
             costs: vec![],
-            modifiers: vec![],
+            script: None,
             role: AbilityRole::Attack,
             targets: vec![AbilityTargetType::Opponent],
             action_text: None,
@@ -237,7 +227,7 @@ mod tests {
             effects: vec![attack_effect()],
             engagement_types: vec![EngagementType::Battle],
             costs: vec![],
-            modifiers: vec![],
+            script: None,
             role: AbilityRole::Attack,
             targets: vec![AbilityTargetType::Opponent],
             action_text: Some("{{character}} swings ax at {{target}} for {{effect}}".to_string()),
