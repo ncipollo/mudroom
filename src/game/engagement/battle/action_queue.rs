@@ -158,7 +158,7 @@ mod tests {
                     }]
                 })
                 .unwrap_or_default(),
-            modifiers: vec![],
+            script: None,
             role: AbilityRole::Attack,
             targets: vec![],
             action_text: None,

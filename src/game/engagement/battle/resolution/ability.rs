@@ -2,12 +2,15 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::game::GameState;
+use crate::game::component::effect::Effect;
 use crate::game::engagement::TurnOrder;
 use crate::game::engagement::battle::{BattleMessage, QueuedAbility};
 use crate::game::entity::character::Character;
 use crate::game::narration::{TextResolver, VariableMap, effect_text};
 
 use super::effect::resolve_effects;
+
+mod script;
 
 /// Resolves all queued ability casts from a `ResolveAbilities` phase completion: orders casters
 /// by speed, applies each ability's effects to its target, and emits cast messages. Only call
@@ -28,28 +31,36 @@ pub(in crate::game::engagement::battle) async fn apply_battle_effects(
         &game_state.mud_config.battle.turn_order_attributes,
     );
 
-    let mut target_effects = HashMap::new();
     let mut by_caster: HashMap<i64, Vec<QueuedAbility>> = HashMap::new();
     for qa in resolution_queue {
         by_caster.entry(qa.caster_id).or_default().push(qa);
     }
 
+    let mut target_effects: HashMap<i64, Vec<Effect>> = HashMap::new();
     for &caster_id in &speed_sorted_casters {
         for qa in by_caster.remove(&caster_id).unwrap_or_default() {
-            messages.extend(ability_cast_messages(&qa, entity_names));
-            target_effects
-                .entry(qa.target_id)
-                .or_insert_with(Vec::new)
-                .extend(qa.ability.effects.clone());
+            resolve_cast(
+                game_state,
+                &qa,
+                &entities,
+                entity_names,
+                &mut target_effects,
+                messages,
+            )
+            .await;
         }
     }
     for abilities in by_caster.into_values() {
         for qa in abilities {
-            messages.extend(ability_cast_messages(&qa, entity_names));
-            target_effects
-                .entry(qa.target_id)
-                .or_insert_with(Vec::new)
-                .extend(qa.ability.effects.clone());
+            resolve_cast(
+                game_state,
+                &qa,
+                &entities,
+                entity_names,
+                &mut target_effects,
+                messages,
+            )
+            .await;
         }
     }
 
@@ -62,6 +73,26 @@ pub(in crate::game::engagement::battle) async fn apply_battle_effects(
         );
         messages.extend(applied);
     }
+}
+
+/// Resolves one queued cast's effective effects (static or script-computed — see
+/// [`script::resolved_effects`]), emitting its cast messages and queuing those effects against
+/// its target.
+async fn resolve_cast(
+    game_state: &Arc<GameState>,
+    qa: &QueuedAbility,
+    entities: &HashMap<i64, Character>,
+    entity_names: &HashMap<i64, String>,
+    target_effects: &mut HashMap<i64, Vec<Effect>>,
+    messages: &mut Vec<BattleMessage>,
+) {
+    let caster = entities.get(&qa.caster_id);
+    let effects = script::resolved_effects(game_state, caster, &qa.ability).await;
+    messages.extend(ability_cast_messages(qa, &effects, entity_names));
+    target_effects
+        .entry(qa.target_id)
+        .or_default()
+        .extend(effects);
 }
 
 fn speed_sort_casters(
@@ -82,6 +113,7 @@ fn speed_sort_casters(
 
 fn ability_cast_messages(
     qa: &QueuedAbility,
+    effects: &[Effect],
     entity_names: &HashMap<i64, String>,
 ) -> Vec<BattleMessage> {
     let caster_name = entity_names
@@ -93,9 +125,7 @@ fn ability_cast_messages(
         .cloned()
         .unwrap_or_else(|| "Unknown".to_string());
 
-    let effect_lines: Vec<BattleMessage> = qa
-        .ability
-        .effects
+    let effect_lines: Vec<BattleMessage> = effects
         .iter()
         .map(effect_text)
         .filter(|s| !s.is_empty())
@@ -137,7 +167,7 @@ mod tests {
             effects: vec![],
             engagement_types: vec![EngagementType::Battle],
             costs: vec![],
-            modifiers: vec![],
+            script: None,
             role: AbilityRole::Attack,
             targets: vec![],
             action_text: action_text.map(|s| s.to_string()),
@@ -174,7 +204,7 @@ mod tests {
             ability: make_ability(None),
             target_id: 2,
         };
-        let msgs = ability_cast_messages(&qa, &make_names());
+        let msgs = ability_cast_messages(&qa, &qa.ability.effects.clone(), &make_names());
         assert_eq!(
             msgs,
             vec![BattleMessage::AbilityCast {
@@ -194,7 +224,7 @@ mod tests {
             ability,
             target_id: 2,
         };
-        let msgs = ability_cast_messages(&qa, &make_names());
+        let msgs = ability_cast_messages(&qa, &qa.ability.effects.clone(), &make_names());
         assert_eq!(
             msgs,
             vec![
@@ -215,7 +245,7 @@ mod tests {
             ability: make_ability(Some("{{character}} strikes {{target}}!")),
             target_id: 2,
         };
-        let msgs = ability_cast_messages(&qa, &make_names());
+        let msgs = ability_cast_messages(&qa, &qa.ability.effects.clone(), &make_names());
         assert_eq!(
             msgs,
             vec![BattleMessage::Meta("Alice strikes Bob!".to_string())]
@@ -231,7 +261,7 @@ mod tests {
             ability,
             target_id: 2,
         };
-        let msgs = ability_cast_messages(&qa, &make_names());
+        let msgs = ability_cast_messages(&qa, &qa.ability.effects.clone(), &make_names());
         assert_eq!(
             msgs,
             vec![
@@ -250,7 +280,7 @@ mod tests {
             ability,
             target_id: 2,
         };
-        let msgs = ability_cast_messages(&qa, &make_names());
+        let msgs = ability_cast_messages(&qa, &qa.ability.effects.clone(), &make_names());
         assert_eq!(
             msgs,
             vec![

@@ -15,9 +15,9 @@ pub enum ScriptCompileError {
 }
 
 /// A serialized snapshot of a script's parsed, scope-analyzed AST — plain `Vec<u8>` with no
-/// `Rc`/`Gc` pointers, so it's `Send + Sync` and safe to store on `Script`. Executing it still
-/// needs a rebuilt `Interner` (Boa's isn't itself serializable, only its `Sym` indices are)
-/// and bytecompiling in a short-lived `Context` — left to the script execution/context work.
+/// `Rc`/`Gc` pointers, so it's `Send + Sync` and safe to store on `Script`. Boa gives no public
+/// way to resume execution from it (its `Sym`s need the exact `Interner` that produced them),
+/// so execution re-evaluates `Script.source` instead; this just catches syntax errors once.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompiledScript(Vec<u8>);
 

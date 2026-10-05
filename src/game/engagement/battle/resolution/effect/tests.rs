@@ -71,7 +71,7 @@ fn attack_ability(damage: i64) -> Ability {
         effects: vec![damage_effect(damage)],
         engagement_types: vec![EngagementType::Battle],
         costs: vec![],
-        modifiers: vec![],
+        script: None,
         role: AbilityRole::Attack,
         targets: vec![],
         action_text: None,

@@ -3,6 +3,7 @@ description = "A brutal smash with a spiked bat."
 action_text = "{{character}} smashes {{target}} with a spiked bat"
 engagement_types = ["battle"]
 costs = []
+script = "abilities/damage_bonus"
 role = "attack"
 targets = ["opponent"]
 

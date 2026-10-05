@@ -1,5 +1,5 @@
-// Placeholder script, not yet compiled or executed by the engine (see issue #341 for the
-// compiler and #343 for how ability scripts will invoke this).
-function applyDamageBonus(context) {
-  return context.value + 5;
-}
+// Scales the injected `effect`'s damage with the caster's strength (see
+// src/game/script/execution.rs for how `character`/`effect` are injected). The `| 0` forces
+// a ToInt32 coercion — Boa's arithmetic otherwise hands back a float, which the Rust side's
+// `i64` effect value field can't deserialize.
+effect.effect_type.value = -(character.attributes.strength.current_value * 2) | 0;

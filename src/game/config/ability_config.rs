@@ -1,7 +1,5 @@
 pub mod config;
 pub mod loader;
 
-pub use config::{
-    Ability, AbilityReference, AbilityRole, AbilityTargetType, Cost, Modifier, Operator,
-};
+pub use config::{Ability, AbilityReference, AbilityRole, AbilityTargetType, Cost};
 pub use loader::load_ability;
