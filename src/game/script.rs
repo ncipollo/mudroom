@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 pub mod compiler;
+pub mod context;
 
 pub use compiler::{CompiledScript, ScriptCompileError, compile};
 
