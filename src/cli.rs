@@ -85,6 +85,8 @@ pub enum InstructionsTopic {
     Items,
     /// Map and room config file (maps/<world>/<dungeon>/<room>.toml) reference
     Maps,
+    /// JS scripting system (scripts/*.js) reference
+    Scripting,
 }
 
 #[derive(Subcommand, Debug, PartialEq)]

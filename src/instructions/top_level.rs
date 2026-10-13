@@ -26,6 +26,7 @@ const TOPICS: &[(&str, &str)] = &[
         "maps",
         "Map and room config file (maps/<world>/<dungeon>/<room>.toml) reference",
     ),
+    ("scripting", "JS scripting system (scripts/*.js) reference"),
 ];
 
 const HEADER: &str = r#"mudroom instructions — authoring guidance for mud config files
@@ -66,5 +67,6 @@ mod tests {
         assert!(text.contains("Topics:"));
         assert!(text.contains("mud-config"));
         assert!(text.contains("maps"));
+        assert!(text.contains("scripting"));
     }
 }

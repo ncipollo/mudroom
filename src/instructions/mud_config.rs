@@ -24,6 +24,8 @@ fn directory_layout() -> String {
     classes/               # one .toml per class
     entities/              # one .toml per entity
     items/                 # one .toml per item
+    scripts/               # one .js file per script, e.g.
+                           # scripts/abilities/damage_bonus.js
     maps/
       <world_id>/
         <dungeon_id>/
@@ -124,6 +126,7 @@ mod tests {
         assert!(text.contains("classes/"));
         assert!(text.contains("entities/"));
         assert!(text.contains("items/"));
+        assert!(text.contains("scripts/"));
         assert!(text.contains("maps/"));
         assert!(text.contains("<room_id>.toml"));
     }

@@ -7,6 +7,7 @@ pub mod inventory;
 pub mod items;
 pub mod maps;
 pub mod mud_config;
+pub mod scripting;
 pub mod top_level;
 
 pub enum InstructionType {
@@ -20,6 +21,7 @@ pub enum InstructionType {
     Inventory,
     Items,
     Maps,
+    Scripting,
 }
 
 pub fn print_instructions(topic: InstructionType) {
@@ -34,6 +36,7 @@ pub fn print_instructions(topic: InstructionType) {
         InstructionType::Inventory => inventory::render(),
         InstructionType::Items => items::render(),
         InstructionType::Maps => maps::render(),
+        InstructionType::Scripting => scripting::render(),
     };
     println!("{text}");
 }

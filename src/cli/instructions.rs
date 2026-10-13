@@ -14,6 +14,7 @@ pub fn run(topic: Option<InstructionsTopic>) {
         Some(InstructionsTopic::Inventory) => InstructionType::Inventory,
         Some(InstructionsTopic::Items) => InstructionType::Items,
         Some(InstructionsTopic::Maps) => InstructionType::Maps,
+        Some(InstructionsTopic::Scripting) => InstructionType::Scripting,
     };
     instructions::print_instructions(instruction_type);
 }
