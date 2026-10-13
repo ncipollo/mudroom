@@ -99,16 +99,23 @@ fn fallback_section() -> String {
 }
 
 fn example_section() -> String {
-    r#"Worked example (muds/basic/scripts/abilities/damage_bonus.js):
+    r#"Worked example:
+
+  An ability's [[effects]] entry sets a static fallback value, e.g.
+  effect_type = { type = "attribute_update", attribute_id = "hp", value = -18 }.
+  Attaching this script (shipped with the sample mud as
+  scripts/abilities/damage_bonus.js) overrides it whenever the script runs:
 
   effect.effect_type.value = -(character.attributes.strength.current_value * 2) | 0;
 
-  Reads the caster's strength via character.attributes.strength.current_value,
-  then writes a scaled damage value back to effect.effect_type.value. The
-  | 0 forces integer coercion — JS arithmetic otherwise produces a float,
-  which fails to deserialize into the effect's integer value field. A
-  caster with 14 strength produces -28, overwriting whatever static value
-  was in the ability's [[effects]] entry."#
+  It reads the caster's strength via
+  character.attributes.strength.current_value, then writes a scaled
+  damage value back to effect.effect_type.value. The | 0 forces integer
+  coercion — JS arithmetic otherwise produces a float, which fails to
+  deserialize into the effect's integer value field. A caster with 14
+  strength produces -28, overriding the static -18 above; if the script
+  were missing or failed, -18 would be used instead (see "Fallback
+  behavior" above)."#
         .to_string()
 }
 
