@@ -6,6 +6,7 @@ pub fn render() -> String {
         costs_section(),
         role_section(),
         targets_section(),
+        scripting_section(),
         effects_section(),
         example_section(),
     ];
@@ -43,11 +44,12 @@ fn fields_section() -> String {
                                        that computes this ability's effect
                                        values dynamically from the caster's
                                        attributes. Omit to use the static
-                                       values in "effects" as-is.
+                                       values in "effects" as-is. See
+                                       "scripting" below.
   inline_script     string, optional  JS source embedded directly, as an
                                        alternative to "script". Takes
                                        precedence over "script" if both are
-                                       set.
+                                       set. See "scripting" below.
   [[effects]]       array of tables     One or more effect blocks describing
                                        what the ability does. See "effects"
                                        below."#
@@ -83,6 +85,52 @@ fn targets_section() -> String {
   "opponent"   Targets the opposing side.
   "allies"     Targets allies.
   "self"       Targets the acting entity."#
+        .to_string()
+}
+
+fn scripting_section() -> String {
+    r#"scripting:
+  An ability can compute its effect values dynamically with a JS script
+  instead of using the static values in "effects" as-is. Two ways to attach
+  one:
+    script          Scripts-folder-relative name, e.g.
+                     script = "abilities/damage_bonus" resolves against
+                     the mud's scripts/ folder as
+                     scripts/abilities/damage_bonus.js. The .js extension
+                     is assumed if omitted.
+    inline_script   JS source embedded directly in the TOML, no separate
+                     file needed. Takes precedence over "script" if both
+                     are set.
+
+  Whichever is set, the script runs once per [[effects]] entry with two
+  globals available: `character` (the caster) and `effect` (the effect
+  being computed). It mutates `effect` — typically
+  `effect.effect_type.value` — to compute a value dynamically instead of
+  using the static one. See `mudroom instructions scripting` for the full
+  list of script globals and helpers.
+
+  The static value in "effects" is only a fallback: it's what's used
+  whenever there's no script, no caster is present, or the script fails
+  to load, compile, or run — a script is never required to succeed for
+  battle resolution to proceed.
+
+  File-based example (muds/basic/abilities/painful_smash.toml):
+
+    script = "abilities/damage_bonus"
+    [[effects]]
+    name = "smash_damage"
+    effect_type = { type = "attribute_update", attribute_id = "hp", value = -18 }
+
+  muds/basic/scripts/abilities/damage_bonus.js:
+
+    effect.effect_type.value = -(character.attributes.strength.current_value * 2) | 0;
+
+  The static value = -18 above is only the fallback; whenever the script
+  runs it overwrites it, e.g. a caster with 14 strength deals -28, not -18.
+
+  Inline variant of the same script, no separate file:
+
+    inline_script = "effect.effect_type.value = -(character.attributes.strength.current_value * 2) | 0;""#
         .to_string()
 }
 
@@ -191,5 +239,27 @@ mod tests {
         let text = render();
         assert!(text.contains("Complete annotated example"));
         assert!(text.contains("damage_reduction"));
+    }
+
+    #[test]
+    fn render_documents_scripting_fields() {
+        let text = render();
+        assert!(text.contains("script"));
+        assert!(text.contains("inline_script"));
+        assert!(text.contains("scripts/"));
+    }
+
+    #[test]
+    fn render_documents_script_precedence() {
+        let text = render();
+        assert!(text.contains("precedence"));
+    }
+
+    #[test]
+    fn render_includes_scripted_example() {
+        let text = render();
+        assert!(text.contains("damage_bonus"));
+        assert!(text.contains("painful_smash"));
+        assert!(text.contains("inline_script ="));
     }
 }
