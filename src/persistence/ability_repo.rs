@@ -15,6 +15,7 @@ type AbilityRow = (
     String,
     Option<String>,
     Option<String>,
+    Option<String>,
 );
 
 pub async fn upsert(pool: &SqlitePool, ability: &Ability) -> Result<(), PersistenceError> {
@@ -26,8 +27,8 @@ pub async fn upsert(pool: &SqlitePool, ability: &Ability) -> Result<(), Persiste
     let role_str = ability_role_to_str(&ability.role);
     sqlx::query(
         "INSERT INTO abilities \
-         (id, name, description, effects_json, costs_json, engagement_types_json, role, targets_json, action_text, script) \
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) \
+         (id, name, description, effects_json, costs_json, engagement_types_json, role, targets_json, action_text, script, inline_script) \
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) \
          ON CONFLICT(id) DO UPDATE SET \
              name = excluded.name, \
              description = excluded.description, \
@@ -37,7 +38,8 @@ pub async fn upsert(pool: &SqlitePool, ability: &Ability) -> Result<(), Persiste
              role = excluded.role, \
              targets_json = excluded.targets_json, \
              action_text = excluded.action_text, \
-             script = excluded.script",
+             script = excluded.script, \
+             inline_script = excluded.inline_script",
     )
     .bind(&ability.id)
     .bind(&ability.name)
@@ -49,6 +51,7 @@ pub async fn upsert(pool: &SqlitePool, ability: &Ability) -> Result<(), Persiste
     .bind(&targets_json)
     .bind(&ability.action_text)
     .bind(&ability.script)
+    .bind(&ability.inline_script)
     .execute(pool)
     .await?;
     Ok(())
@@ -60,7 +63,7 @@ pub async fn find_by_character(
 ) -> Result<Vec<Ability>, PersistenceError> {
     let rows: Vec<AbilityRow> = sqlx::query_as(
         "SELECT a.id, a.name, a.description, a.effects_json, a.costs_json, \
-             a.engagement_types_json, a.role, a.targets_json, a.action_text, a.script \
+             a.engagement_types_json, a.role, a.targets_json, a.action_text, a.script, a.inline_script \
              FROM abilities a \
              JOIN character_abilities ea ON a.id = ea.ability_id \
              WHERE ea.character_id = ?",
@@ -75,7 +78,7 @@ pub async fn find_by_character(
 pub async fn find_all(pool: &SqlitePool) -> Result<Vec<Ability>, PersistenceError> {
     let rows: Vec<AbilityRow> = sqlx::query_as(
         "SELECT id, name, description, effects_json, costs_json, \
-             engagement_types_json, role, targets_json, action_text, script \
+             engagement_types_json, role, targets_json, action_text, script, inline_script \
              FROM abilities",
     )
     .fetch_all(pool)
@@ -98,6 +101,7 @@ fn rows_to_abilities(rows: Vec<AbilityRow>) -> Vec<Ability> {
                 targets_json,
                 action_text,
                 script,
+                inline_script,
             )| {
                 let effects = serde_json::from_str(&effects_json).unwrap_or_else(|e| {
                     tracing::warn!("Failed to deserialize effects for ability {id}: {e}");
@@ -123,6 +127,7 @@ fn rows_to_abilities(rows: Vec<AbilityRow>) -> Vec<Ability> {
                     effects,
                     costs,
                     script,
+                    inline_script,
                     engagement_types,
                     role: ability_role_from_str(&role_str),
                     targets,
@@ -214,6 +219,7 @@ mod tests {
             }],
             costs: vec![],
             script: None,
+            inline_script: None,
             engagement_types: vec![EngagementType::Battle],
             role: AbilityRole::Attack,
             targets: vec![AbilityTargetType::Opponent],
@@ -229,6 +235,7 @@ mod tests {
             effects: vec![],
             costs: vec![],
             script: None,
+            inline_script: None,
             engagement_types: vec![EngagementType::Battle],
             role: AbilityRole::Defend,
             targets: vec![AbilityTargetType::SelfTarget],
@@ -252,6 +259,25 @@ mod tests {
         assert_eq!(abilities[0].effects.len(), 1);
         assert_eq!(abilities[0].engagement_types, vec![EngagementType::Battle]);
         assert_eq!(abilities[0].role, AbilityRole::Attack);
+    }
+
+    #[tokio::test]
+    async fn upsert_round_trips_inline_script() {
+        let db = Database::connect_in_memory().await.unwrap();
+        let mut ability = attack_ability();
+        ability.id = "scripted_attack".to_string();
+        ability.inline_script = Some("effect.effect_type.value = -5;".to_string());
+        upsert(db.pool(), &ability).await.unwrap();
+
+        let abilities = find_all(db.pool()).await.unwrap();
+        let found = abilities
+            .iter()
+            .find(|a| a.id == "scripted_attack")
+            .unwrap();
+        assert_eq!(
+            found.inline_script.as_deref(),
+            Some("effect.effect_type.value = -5;")
+        );
     }
 
     #[tokio::test]

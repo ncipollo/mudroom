@@ -58,6 +58,7 @@ mod tests {
             effects: vec![],
             costs: vec![],
             script: None,
+            inline_script: None,
             engagement_types: vec![],
             role: crate::game::component::AbilityRole::Attack,
             targets: vec![],

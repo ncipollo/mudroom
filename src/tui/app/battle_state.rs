@@ -92,6 +92,7 @@ impl BattleState {
                 engagement_types: vec![],
                 costs: vec![],
                 script: None,
+                inline_script: None,
                 role: AbilityRole::Attack,
                 targets: vec![],
                 action_text: None,
