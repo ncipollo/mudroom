@@ -16,3 +16,4 @@
 # Claude
 .claude/settings.local.json
 .claude/worktrees/
+/slop-shop/

@@ -42,8 +42,13 @@ pub struct Ability {
     pub costs: Vec<Cost>,
     /// Scripts-folder-relative name of a JS script (see `script::cache::load_source`) that
     /// computes this ability's effect values dynamically. `None` means `effects` is used as-is.
+    /// Ignored when `inline_script` is also set.
     #[serde(default)]
     pub script: Option<String>,
+    /// JS source embedded directly in the ability config, as an alternative to `script`.
+    /// Takes precedence over `script` when both are set.
+    #[serde(default)]
+    pub inline_script: Option<String>,
     #[serde(default)]
     pub role: AbilityRole,
     #[serde(default)]
@@ -94,6 +99,7 @@ mod tests {
                 amount: 5,
             }],
             script: None,
+            inline_script: None,
             role: AbilityRole::Attack,
             targets: vec![],
             action_text: None,
@@ -116,6 +122,7 @@ mod tests {
                 amount: 5,
             }],
             script: Some("abilities/damage_bonus".to_string()),
+            inline_script: None,
             role: AbilityRole::Attack,
             targets: vec![],
             action_text: None,
@@ -144,6 +151,7 @@ mod tests {
             engagement_types: vec![EngagementType::Battle],
             costs: vec![],
             script: None,
+            inline_script: None,
             role: AbilityRole::Attack,
             targets: vec![],
             action_text: None,
@@ -165,6 +173,27 @@ mod tests {
         }"#;
         let ability: Ability = serde_json::from_str(json).unwrap();
         assert!(ability.script.is_none());
+        assert!(ability.inline_script.is_none());
+    }
+
+    #[test]
+    fn ability_with_inline_script_serde_round_trip() {
+        let ability = Ability {
+            id: "attack".to_string(),
+            name: "Attack".to_string(),
+            description: Description::new(Some("A strength-scaled attack.".to_string())),
+            effects: vec![attack_effect()],
+            engagement_types: vec![EngagementType::Battle],
+            costs: vec![],
+            script: None,
+            inline_script: Some("effect.effect_type.value = -5;".to_string()),
+            role: AbilityRole::Attack,
+            targets: vec![],
+            action_text: None,
+        };
+        let json = serde_json::to_string(&ability).unwrap();
+        let restored: Ability = serde_json::from_str(&json).unwrap();
+        assert_eq!(ability, restored);
     }
 
     #[test]
@@ -195,6 +224,7 @@ mod tests {
             engagement_types: vec![],
             costs: vec![],
             script: None,
+            inline_script: None,
             role: AbilityRole::Attack,
             targets: vec![AbilityTargetType::Opponent],
             action_text: None,
@@ -228,6 +258,7 @@ mod tests {
             engagement_types: vec![EngagementType::Battle],
             costs: vec![],
             script: None,
+            inline_script: None,
             role: AbilityRole::Attack,
             targets: vec![AbilityTargetType::Opponent],
             action_text: Some("{{character}} swings ax at {{target}} for {{effect}}".to_string()),

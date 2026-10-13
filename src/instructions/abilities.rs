@@ -44,6 +44,10 @@ fn fields_section() -> String {
                                        values dynamically from the caster's
                                        attributes. Omit to use the static
                                        values in "effects" as-is.
+  inline_script     string, optional  JS source embedded directly, as an
+                                       alternative to "script". Takes
+                                       precedence over "script" if both are
+                                       set.
   [[effects]]       array of tables     One or more effect blocks describing
                                        what the ability does. See "effects"
                                        below."#

@@ -486,6 +486,7 @@ mod tests {
                 effects: vec![],
                 costs: vec![],
                 script: None,
+                inline_script: None,
                 engagement_types: vec![EngagementType::Battle],
                 role: AbilityRole::Attack,
                 targets: vec![],
