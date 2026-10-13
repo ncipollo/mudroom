@@ -5,45 +5,46 @@ use crate::game::component::Ability;
 use crate::game::component::effect::Effect;
 use crate::game::entity::character::Character;
 use crate::game::script;
+use crate::game::script::cache::ScriptCacheError;
 
-/// Resolves `ability`'s effective effects for this cast: the static `effects` when it has no
-/// script, or each effect run through its script (see `script::execution::run_on_effect`) when
-/// it does. Any failure along the way — no caster, a cache/compile error, or a script
-/// execution error — is logged and falls back to the static effects, so a single bad script
-/// degrades gracefully instead of breaking battle resolution.
+/// Resolves `ability`'s effective effects for this cast: the static `effects` when it has
+/// neither `inline_script` nor `script`, or each effect run through whichever script applies
+/// (see [`script_source`]) when it does. Any failure along the way — no caster, a cache/compile
+/// error, or a script execution error — is logged and falls back to the static effects, so a
+/// single bad script degrades gracefully instead of breaking battle resolution.
 pub(super) async fn resolved_effects(
     game_state: &Arc<GameState>,
     caster: Option<&Character>,
     ability: &Ability,
 ) -> Vec<Effect> {
-    let Some(script_name) = &ability.script else {
-        return ability.effects.clone();
+    let Some(caster) = caster else {
+        return effects_for_missing_caster(ability);
     };
-    match caster {
-        Some(caster) => scripted_effects(game_state, script_name, caster, ability).await,
-        None => {
-            tracing::warn!(
-                ability_id = %ability.id,
-                "Scripted ability cast with no caster in play; using static effects"
-            );
-            ability.effects.clone()
-        }
-    }
+    apply_source(game_state, caster, ability).await
 }
 
-async fn scripted_effects(
+fn effects_for_missing_caster(ability: &Ability) -> Vec<Effect> {
+    if ability.inline_script.is_some() || ability.script.is_some() {
+        tracing::warn!(
+            ability_id = %ability.id,
+            "Scripted ability cast with no caster in play; using static effects"
+        );
+    }
+    ability.effects.clone()
+}
+
+async fn apply_source(
     game_state: &Arc<GameState>,
-    script_name: &str,
     caster: &Character,
     ability: &Ability,
 ) -> Vec<Effect> {
-    match script::cache::load_source(&game_state.scripts, script_name).await {
-        Ok(source) => ability
+    match script_source(game_state, ability).await {
+        Some(Ok(source)) => ability
             .effects
             .iter()
             .map(|effect| run_or_fallback(&source, caster, effect))
             .collect(),
-        Err(err) => {
+        Some(Err(err)) => {
             tracing::warn!(
                 ability_id = %ability.id,
                 %err,
@@ -51,7 +52,22 @@ async fn scripted_effects(
             );
             ability.effects.clone()
         }
+        None => ability.effects.clone(),
     }
+}
+
+/// Picks the script source to run, preferring `inline_script` over a `script` file reference
+/// when both are set. Returns `None` when neither is configured (nothing to resolve); the
+/// inner `Result` only ever fails for the `script` (file-cache) path.
+async fn script_source(
+    game_state: &Arc<GameState>,
+    ability: &Ability,
+) -> Option<Result<String, ScriptCacheError>> {
+    if let Some(inline) = &ability.inline_script {
+        return Some(Ok(inline.clone()));
+    }
+    let script_name = ability.script.as_ref()?;
+    Some(script::cache::load_source(&game_state.scripts, script_name).await)
 }
 
 fn run_or_fallback(source: &str, caster: &Character, effect: &Effect) -> Effect {
@@ -94,7 +110,7 @@ mod tests {
         character
     }
 
-    fn damage_ability(script_name: Option<&str>) -> Ability {
+    fn damage_ability(script_name: Option<&str>, inline_script: Option<&str>) -> Ability {
         Ability {
             id: "painful_smash".to_string(),
             name: "Painful Smash".to_string(),
@@ -111,6 +127,7 @@ mod tests {
             }],
             costs: vec![],
             script: script_name.map(|s| s.to_string()),
+            inline_script: inline_script.map(|s| s.to_string()),
             engagement_types: vec![EngagementType::Battle],
             role: AbilityRole::Attack,
             targets: vec![],
@@ -118,11 +135,20 @@ mod tests {
         }
     }
 
+    const SCALE_SCRIPT: &str =
+        "effect.effect_type.value = -(character.attributes.strength.current_value * 2) | 0;";
+
+    fn register_script(path: std::path::PathBuf) -> std::collections::HashMap<String, Script> {
+        let mut scripts = HashMap::new();
+        scripts.insert("abilities/damage_bonus".to_string(), Script::new(path));
+        scripts
+    }
+
     #[tokio::test]
     async fn unscripted_ability_returns_static_effects_unchanged() {
         let game_state = Arc::new(GameState::load(None).unwrap());
         let caster = caster_with_strength(14);
-        let ability = damage_ability(None);
+        let ability = damage_ability(None, None);
         let effects = resolved_effects(&game_state, Some(&caster), &ability).await;
         assert_eq!(effects, ability.effects);
     }
@@ -131,19 +157,13 @@ mod tests {
     async fn scripted_ability_scales_effect_from_caster_strength() {
         let tmp = TempDir::new().unwrap();
         let path = tmp.path().join("damage_bonus.js");
-        std::fs::write(
-            &path,
-            "effect.effect_type.value = -(character.attributes.strength.current_value * 2) | 0;",
-        )
-        .unwrap();
+        std::fs::write(&path, SCALE_SCRIPT).unwrap();
 
         let game_state = Arc::new(GameState::load(None).unwrap());
-        let mut scripts = HashMap::new();
-        scripts.insert("abilities/damage_bonus".to_string(), Script::new(path));
-        *game_state.scripts.write().await = scripts;
+        *game_state.scripts.write().await = register_script(path);
 
         let caster = caster_with_strength(14);
-        let ability = damage_ability(Some("abilities/damage_bonus"));
+        let ability = damage_ability(Some("abilities/damage_bonus"), None);
         let effects = resolved_effects(&game_state, Some(&caster), &ability).await;
 
         assert_eq!(effects.len(), 1);
@@ -159,7 +179,7 @@ mod tests {
     #[tokio::test]
     async fn scripted_ability_falls_back_to_static_effects_when_caster_missing() {
         let game_state = Arc::new(GameState::load(None).unwrap());
-        let ability = damage_ability(Some("abilities/damage_bonus"));
+        let ability = damage_ability(Some("abilities/damage_bonus"), None);
         let effects = resolved_effects(&game_state, None, &ability).await;
         assert_eq!(effects, ability.effects);
     }
@@ -168,8 +188,57 @@ mod tests {
     async fn scripted_ability_falls_back_to_static_effects_when_script_unregistered() {
         let game_state = Arc::new(GameState::load(None).unwrap());
         let caster = caster_with_strength(14);
-        let ability = damage_ability(Some("abilities/does_not_exist"));
+        let ability = damage_ability(Some("abilities/does_not_exist"), None);
         let effects = resolved_effects(&game_state, Some(&caster), &ability).await;
+        assert_eq!(effects, ability.effects);
+    }
+
+    #[tokio::test]
+    async fn inline_script_scales_effect_without_touching_file_cache() {
+        let game_state = Arc::new(GameState::load(None).unwrap());
+        let caster = caster_with_strength(14);
+        let ability = damage_ability(None, Some(SCALE_SCRIPT));
+        let effects = resolved_effects(&game_state, Some(&caster), &ability).await;
+
+        assert_eq!(effects.len(), 1);
+        assert_eq!(
+            effects[0].effect_type,
+            EffectType::AttributeUpdate {
+                attribute_id: "hp".to_string(),
+                value: -28,
+            }
+        );
+        assert!(game_state.scripts.read().await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn inline_script_takes_precedence_over_script_file() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("damage_bonus.js");
+        std::fs::write(&path, "effect.effect_type.value = -1;").unwrap();
+
+        let game_state = Arc::new(GameState::load(None).unwrap());
+        *game_state.scripts.write().await = register_script(path);
+
+        let caster = caster_with_strength(14);
+        let ability = damage_ability(Some("abilities/damage_bonus"), Some(SCALE_SCRIPT));
+        let effects = resolved_effects(&game_state, Some(&caster), &ability).await;
+
+        // The file script would set -1; the inline script scales with strength instead.
+        assert_eq!(
+            effects[0].effect_type,
+            EffectType::AttributeUpdate {
+                attribute_id: "hp".to_string(),
+                value: -28,
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn inline_script_falls_back_to_static_effects_when_caster_missing() {
+        let game_state = Arc::new(GameState::load(None).unwrap());
+        let ability = damage_ability(None, Some(SCALE_SCRIPT));
+        let effects = resolved_effects(&game_state, None, &ability).await;
         assert_eq!(effects, ability.effects);
     }
 }

@@ -35,6 +35,7 @@ mod tests {
             engagement_types: vec![EngagementType::Battle],
             costs: vec![],
             script: None,
+            inline_script: None,
             role: AbilityRole::Attack,
             targets: vec![],
             action_text: None,
