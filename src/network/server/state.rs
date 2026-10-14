@@ -32,6 +32,9 @@ pub struct AppState {
     pub db: Database,
     pub connections: Arc<RwLock<HashMap<String, ConnectedClient>>>,
     pub next_connection_seq: Arc<std::sync::atomic::AtomicU64>,
+    /// Whether the server was started with `--enable-test-api`, gating debug-only routes
+    /// like `/debug/tick`. Off by default — never true in normal play.
+    pub test_api_enabled: bool,
 }
 
 // --- SSE disconnect guard ---

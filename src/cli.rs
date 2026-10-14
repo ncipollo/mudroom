@@ -46,6 +46,10 @@ pub enum Commands {
         /// Enable debug output (e.g. show ping/pong messages)
         #[arg(long)]
         debug: bool,
+        /// Enable the debug test API (adds a tick-advance endpoint for automated/agent-driven
+        /// testing). Off by default — never enable in normal play.
+        #[arg(long)]
+        enable_test_api: bool,
     },
     /// Player administration commands
     Players {
@@ -87,6 +91,8 @@ pub enum InstructionsTopic {
     Maps,
     /// JS scripting system (scripts/*.js) reference
     Scripting,
+    /// How to drive/observe the server for automated test scenarios
+    Testing,
 }
 
 #[derive(Subcommand, Debug, PartialEq)]
@@ -179,6 +185,7 @@ mod tests {
                 reload_maps: false,
                 reset_features: false,
                 debug: false,
+                enable_test_api: false,
             })
         );
     }
@@ -194,6 +201,7 @@ mod tests {
                 reload_maps: false,
                 reset_features: false,
                 debug: false,
+                enable_test_api: false,
             })
         );
     }
@@ -209,6 +217,7 @@ mod tests {
                 reload_maps: false,
                 reset_features: false,
                 debug: false,
+                enable_test_api: false,
             })
         );
     }
@@ -224,6 +233,7 @@ mod tests {
                 reload_maps: false,
                 reset_features: false,
                 debug: true,
+                enable_test_api: false,
             })
         );
     }
@@ -283,6 +293,7 @@ mod tests {
                 reload_maps: true,
                 reset_features: false,
                 debug: false,
+                enable_test_api: false,
             })
         );
     }
@@ -298,6 +309,23 @@ mod tests {
                 reload_maps: false,
                 reset_features: true,
                 debug: false,
+                enable_test_api: false,
+            })
+        );
+    }
+
+    #[test]
+    fn server_subcommand_with_enable_test_api_parses() {
+        let cli = parse(&["mudroom", "server", "--enable-test-api"]);
+        assert_eq!(
+            cli.command,
+            Some(Commands::Server {
+                name: None,
+                config: None,
+                reload_maps: false,
+                reset_features: false,
+                debug: false,
+                enable_test_api: true,
             })
         );
     }

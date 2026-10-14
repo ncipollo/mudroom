@@ -1,5 +1,7 @@
+pub mod debug;
 pub mod player;
 
+pub use debug::debug_tick_handler;
 pub use player::{
     player_classes_handler, player_create_handler, player_list_handler, player_select_handler,
 };
@@ -265,6 +267,7 @@ mod tests {
             db: Database::connect_in_memory().await.unwrap(),
             connections: Arc::new(RwLock::new(HashMap::new())),
             next_connection_seq: Arc::new(std::sync::atomic::AtomicU64::new(1)),
+            test_api_enabled: true,
         })
     }
 

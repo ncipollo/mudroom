@@ -58,6 +58,9 @@ pub struct GameState {
     /// ran — see the epoch check in `game::interaction::dispatch_player_disconnected`.
     activation_epochs: RwLock<HashMap<i64, u64>>,
     next_activation_epoch: AtomicU64,
+    /// The next tick number to be processed, shared by the real-time game loop and the debug
+    /// tick-advance endpoint so both paths advance the same sequence.
+    current_tick: AtomicU64,
     pub message_tx: broadcast::Sender<PlayerMessage>,
 }
 
@@ -124,6 +127,7 @@ impl GameState {
             pending_activations: RwLock::new(Vec::new()),
             activation_epochs: RwLock::new(HashMap::new()),
             next_activation_epoch: AtomicU64::new(1),
+            current_tick: AtomicU64::new(0),
             message_tx,
         })
     }
@@ -181,6 +185,11 @@ impl GameState {
             .await
             .get(&entity_id)
             .unwrap_or(&0)
+    }
+
+    /// Claims the next tick number to process, advancing the shared counter.
+    pub fn next_tick(&self) -> u64 {
+        self.current_tick.fetch_add(1, Ordering::Relaxed)
     }
 }
 

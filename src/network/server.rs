@@ -20,6 +20,7 @@ pub async fn start(
     server_session: ServerSession,
     game_state: GameState,
     db: Database,
+    enable_test_api: bool,
 ) -> Result<SocketAddr, Box<dyn std::error::Error>> {
     let connections: Arc<RwLock<HashMap<String, ConnectedClient>>> =
         Arc::new(RwLock::new(HashMap::new()));
@@ -30,6 +31,7 @@ pub async fn start(
         db,
         connections: connections.clone(),
         next_connection_seq: Arc::new(std::sync::atomic::AtomicU64::new(1)),
+        test_api_enabled: enable_test_api,
     });
 
     message_relay::spawn(
