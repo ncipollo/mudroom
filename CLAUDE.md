@@ -25,47 +25,33 @@ When `smell` reports a limit failure, fix it by refactoring — never suppress b
 - **Too many/long comments** (`max_comments`, `max_comment_lines`) - delete comments that restate the code; keep only WHY comments, and keep those short.
 
 ## Manual Server Testing
-To manually verify a change by running a real server instance, use a disposable
-name/config so it never collides with a real play session, and clean up afterward.
+When you change server code, start a real server instance and verify the change
+works before considering it complete. Use a disposable name/config so it never
+collides with a real play session.
 
 ### Start
-There is no wrapper script — invoke the server directly with `cargo run`, backgrounded
-(the game loop runs forever and never returns), with output redirected to a log file:
-
 ```
 cargo run -- server --name test --config muds/basic > /tmp/mudroom-test.log 2>&1 &
 ```
-
-`--name test` keeps session/database state isolated under a scratch key (see Teardown).
-`--config muds/basic` points at the repo's own minimal throwaway mud config — no need
-to author one. `muds/basic/mud.toml` resolves `$MUDROOM_OLLAMA_BASE_URL` and
-`$MUDROOM_OLLAMA_MODEL` from the environment; set them (any value is fine if no agent
-LLM calls are exercised) or startup fails with a TOML parse error.
+Backgrounded — the game loop never returns. `muds/basic/mud.toml` needs
+`$MUDROOM_OLLAMA_BASE_URL` and `$MUDROOM_OLLAMA_MODEL` set in the environment or
+startup fails.
 
 ### Confirm it came up
-The server binds an OS-assigned ephemeral port (`0.0.0.0:0`), so the real port is only
-known from the startup log. Poll the log for the listening line, then hit
-`GET /server/info`:
-
+The port is OS-assigned, not fixed — read it from the log:
 ```
 grep "Server listening on" /tmp/mudroom-test.log
 curl http://127.0.0.1:<port>/server/info
 ```
 
-Retry briefly if the log line or endpoint isn't there yet — startup isn't instant.
-
 ### Teardown
-Kill the backgrounded process, then remove the scratch server's state so repeated runs
-don't accumulate stale session/database files:
-
 ```
 kill <pid>
 rm -rf ~/.mudroom/session/server/test.json ~/.mudroom/session/server/test
 ```
 
-For driving the server programmatically over HTTP (queuing interactions, forcing
-ticks, observing events) rather than just confirming it's alive, see
-`mudroom instructions testing`.
+Run `mudroom instructions testing` for how to drive the running server
+programmatically (queue interactions, force ticks, read events).
 
 ## Dependencies
 Always use exact versions for dependencies in `Cargo.toml` (e.g., `"4.5.60"` not `"4"`). Check `Cargo.lock` for the resolved version when pinning.
