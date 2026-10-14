@@ -24,6 +24,35 @@ When `smell` reports a limit failure, fix it by refactoring — never suppress b
 - **Too many lines** (`max_lines`) - same fix as too many declarations.
 - **Too many/long comments** (`max_comments`, `max_comment_lines`) - delete comments that restate the code; keep only WHY comments, and keep those short.
 
+## Manual Server Testing
+When you change server code, start a real server instance and verify the change
+works before considering it complete. Use a disposable name/config so it never
+collides with a real play session.
+
+### Start
+```
+cargo run -- server --name test --config muds/basic > /tmp/mudroom-test.log 2>&1 &
+```
+Backgrounded — the game loop never returns. `muds/basic/mud.toml` needs
+`$MUDROOM_OLLAMA_BASE_URL` and `$MUDROOM_OLLAMA_MODEL` set in the environment or
+startup fails.
+
+### Confirm it came up
+The port is OS-assigned, not fixed — read it from the log:
+```
+grep "Server listening on" /tmp/mudroom-test.log
+curl http://127.0.0.1:<port>/server/info
+```
+
+### Teardown
+```
+kill <pid>
+rm -rf ~/.mudroom/session/server/test.json ~/.mudroom/session/server/test
+```
+
+Run `mudroom instructions testing` for how to drive the running server
+programmatically (queue interactions, force ticks, read events).
+
 ## Dependencies
 Always use exact versions for dependencies in `Cargo.toml` (e.g., `"4.5.60"` not `"4"`). Check `Cargo.lock` for the resolved version when pinning.
 
