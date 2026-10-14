@@ -4,14 +4,17 @@ use axum::Router;
 use axum::routing::{get, post};
 
 use super::handlers::{
-    maps_reload_handler, ping_handler, player_classes_handler, player_create_handler,
-    player_list_handler, player_select_handler, send_interaction_handler, server_info_handler,
-    session_end_handler, session_start_handler, sse_handler, theme_list_handler,
+    debug_tick_handler, maps_reload_handler, ping_handler, player_classes_handler,
+    player_create_handler, player_list_handler, player_select_handler, send_interaction_handler,
+    server_info_handler, session_end_handler, session_start_handler, sse_handler,
+    theme_list_handler,
 };
 use super::state::AppState;
 
 pub fn build_router(state: Arc<AppState>) -> Router {
-    Router::new()
+    let test_api_enabled = state.test_api_enabled;
+
+    let mut router = Router::new()
         .route("/server/info", get(server_info_handler))
         .route("/events", get(sse_handler))
         .route("/ping", post(ping_handler))
@@ -23,6 +26,11 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/players/select", post(player_select_handler))
         .route("/themes/list", get(theme_list_handler))
         .route("/maps/reload", post(maps_reload_handler))
-        .route("/interactions", post(send_interaction_handler))
-        .with_state(state)
+        .route("/interactions", post(send_interaction_handler));
+
+    if test_api_enabled {
+        router = router.route("/debug/tick", post(debug_tick_handler));
+    }
+
+    router.with_state(state)
 }

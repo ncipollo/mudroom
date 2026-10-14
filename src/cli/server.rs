@@ -8,6 +8,7 @@ pub async fn run(
     reload_maps: bool,
     reset_features: bool,
     debug: bool,
+    enable_test_api: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     crate::logging::init_tracing(debug);
     let (server_session, config_path_buf) = init_server_session(name, config).await?;
@@ -24,7 +25,7 @@ pub async fn run(
     }
     respawn_on_reboot(&db, &game_state).await?;
     game_state.refresh_definition_caches(db.pool()).await?;
-    serve_and_wait(server_session, game_state, db).await
+    serve_and_wait(server_session, game_state, db, enable_test_api).await
 }
 
 /// Un-tombstones taken world loot on process start when the mud is configured for
@@ -100,9 +101,11 @@ async fn serve_and_wait(
     server_session: network::session::ServerSession,
     game_state: game::GameState,
     db: persistence::Database,
+    enable_test_api: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let session_name = server_session.name.clone();
-    let addr = network::server::start(server_session, game_state, db.clone()).await?;
+    let addr =
+        network::server::start(server_session, game_state, db.clone(), enable_test_api).await?;
     network::discovery::start_discovery(addr.port(), session_name);
     tracing::info!("Server listening on {addr}");
     tokio::signal::ctrl_c().await?;

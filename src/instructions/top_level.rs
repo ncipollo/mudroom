@@ -27,6 +27,10 @@ const TOPICS: &[(&str, &str)] = &[
         "Map and room config file (maps/<world>/<dungeon>/<room>.toml) reference",
     ),
     ("scripting", "JS scripting system (scripts/*.js) reference"),
+    (
+        "testing",
+        "How to drive/observe the server for automated test scenarios",
+    ),
 ];
 
 const HEADER: &str = r#"mudroom instructions — authoring guidance for mud config files
