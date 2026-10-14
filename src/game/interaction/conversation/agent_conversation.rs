@@ -97,10 +97,16 @@ impl<'a> AgentConversationStarter<'a> {
                     messaging::stream_message(tx, player_id, response);
                 }
                 Err(e) => {
+                    tracing::warn!(
+                        %e,
+                        npc_entity_id,
+                        "agent chat failed; using offline fallback"
+                    );
+                    let fallback = game_state_clone.agent_offline_fallback(npc_entity_id).await;
                     let _ = tx.send(PlayerMessage {
                         player_id,
                         message: Message::Complete {
-                            content: format!("The NPC seems distracted. ({e})"),
+                            content: fallback,
                             theme: None,
                         },
                     });

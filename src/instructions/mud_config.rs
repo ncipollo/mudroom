@@ -58,7 +58,11 @@ fn mud_toml_fields() -> String {
     omitted entirely.
 
     Fields depend on the provider type:
-      ollama:     base_url (string), model (string)
+      ollama:     base_url (string), model (string) — if either resolves to an
+                  unset env var, the ollama provider is disabled rather than
+                  failing to load; see "Environment variable substitution" below
+                  and `mudroom instructions entities` for the per-character
+                  `offline_fallback` field shown to players while disabled.
       anthropic:  api_key (string, optional), model (string)
       open_ai:    api_key (string, optional), base_url (string, optional),
                   model (string)
@@ -94,7 +98,9 @@ fn env_var_substitution() -> String {
   string) support environment variable substitution. A value starting with
   "$" is treated as an environment variable name and resolved at load time;
   any other value is used literally. Loading fails if the referenced
-  variable is not set.
+  variable is not set — except [agent.provider]'s ollama base_url/model,
+  which quietly disable the ollama provider instead (see [agent.provider]
+  above).
 
   Example: base_url = "$MUDROOM_OLLAMA_BASE_URL" resolves to the value of
   the MUDROOM_OLLAMA_BASE_URL environment variable."#

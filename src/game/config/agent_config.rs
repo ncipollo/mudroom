@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-use crate::game::config::env_resolver::{deserialize_env_option_string, deserialize_env_string};
+use crate::game::config::env_resolver::{
+    deserialize_env_option_string, deserialize_env_string, deserialize_env_string_allow_unset,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentConfig {
@@ -11,10 +13,12 @@ pub struct AgentConfig {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AgentProviderConfig {
     Ollama {
-        #[serde(deserialize_with = "deserialize_env_string")]
-        base_url: String,
-        #[serde(deserialize_with = "deserialize_env_string")]
-        model: String,
+        /// `None` when the referenced env var isn't set, which disables this provider
+        /// (see `agent::providers::build_provider`) rather than failing config load.
+        #[serde(deserialize_with = "deserialize_env_string_allow_unset")]
+        base_url: Option<String>,
+        #[serde(deserialize_with = "deserialize_env_string_allow_unset")]
+        model: Option<String>,
         #[serde(default, deserialize_with = "deserialize_env_option_string")]
         keep_alive: Option<String>,
     },
@@ -56,8 +60,8 @@ impl AgentConfig {
     pub fn default_config() -> Self {
         Self {
             provider: AgentProviderConfig::Ollama {
-                base_url: "http://localhost:11434".to_string(),
-                model: "llama3.2".to_string(),
+                base_url: Some("http://localhost:11434".to_string()),
+                model: Some("llama3.2".to_string()),
                 keep_alive: None,
             },
         }
@@ -83,8 +87,8 @@ mod tests {
                 model,
                 keep_alive,
             } => {
-                assert_eq!(base_url, "http://localhost:11434");
-                assert_eq!(model, "llama3.2");
+                assert_eq!(base_url, Some("http://localhost:11434".to_string()));
+                assert_eq!(model, Some("llama3.2".to_string()));
                 assert_eq!(keep_alive, None);
             }
             _ => panic!("expected Ollama provider"),
@@ -95,8 +99,8 @@ mod tests {
     fn ollama_round_trip() {
         let config = AgentConfig {
             provider: AgentProviderConfig::Ollama {
-                base_url: "http://localhost:11434".to_string(),
-                model: "llama3.2".to_string(),
+                base_url: Some("http://localhost:11434".to_string()),
+                model: Some("llama3.2".to_string()),
                 keep_alive: None,
             },
         };
@@ -107,8 +111,8 @@ mod tests {
                 model,
                 keep_alive,
             } => {
-                assert_eq!(base_url, "http://localhost:11434");
-                assert_eq!(model, "llama3.2");
+                assert_eq!(base_url, Some("http://localhost:11434".to_string()));
+                assert_eq!(model, Some("llama3.2".to_string()));
                 assert_eq!(keep_alive, None);
             }
             _ => panic!("expected Ollama"),
@@ -119,8 +123,8 @@ mod tests {
     fn ollama_round_trip_with_keep_alive() {
         let config = AgentConfig {
             provider: AgentProviderConfig::Ollama {
-                base_url: "http://localhost:11434".to_string(),
-                model: "llama3.2".to_string(),
+                base_url: Some("http://localhost:11434".to_string()),
+                model: Some("llama3.2".to_string()),
                 keep_alive: Some("5m".to_string()),
             },
         };
@@ -131,8 +135,8 @@ mod tests {
                 model,
                 keep_alive,
             } => {
-                assert_eq!(base_url, "http://localhost:11434");
-                assert_eq!(model, "llama3.2");
+                assert_eq!(base_url, Some("http://localhost:11434".to_string()));
+                assert_eq!(model, Some("llama3.2".to_string()));
                 assert_eq!(keep_alive, Some("5m".to_string()));
             }
             _ => panic!("expected Ollama"),
@@ -159,8 +163,8 @@ model = "$MUDROOM_TEST_OLLAMA_MODEL"
                 model,
                 keep_alive,
             } => {
-                assert_eq!(base_url, "http://myhost:11434");
-                assert_eq!(model, "mistral");
+                assert_eq!(base_url, Some("http://myhost:11434".to_string()));
+                assert_eq!(model, Some("mistral".to_string()));
                 assert_eq!(keep_alive, None);
             }
             _ => panic!("expected Ollama"),
@@ -168,6 +172,26 @@ model = "$MUDROOM_TEST_OLLAMA_MODEL"
         unsafe {
             env::remove_var("MUDROOM_TEST_OLLAMA_URL");
             env::remove_var("MUDROOM_TEST_OLLAMA_MODEL");
+        }
+    }
+
+    #[test]
+    fn ollama_missing_env_var_resolves_to_none_instead_of_erroring() {
+        let toml = r#"
+[provider]
+type = "ollama"
+base_url = "$MUDROOM_TEST_OLLAMA_URL_DEFINITELY_NOT_SET"
+model = "$MUDROOM_TEST_OLLAMA_MODEL_DEFINITELY_NOT_SET"
+"#;
+        let config: AgentConfig = toml::from_str(toml).unwrap();
+        match config.provider {
+            AgentProviderConfig::Ollama {
+                base_url, model, ..
+            } => {
+                assert_eq!(base_url, None);
+                assert_eq!(model, None);
+            }
+            _ => panic!("expected Ollama"),
         }
     }
 

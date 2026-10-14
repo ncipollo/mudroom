@@ -7,9 +7,11 @@ use tokio::sync::RwLock;
 use tokio::sync::broadcast;
 
 use crate::game::component::{Ability, ItemDefinition};
+use crate::game::config::character_config::DEFAULT_AGENT_OFFLINE_FALLBACK;
 use crate::game::config::{
     AttributeConfig, CharacterConfig, ClassConfig, FactionConfig, InventoryConfig, MudConfig,
-    ResourceConfig, ThemeConfig, load_character_configs, load_classes, load_scripts, load_themes,
+    PersonaConfig, ResourceConfig, ThemeConfig, load_character_configs, load_classes, load_scripts,
+    load_themes,
 };
 use crate::game::engagement::Engagements;
 use crate::game::entity::character::Character;
@@ -187,6 +189,21 @@ impl GameState {
             .unwrap_or(&0)
     }
 
+    /// The line shown to a player when this NPC's agent persona can't reach its model
+    /// (never configured, or unreachable mid-session) — authored per-character via
+    /// `[persona].offline_fallback`, or a generic default when unset.
+    pub async fn agent_offline_fallback(&self, npc_entity_id: i64) -> String {
+        let entities = self.active_characters.read().await;
+        entities
+            .get(&npc_entity_id)
+            .and_then(|e| e.config_id.as_deref())
+            .and_then(|id| self.character_configs.get(id))
+            .and_then(|c| c.persona.as_ref())
+            .map(PersonaConfig::agent_offline_fallback)
+            .unwrap_or(DEFAULT_AGENT_OFFLINE_FALLBACK)
+            .to_string()
+    }
+
     /// Claims the next tick number to process, advancing the shared counter.
     pub fn next_tick(&self) -> u64 {
         self.current_tick.fetch_add(1, Ordering::Relaxed)
@@ -226,8 +243,95 @@ fn load_dir_config<T>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::game::config::character_config::CharacterTypeConfig;
+    use crate::game::entity::character::{Character, CharacterType};
     use std::io::Write;
     use tempfile::TempDir;
+
+    fn test_location() -> crate::game::component::Location {
+        crate::game::component::Location {
+            world_id: "w1".to_string(),
+            dungeon_id: "d1".to_string(),
+            room_id: "r1".to_string(),
+        }
+    }
+
+    #[tokio::test]
+    async fn agent_offline_fallback_returns_authored_text() {
+        let mut state = GameState::load(None).unwrap();
+        state.character_configs.insert(
+            "entities/mysterious_man".to_string(),
+            CharacterConfig {
+                id: Some("entities/mysterious_man".to_string()),
+                name: None,
+                entity_type: CharacterTypeConfig::Character,
+                description: Default::default(),
+                persona: Some(PersonaConfig::Agent {
+                    agent_type: "default".to_string(),
+                    persona_file: None,
+                    offline_fallback: Some("He sits silently in the corner.".to_string()),
+                    parsed_persona: None,
+                }),
+                attributes: Vec::new(),
+                entity_effects: Vec::new(),
+                innate_abilities: Vec::new(),
+                factions: Vec::new(),
+                faction_relations: None,
+                battle_ai: Default::default(),
+            },
+        );
+        let mut character = Character::new(1, CharacterType::Character, test_location());
+        character.config_id = Some("entities/mysterious_man".to_string());
+        state.active_characters.write().await.insert(1, character);
+
+        assert_eq!(
+            state.agent_offline_fallback(1).await,
+            "He sits silently in the corner."
+        );
+    }
+
+    #[tokio::test]
+    async fn agent_offline_fallback_defaults_when_field_absent() {
+        let mut state = GameState::load(None).unwrap();
+        state.character_configs.insert(
+            "entities/mysterious_man".to_string(),
+            CharacterConfig {
+                id: Some("entities/mysterious_man".to_string()),
+                name: None,
+                entity_type: CharacterTypeConfig::Character,
+                description: Default::default(),
+                persona: Some(PersonaConfig::Agent {
+                    agent_type: "default".to_string(),
+                    persona_file: None,
+                    offline_fallback: None,
+                    parsed_persona: None,
+                }),
+                attributes: Vec::new(),
+                entity_effects: Vec::new(),
+                innate_abilities: Vec::new(),
+                factions: Vec::new(),
+                faction_relations: None,
+                battle_ai: Default::default(),
+            },
+        );
+        let mut character = Character::new(1, CharacterType::Character, test_location());
+        character.config_id = Some("entities/mysterious_man".to_string());
+        state.active_characters.write().await.insert(1, character);
+
+        assert_eq!(
+            state.agent_offline_fallback(1).await,
+            DEFAULT_AGENT_OFFLINE_FALLBACK
+        );
+    }
+
+    #[tokio::test]
+    async fn agent_offline_fallback_defaults_when_entity_unknown() {
+        let state = GameState::load(None).unwrap();
+        assert_eq!(
+            state.agent_offline_fallback(999).await,
+            DEFAULT_AGENT_OFFLINE_FALLBACK
+        );
+    }
 
     #[test]
     fn load_without_config_dir_uses_defaults() {
