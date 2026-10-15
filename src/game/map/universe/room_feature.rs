@@ -5,7 +5,7 @@ use thiserror::Error;
 
 mod feature_state;
 
-pub use feature_state::{FeatureState, InteractScript};
+pub use feature_state::FeatureState;
 
 /// An interactive, stateful fixture in a room (a chest, a button, a shrine...).
 /// Every feature declares a `default_state`, even when it only has one state.
@@ -20,6 +20,14 @@ pub struct RoomFeature {
     /// Matched case-insensitively by `look` and `interact` alongside the primary name.
     #[serde(default)]
     pub alternate_names: Vec<String>,
+    /// Scripts-folder-relative name of a JS script (see `script::cache::load_source`) that
+    /// runs this feature's logic. Ignored when `inline_script` is also set.
+    #[serde(default)]
+    pub script: Option<String>,
+    /// JS source embedded directly in the feature config, as an alternative to `script`.
+    /// Takes precedence over `script` when both are set.
+    #[serde(default)]
+    pub inline_script: Option<String>,
 }
 
 /// A [`RoomFeature`] whose `default_state` or a state's `interact_next_state` names
@@ -118,7 +126,6 @@ mod tests {
             FeatureState {
                 description: Description::new(Some("A closed chest.".to_string())),
                 items: Vec::new(),
-                interact_script: None,
                 interact_next_state: Some("open".to_string()),
                 alt_verbs: vec!["open".to_string()],
                 item_summary: None,
@@ -129,7 +136,6 @@ mod tests {
             FeatureState {
                 description: Description::new(Some("An open chest.".to_string())),
                 items: vec!["medicine".to_string()],
-                interact_script: None,
                 interact_next_state: None,
                 alt_verbs: Vec::new(),
                 item_summary: None,
@@ -141,6 +147,8 @@ mod tests {
             default_state: "closed".to_string(),
             states,
             alternate_names: vec!["chest".to_string()],
+            script: None,
+            inline_script: None,
         }
     }
 
@@ -177,6 +185,53 @@ description = "A dusty button."
 "#;
         let feature: RoomFeature = toml::from_str(toml).unwrap();
         assert!(feature.alternate_names.is_empty());
+    }
+
+    #[test]
+    fn script_and_inline_script_default_to_none_when_omitted() {
+        let toml = r#"
+name = "Button"
+default_state = "idle"
+
+[states.idle]
+description = "A dusty button."
+"#;
+        let feature: RoomFeature = toml::from_str(toml).unwrap();
+        assert_eq!(feature.script, None);
+        assert_eq!(feature.inline_script, None);
+    }
+
+    #[test]
+    fn parses_script_from_toml() {
+        let toml = r#"
+name = "Button"
+default_state = "idle"
+script = "features/button.js"
+
+[states.idle]
+description = "A dusty button."
+"#;
+        let feature: RoomFeature = toml::from_str(toml).unwrap();
+        assert_eq!(feature.script, Some("features/button.js".to_string()));
+        assert_eq!(feature.inline_script, None);
+    }
+
+    #[test]
+    fn parses_inline_script_from_toml() {
+        let toml = r#"
+name = "Button"
+default_state = "idle"
+inline_script = "onInteract(() => {});"
+
+[states.idle]
+description = "A dusty button."
+"#;
+        let feature: RoomFeature = toml::from_str(toml).unwrap();
+        assert_eq!(feature.script, None);
+        assert_eq!(
+            feature.inline_script,
+            Some("onInteract(() => {});".to_string())
+        );
     }
 
     #[test]

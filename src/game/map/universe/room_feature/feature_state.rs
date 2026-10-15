@@ -10,8 +10,6 @@ pub struct FeatureState {
     #[serde(default)]
     pub items: Vec<String>,
     #[serde(default)]
-    pub interact_script: Option<InteractScript>,
-    #[serde(default)]
     pub interact_next_state: Option<String>,
     /// Verbs that trigger this state's `interact_next_state` transition just like
     /// `interact` (e.g. `open` while closed, `close` while open). `interact` itself
@@ -37,12 +35,6 @@ impl FeatureState {
     }
 }
 
-/// Stub for now; fleshed out in a later ticket.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct InteractScript {
-    pub id: String,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -52,7 +44,6 @@ mod tests {
         FeatureState {
             description: Description::new(Some(text.to_string())),
             items: Vec::new(),
-            interact_script: None,
             interact_next_state: None,
             alt_verbs: Vec::new(),
             item_summary: None,
@@ -93,7 +84,7 @@ mod tests {
     }
 
     #[test]
-    fn state_defaults_items_script_next_state_and_alt_verbs_when_omitted() {
+    fn state_defaults_items_next_state_and_alt_verbs_when_omitted() {
         let toml = r#"
 name = "Button"
 default_state = "idle"
@@ -104,7 +95,6 @@ description = "A dusty button."
         let feature: RoomFeature = toml::from_str(toml).unwrap();
         let state = feature.states.get("idle").unwrap();
         assert!(state.items.is_empty());
-        assert!(state.interact_script.is_none());
         assert!(state.interact_next_state.is_none());
         assert!(state.alt_verbs.is_empty());
         assert!(state.item_summary.is_none());
