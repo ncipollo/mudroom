@@ -167,8 +167,8 @@ model = "llama3.2"
             AgentProviderConfig::Ollama {
                 base_url, model, ..
             } => {
-                assert_eq!(base_url, "http://localhost:11434");
-                assert_eq!(model, "llama3.2");
+                assert_eq!(base_url, Some("http://localhost:11434".to_string()));
+                assert_eq!(model, Some("llama3.2".to_string()));
             }
             _ => panic!("expected Ollama provider"),
         }
@@ -194,8 +194,8 @@ room_id = "default"
             AgentProviderConfig::Ollama {
                 base_url, model, ..
             } => {
-                assert_eq!(base_url, "http://localhost:11434");
-                assert_eq!(model, "llama3.2");
+                assert_eq!(base_url, Some("http://localhost:11434".to_string()));
+                assert_eq!(model, Some("llama3.2".to_string()));
             }
             _ => panic!("expected default Ollama provider"),
         }

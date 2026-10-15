@@ -4,6 +4,7 @@ pub mod gemini;
 pub mod ollama;
 pub mod openai;
 pub mod rig_chat;
+pub mod unavailable;
 pub mod xai;
 
 use std::sync::Arc;
@@ -18,14 +19,15 @@ use super::provider::AgentProvider;
 pub fn build_provider(config: &AgentConfig) -> Arc<dyn AgentProvider> {
     match &config.provider {
         AgentProviderConfig::Ollama {
-            base_url,
-            model,
+            base_url: Some(base_url),
+            model: Some(model),
             keep_alive,
         } => Arc::new(ollama::OllamaProvider {
             base_url: base_url.clone(),
             model: model.clone(),
             keep_alive: keep_alive.clone(),
         }),
+        AgentProviderConfig::Ollama { .. } => Arc::new(unavailable::UnavailableProvider),
         AgentProviderConfig::Anthropic { api_key, model } => {
             Arc::new(anthropic::AnthropicProvider {
                 api_key: api_key.clone(),
@@ -75,8 +77,8 @@ mod tests {
     fn build_provider_ollama() {
         let config = AgentConfig {
             provider: AgentProviderConfig::Ollama {
-                base_url: "http://localhost:11434".to_string(),
-                model: "llama3.2".to_string(),
+                base_url: Some("http://localhost:11434".to_string()),
+                model: Some("llama3.2".to_string()),
                 keep_alive: None,
             },
         };
@@ -87,12 +89,29 @@ mod tests {
     fn build_provider_ollama_with_keep_alive() {
         let config = AgentConfig {
             provider: AgentProviderConfig::Ollama {
-                base_url: "http://localhost:11434".to_string(),
-                model: "llama3.2".to_string(),
+                base_url: Some("http://localhost:11434".to_string()),
+                model: Some("llama3.2".to_string()),
                 keep_alive: Some("5m".to_string()),
             },
         };
         let _provider = build_provider(&config);
+    }
+
+    #[tokio::test]
+    async fn build_provider_ollama_missing_config_is_unavailable() {
+        let config = AgentConfig {
+            provider: AgentProviderConfig::Ollama {
+                base_url: None,
+                model: None,
+                keep_alive: None,
+            },
+        };
+        let provider = build_provider(&config);
+        let result = provider.chat("instructions", "prompt", &[], vec![]).await;
+        assert!(matches!(
+            result,
+            Err(crate::agent::AgentError::NotConfigured)
+        ));
     }
 
     #[test]

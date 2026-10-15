@@ -59,6 +59,11 @@ Top-level fields:
                  file's directory, e.g. persona_file = "mysterious_man.md".
                  See `mudroom instructions mud-config` for the persona file
                  format (front matter, preamble, conditional sections).
+    offline_fallback  Optional. What the character does/says when its model
+                 is unavailable (never configured, or unreachable
+                 mid-session), e.g.
+                 offline_fallback = "He sits silently in the corner, clearly
+                 not wanting to talk." Defaults to a generic line when unset.
 
 [[attributes]] (repeatable table, same shape as class attribute overrides):
 
@@ -125,6 +130,12 @@ mod tests {
         assert!(text.contains("persona_file"));
         assert!(text.contains("\"standard\""));
         assert!(text.contains("\"agent\""));
+    }
+
+    #[test]
+    fn render_documents_offline_fallback() {
+        let text = render();
+        assert!(text.contains("offline_fallback"));
     }
 
     #[test]

@@ -63,11 +63,16 @@ impl<'a> AgentTurnHandler<'a> {
                 );
             }
             Err(e) => {
-                messaging::message(
-                    &self.game_state.message_tx,
-                    self.player.id,
-                    format!("The NPC pauses, seeming confused. ({e})"),
+                tracing::warn!(
+                    %e,
+                    npc_entity_id = self.npc_entity_id,
+                    "agent chat failed; using offline fallback"
                 );
+                let fallback = self
+                    .game_state
+                    .agent_offline_fallback(self.npc_entity_id)
+                    .await;
+                messaging::message(&self.game_state.message_tx, self.player.id, fallback);
             }
         }
         false

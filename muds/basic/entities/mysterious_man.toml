@@ -3,6 +3,7 @@ entity_type = "character"
 [persona]
 type = "agent"
 persona_file = "mysterious_man.md"
+offline_fallback = "He sits silently in the corner, clearly not wanting to talk."
 
 [[attributes]]
 definition_id = "hp"

@@ -15,6 +15,10 @@ fn default_agent_type() -> String {
     "default".to_string()
 }
 
+/// Shown to a player when an agent persona has no authored `offline_fallback` and its
+/// model is unavailable (never configured, or unreachable mid-session).
+pub const DEFAULT_AGENT_OFFLINE_FALLBACK: &str = "The NPC seems unable to respond right now.";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CharacterTypeConfig {
@@ -29,6 +33,11 @@ pub enum PersonaConfig {
         #[serde(default = "default_agent_type")]
         agent_type: String,
         persona_file: Option<String>,
+        /// What the character does/says when its model is unavailable, e.g. "He sits
+        /// silently in the corner, clearly not wanting to talk." Falls back to
+        /// `DEFAULT_AGENT_OFFLINE_FALLBACK` when unset.
+        #[serde(default)]
+        offline_fallback: Option<String>,
         #[serde(skip)]
         parsed_persona: Option<PersonaFile>,
     },
@@ -37,6 +46,20 @@ pub enum PersonaConfig {
         #[serde(default)]
         dialog_file: Option<String>,
     },
+}
+
+impl PersonaConfig {
+    /// The line to show when this persona's agent model is unavailable. Always returns
+    /// the generic default for `Standard` personas, which never call out to a model.
+    pub fn agent_offline_fallback(&self) -> &str {
+        match self {
+            PersonaConfig::Agent {
+                offline_fallback: Some(text),
+                ..
+            } => text,
+            _ => DEFAULT_AGENT_OFFLINE_FALLBACK,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -157,6 +180,67 @@ mod tests {
             fs::create_dir_all(parent).unwrap();
         }
         fs::write(path, contents).unwrap();
+    }
+
+    #[test]
+    fn agent_persona_round_trip_with_offline_fallback() {
+        let toml = r#"
+entity_type = "character"
+
+[persona]
+type = "agent"
+offline_fallback = "He sits silently in the corner, clearly not wanting to talk."
+"#;
+        let config: CharacterConfig = toml::from_str(toml).unwrap();
+        match &config.persona {
+            Some(persona @ PersonaConfig::Agent { .. }) => {
+                assert_eq!(
+                    persona.agent_offline_fallback(),
+                    "He sits silently in the corner, clearly not wanting to talk."
+                );
+            }
+            _ => panic!("expected Agent persona"),
+        }
+    }
+
+    #[test]
+    fn agent_persona_offline_fallback_defaults_when_absent() {
+        let toml = r#"
+entity_type = "character"
+
+[persona]
+type = "agent"
+"#;
+        let config: CharacterConfig = toml::from_str(toml).unwrap();
+        match &config.persona {
+            Some(persona @ PersonaConfig::Agent { .. }) => {
+                assert_eq!(
+                    persona.agent_offline_fallback(),
+                    DEFAULT_AGENT_OFFLINE_FALLBACK
+                );
+            }
+            _ => panic!("expected Agent persona"),
+        }
+    }
+
+    #[test]
+    fn standard_persona_offline_fallback_is_generic_default() {
+        let toml = r#"
+entity_type = "character"
+
+[persona]
+type = "standard"
+"#;
+        let config: CharacterConfig = toml::from_str(toml).unwrap();
+        match &config.persona {
+            Some(persona @ PersonaConfig::Standard { .. }) => {
+                assert_eq!(
+                    persona.agent_offline_fallback(),
+                    DEFAULT_AGENT_OFFLINE_FALLBACK
+                );
+            }
+            _ => panic!("expected Standard persona"),
+        }
     }
 
     #[test]
