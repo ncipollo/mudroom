@@ -3,7 +3,7 @@ use std::future::Future;
 use boa_engine::builtins::promise::ResolvingFunctions;
 use boa_engine::gc::{Finalize, Trace, empty_trace};
 use boa_engine::job::NativeAsyncJob;
-use boa_engine::object::builtins::JsPromise;
+use boa_engine::object::builtins::{JsArray, JsPromise};
 use boa_engine::{
     Context, JsArgs, JsError, JsNativeError, JsResult, JsString, JsValue, NativeFunction,
 };
@@ -43,15 +43,55 @@ where
     Fut: Future<Output = Result<R, E>> + 'static,
     H: Fn(T, C) -> Fut + Copy + 'static,
 {
-    let native = NativeFunction::from_copy_closure_with_captures(
-        move |_this, args, captures: &C, context| call(args, captures, context, handler),
-        captures,
-    );
+    let native = native_async_fn(captures, handler);
     context.register_global_builtin_callable(JsString::from(name), 1, native)
 }
 
-fn call<T, C, H, Fut, R, E>(
-    args: &[JsValue],
+/// Builds the same async-native-callback machinery as [`register_async`] (a real
+/// awaitable `Promise`, resolved/rejected from `handler`'s result), without binding
+/// it as a bare global — so a caller can attach it as a property of its own object
+/// instead (e.g. via `ObjectInitializer::function`).
+pub(super) fn native_async_fn<T, C, H, Fut, R, E>(captures: C, handler: H) -> NativeFunction
+where
+    T: DeserializeOwned + 'static,
+    C: Trace + Clone + 'static,
+    R: Serialize + 'static,
+    E: std::fmt::Display + 'static,
+    Fut: Future<Output = Result<R, E>> + 'static,
+    H: Fn(T, C) -> Fut + Copy + 'static,
+{
+    NativeFunction::from_copy_closure_with_captures(
+        move |_this, args, captures: &C, context| {
+            call_with(args.get_or_undefined(0).clone(), captures, context, handler)
+        },
+        captures,
+    )
+}
+
+/// Like [`native_async_fn`], but for a JS-facing call with more than one positional
+/// argument (e.g. `room.spawnEntity(configId, location)`): all of the call's
+/// arguments are collected into a JS array and deserialized together as `T` (a
+/// tuple, e.g. `(String, Location)`), instead of only looking at the first argument.
+pub(super) fn native_async_fn_multi<T, C, H, Fut, R, E>(captures: C, handler: H) -> NativeFunction
+where
+    T: DeserializeOwned + 'static,
+    C: Trace + Clone + 'static,
+    R: Serialize + 'static,
+    E: std::fmt::Display + 'static,
+    Fut: Future<Output = Result<R, E>> + 'static,
+    H: Fn(T, C) -> Fut + Copy + 'static,
+{
+    NativeFunction::from_copy_closure_with_captures(
+        move |_this, args, captures: &C, context| {
+            let array = JsArray::from_iter(args.to_vec(), context);
+            call_with(array.into(), captures, context, handler)
+        },
+        captures,
+    )
+}
+
+fn call_with<T, C, H, Fut, R, E>(
+    arg_value: JsValue,
     captures: &C,
     context: &mut Context,
     handler: H,
@@ -64,7 +104,7 @@ where
     Fut: Future<Output = Result<R, E>> + 'static,
     H: Fn(T, C) -> Fut + Copy + 'static,
 {
-    let arg: T = from_js_value(args.get_or_undefined(0), context).map_err(js_type_error)?;
+    let arg: T = from_js_value(&arg_value, context).map_err(js_type_error)?;
     let captures = captures.clone();
     let (promise, resolvers) = JsPromise::new_pending(context);
 
