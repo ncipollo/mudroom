@@ -7,7 +7,7 @@ pub mod world;
 pub use dungeon::Dungeon;
 pub use navigation::Navigation;
 pub use room::Room;
-pub use room_feature::{FeatureState, FeatureValidationError, InteractScript, RoomFeature};
+pub use room_feature::{FeatureState, FeatureValidationError, RoomFeature};
 pub use world::World;
 
 use serde::{Deserialize, Serialize};

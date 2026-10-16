@@ -155,7 +155,6 @@ mod tests {
                 FeatureState {
                     description: Description::new(Some(description.to_string())),
                     items: vec![],
-                    interact_script: None,
                     interact_next_state: None,
                     alt_verbs: vec![],
                     item_summary: None,
@@ -168,6 +167,8 @@ mod tests {
             default_state: default_state.to_string(),
             states: state_map,
             alternate_names: vec![],
+            script: None,
+            inline_script: None,
         }
     }
 

@@ -78,7 +78,6 @@ fn chest_feature(id: &str, name: &str, items: Vec<String>) -> RoomFeature {
         FeatureState {
             description: Description::new(None),
             items,
-            interact_script: None,
             interact_next_state: None,
             alt_verbs: vec![],
             item_summary: None,
@@ -90,6 +89,8 @@ fn chest_feature(id: &str, name: &str, items: Vec<String>) -> RoomFeature {
         default_state: "open".to_string(),
         states,
         alternate_names: vec![],
+        script: None,
+        inline_script: None,
     }
 }
 

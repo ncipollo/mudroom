@@ -60,7 +60,6 @@ fn state_fields_section() -> String {
                                              items resolve, `look` instead
                                              sends description then a
                                              separate message per item.
-  interact_script        table, optional    Stub for now; not yet used.
   interact_next_state    string, optional   Another state key to transition
                                              to when interacted with.
                                              Omit to make this state a dead
@@ -123,7 +122,6 @@ mod tests {
         assert!(text.contains("description"));
         assert!(text.contains("items"));
         assert!(text.contains("item_summary"));
-        assert!(text.contains("interact_script"));
         assert!(text.contains("interact_next_state"));
         assert!(text.contains("alt_verbs"));
     }

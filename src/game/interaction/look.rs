@@ -199,7 +199,6 @@ mod tests {
             FeatureState {
                 description: Description::new(Some("An open oak chest.".to_string())),
                 items,
-                interact_script: None,
                 interact_next_state: None,
                 alt_verbs: vec![],
                 item_summary,
@@ -211,6 +210,8 @@ mod tests {
             default_state: "open".to_string(),
             states,
             alternate_names: vec![],
+            script: None,
+            inline_script: None,
         }
     }
 

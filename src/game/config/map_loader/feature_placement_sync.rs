@@ -85,7 +85,6 @@ mod tests {
             FeatureState {
                 description: Description::new(Some("A closed chest.".to_string())),
                 items: vec![],
-                interact_script: None,
                 interact_next_state: Some("open".to_string()),
                 alt_verbs: vec![],
                 item_summary: None,
@@ -96,7 +95,6 @@ mod tests {
             FeatureState {
                 description: Description::new(Some("An open chest.".to_string())),
                 items: vec!["medicine".to_string()],
-                interact_script: None,
                 interact_next_state: None,
                 alt_verbs: vec![],
                 item_summary: None,
@@ -108,6 +106,8 @@ mod tests {
             default_state: "closed".to_string(),
             states,
             alternate_names: vec![],
+            script: None,
+            inline_script: None,
         }
     }
 

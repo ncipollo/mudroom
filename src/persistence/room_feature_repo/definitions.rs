@@ -5,7 +5,15 @@ use sqlx::SqlitePool;
 use crate::game::{FeatureState, RoomFeature};
 use crate::persistence::error::PersistenceError;
 
-type FeatureDefinitionRow = (String, String, String, String, String);
+type FeatureDefinitionRow = (
+    String,
+    String,
+    String,
+    String,
+    String,
+    Option<String>,
+    Option<String>,
+);
 
 pub async fn upsert_definition(
     pool: &SqlitePool,
@@ -15,19 +23,23 @@ pub async fn upsert_definition(
     let alternate_names_json = serde_json::to_string(&feature.alternate_names)?;
     sqlx::query(
         "INSERT INTO feature_definitions \
-         (id, name, default_state, states_json, alternate_names_json) \
-         VALUES (?, ?, ?, ?, ?) \
+         (id, name, default_state, states_json, alternate_names_json, script, inline_script) \
+         VALUES (?, ?, ?, ?, ?, ?, ?) \
          ON CONFLICT(id) DO UPDATE SET \
              name = excluded.name, \
              default_state = excluded.default_state, \
              states_json = excluded.states_json, \
-             alternate_names_json = excluded.alternate_names_json",
+             alternate_names_json = excluded.alternate_names_json, \
+             script = excluded.script, \
+             inline_script = excluded.inline_script",
     )
     .bind(&feature.id)
     .bind(&feature.name)
     .bind(&feature.default_state)
     .bind(&states_json)
     .bind(&alternate_names_json)
+    .bind(&feature.script)
+    .bind(&feature.inline_script)
     .execute(pool)
     .await?;
     Ok(())
@@ -38,7 +50,7 @@ pub async fn find_definition_by_id(
     id: &str,
 ) -> Result<Option<RoomFeature>, PersistenceError> {
     let row: Option<FeatureDefinitionRow> = sqlx::query_as(
-        "SELECT id, name, default_state, states_json, alternate_names_json \
+        "SELECT id, name, default_state, states_json, alternate_names_json, script, inline_script \
          FROM feature_definitions WHERE id = ?",
     )
     .bind(id)
@@ -49,7 +61,7 @@ pub async fn find_definition_by_id(
 }
 
 fn parse_feature_definition(row: FeatureDefinitionRow) -> Result<RoomFeature, PersistenceError> {
-    let (id, name, default_state, states_json, alternate_names_json) = row;
+    let (id, name, default_state, states_json, alternate_names_json, script, inline_script) = row;
     let states: HashMap<String, FeatureState> = serde_json::from_str(&states_json)?;
     let alternate_names: Vec<String> = serde_json::from_str(&alternate_names_json)?;
     Ok(RoomFeature {
@@ -58,6 +70,8 @@ fn parse_feature_definition(row: FeatureDefinitionRow) -> Result<RoomFeature, Pe
         default_state,
         states,
         alternate_names,
+        script,
+        inline_script,
     })
 }
 
@@ -74,7 +88,6 @@ mod tests {
             FeatureState {
                 description: Description::new(Some("A closed chest.".to_string())),
                 items: vec![],
-                interact_script: None,
                 interact_next_state: Some("open".to_string()),
                 alt_verbs: vec!["open".to_string()],
                 item_summary: None,
@@ -85,7 +98,6 @@ mod tests {
             FeatureState {
                 description: Description::new(Some("An open chest.".to_string())),
                 items: vec!["medicine".to_string()],
-                interact_script: None,
                 interact_next_state: None,
                 alt_verbs: vec![],
                 item_summary: None,
@@ -97,6 +109,8 @@ mod tests {
             default_state: "closed".to_string(),
             states,
             alternate_names: vec!["chest".to_string()],
+            script: None,
+            inline_script: None,
         }
     }
 
@@ -127,6 +141,23 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(found.name, "Iron Chest");
+    }
+
+    #[tokio::test]
+    async fn upsert_definition_round_trips_inline_script() {
+        let db = Database::connect_in_memory().await.unwrap();
+        let mut feature = chest_feature();
+        feature.inline_script = Some("onInteract(() => {});".to_string());
+        upsert_definition(db.pool(), &feature).await.unwrap();
+
+        let found = find_definition_by_id(db.pool(), "chest")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            found.inline_script.as_deref(),
+            Some("onInteract(() => {});")
+        );
     }
 
     #[tokio::test]
