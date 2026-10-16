@@ -39,11 +39,13 @@ async fn apply_source(
     ability: &Ability,
 ) -> Vec<Effect> {
     match script_source(game_state, ability).await {
-        Some(Ok(source)) => ability
-            .effects
-            .iter()
-            .map(|effect| run_or_fallback(&source, caster, effect))
-            .collect(),
+        Some(Ok(source)) => {
+            let mut effects = Vec::with_capacity(ability.effects.len());
+            for effect in &ability.effects {
+                effects.push(run_or_fallback(&source, caster, effect).await);
+            }
+            effects
+        }
         Some(Err(err)) => {
             tracing::warn!(
                 ability_id = %ability.id,
@@ -70,8 +72,8 @@ async fn script_source(
     Some(script::cache::load_source(&game_state.scripts, script_name).await)
 }
 
-fn run_or_fallback(source: &str, caster: &Character, effect: &Effect) -> Effect {
-    match script::execution::run_on_effect(source, caster, effect) {
+async fn run_or_fallback(source: &str, caster: &Character, effect: &Effect) -> Effect {
+    match script::execution::run_on_effect(source, caster, effect).await {
         Ok(mutated) => mutated,
         Err(err) => {
             tracing::warn!(%err, "Ability script execution failed; using static effect");

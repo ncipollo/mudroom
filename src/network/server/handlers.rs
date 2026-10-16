@@ -258,6 +258,7 @@ mod tests {
             )
             .await;
 
+        let (debug_tick_tx, _) = tokio::sync::mpsc::channel(1);
         Arc::new(AppState {
             server_session: ServerSession {
                 id: "srv".to_string(),
@@ -268,6 +269,7 @@ mod tests {
             connections: Arc::new(RwLock::new(HashMap::new())),
             next_connection_seq: Arc::new(std::sync::atomic::AtomicU64::new(1)),
             test_api_enabled: true,
+            debug_tick_tx,
         })
     }
 

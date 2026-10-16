@@ -6,20 +6,35 @@ pub mod world_update;
 
 use std::sync::Arc;
 
+use tokio::sync::{mpsc, oneshot};
 use tokio::time::{Duration, interval};
 
 use crate::game::GameState;
 use crate::game::engagement;
 use crate::persistence::Database;
 
-pub async fn run(game_state: Arc<GameState>, db: Database) {
+/// Runs the real-time ticker, also answering on-demand tick requests (from
+/// `/debug/tick`) in between — both paths go through [`run_once`] on this same thread, since
+/// `run_once` can hold a non-`Send` Boa `Context` across an await and can't be called from an
+/// arbitrary (e.g. axum handler) task. See `network::server::game_loop_thread`.
+pub async fn run(
+    game_state: Arc<GameState>,
+    db: Database,
+    mut debug_tick_rx: mpsc::Receiver<oneshot::Sender<u64>>,
+) {
     let tick_rate = game_state.mud_config.game_loop.tick_rate_ms;
-
     let mut ticker = interval(Duration::from_millis(tick_rate));
 
     loop {
-        ticker.tick().await;
-        run_once(&game_state, &db).await;
+        tokio::select! {
+            _ = ticker.tick() => {
+                run_once(&game_state, &db).await;
+            }
+            Some(reply) = debug_tick_rx.recv() => {
+                let tick = run_once(&game_state, &db).await;
+                let _ = reply.send(tick);
+            }
+        }
     }
 }
 

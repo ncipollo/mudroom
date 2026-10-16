@@ -12,7 +12,7 @@ use crate::persistence::Database;
 use futures_util::stream::Stream;
 use serde::Deserialize;
 use tokio::sync::RwLock;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use tracing::info;
 
 #[derive(Clone)]
@@ -35,6 +35,9 @@ pub struct AppState {
     /// Whether the server was started with `--enable-test-api`, gating debug-only routes
     /// like `/debug/tick`. Off by default — never true in normal play.
     pub test_api_enabled: bool,
+    /// Requests an on-demand tick from the dedicated game-loop thread (see
+    /// `game_loop_thread::spawn`) — `run_once` can't be called directly from an axum handler.
+    pub debug_tick_tx: mpsc::Sender<oneshot::Sender<u64>>,
 }
 
 // --- SSE disconnect guard ---
