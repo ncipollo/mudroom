@@ -25,14 +25,17 @@ pub async fn start(
 ) -> Result<SocketAddr, Box<dyn std::error::Error>> {
     let connections: Arc<RwLock<HashMap<String, ConnectedClient>>> =
         Arc::new(RwLock::new(HashMap::new()));
+    let game_state = Arc::new(game_state);
+    let debug_tick_tx = game_loop_thread::spawn(game_state.clone(), db.clone())?;
 
     let state = Arc::new(AppState {
         server_session,
-        game_state: Arc::new(game_state),
+        game_state,
         db,
         connections: connections.clone(),
         next_connection_seq: Arc::new(std::sync::atomic::AtomicU64::new(1)),
         test_api_enabled: enable_test_api,
+        debug_tick_tx,
     });
 
     message_relay::spawn(
@@ -40,8 +43,6 @@ pub async fn start(
         state.connections.clone(),
         state.game_state.clone(),
     );
-
-    game_loop_thread::spawn(state.game_state.clone(), state.db.clone())?;
 
     tokio::spawn(ping_reaper::run_ping_reaper(
         connections,

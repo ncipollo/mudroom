@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 pub mod cache;
+pub mod callback;
 pub mod compiler;
 pub mod context;
 pub mod execution;
