@@ -1,3 +1,4 @@
+mod game_loop_thread;
 mod handlers;
 mod message_relay;
 mod ping_reaper;
@@ -11,7 +12,7 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::RwLock;
 
-use crate::game::{self, GameState};
+use crate::game::GameState;
 use crate::network::session::ServerSession;
 use crate::persistence::Database;
 use state::{AppState, ConnectedClient};
@@ -40,10 +41,7 @@ pub async fn start(
         state.game_state.clone(),
     );
 
-    tokio::spawn(game::game_loop::run(
-        state.game_state.clone(),
-        state.db.clone(),
-    ));
+    game_loop_thread::spawn(state.game_state.clone(), state.db.clone())?;
 
     tokio::spawn(ping_reaper::run_ping_reaper(
         connections,
