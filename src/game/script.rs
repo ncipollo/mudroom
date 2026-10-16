@@ -5,6 +5,7 @@ pub mod callback;
 pub mod compiler;
 pub mod context;
 pub mod execution;
+pub mod room_api;
 
 pub use compiler::{CompiledScript, ScriptCompileError, compile};
 
