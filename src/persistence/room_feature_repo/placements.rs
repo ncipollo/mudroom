@@ -1,10 +1,12 @@
+use std::collections::HashMap;
+
 use sqlx::SqlitePool;
 
 use crate::game::RoomFeatureState;
 use crate::game::component::Location;
 use crate::persistence::error::PersistenceError;
 
-type RoomFeatureRow = (i64, String, String, String, String, String, String);
+type RoomFeatureRow = (i64, String, String, String, String, String, String, String);
 
 /// Insert a placement if none exists yet for this (location, feature) pair. Returns
 /// `(id, is_new)`. An existing row is left untouched — its `current_state` and `items` may
@@ -55,7 +57,7 @@ pub async fn find_by_location(
     location: &Location,
 ) -> Result<Vec<RoomFeatureState>, PersistenceError> {
     let rows: Vec<RoomFeatureRow> = sqlx::query_as(
-        "SELECT id, feature_definition_id, world_id, dungeon_id, room_id, current_state, items_json \
+        "SELECT id, feature_definition_id, world_id, dungeon_id, room_id, current_state, items_json, settings_json \
          FROM room_features WHERE world_id = ? AND dungeon_id = ? AND room_id = ?",
     )
     .bind(&location.world_id)
@@ -68,8 +70,18 @@ pub async fn find_by_location(
 }
 
 fn parse_room_feature_state(row: RoomFeatureRow) -> Result<RoomFeatureState, PersistenceError> {
-    let (id, feature_definition_id, world_id, dungeon_id, room_id, current_state, items_json) = row;
+    let (
+        id,
+        feature_definition_id,
+        world_id,
+        dungeon_id,
+        room_id,
+        current_state,
+        items_json,
+        settings_json,
+    ) = row;
     let items: Vec<String> = serde_json::from_str(&items_json)?;
+    let settings: HashMap<String, serde_json::Value> = serde_json::from_str(&settings_json)?;
     Ok(RoomFeatureState::new(
         id,
         feature_definition_id,
@@ -80,6 +92,7 @@ fn parse_room_feature_state(row: RoomFeatureRow) -> Result<RoomFeatureState, Per
         },
         current_state,
         items,
+        settings,
     ))
 }
 
@@ -90,6 +103,22 @@ pub async fn update_state(
 ) -> Result<(), PersistenceError> {
     sqlx::query("UPDATE room_features SET current_state = ? WHERE id = ?")
         .bind(new_state)
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+/// Replaces a room feature's free-form settings bag wholesale, the same way
+/// [`update_state`] replaces `current_state`.
+pub async fn update_settings(
+    pool: &SqlitePool,
+    id: i64,
+    settings: &HashMap<String, serde_json::Value>,
+) -> Result<(), PersistenceError> {
+    let settings_json = serde_json::to_string(settings)?;
+    sqlx::query("UPDATE room_features SET settings_json = ? WHERE id = ?")
+        .bind(settings_json)
         .bind(id)
         .execute(pool)
         .await?;
@@ -136,11 +165,11 @@ pub async fn delete_by_room(pool: &SqlitePool, room_id: &str) -> Result<(), Pers
     Ok(())
 }
 
-/// Forces an existing placement's `current_state` and `items` back to the feature's default,
-/// clobbering runtime changes — unlike [`insert_placement_if_missing`]. Both are reset
-/// together since a `FeatureState`'s items only make sense alongside that state. No-op if the
-/// placement doesn't exist. A single UPDATE, so `items_json` can't end up malformed, but it
-/// can still race with a concurrent [`remove_item`] the same way two takes already can.
+/// Forces an existing placement's `current_state`, `items`, and `settings` back to defaults
+/// (settings has no config-driven default beyond empty), clobbering runtime changes — unlike
+/// [`insert_placement_if_missing`]. No-op if the placement doesn't exist. A single UPDATE, so
+/// `items_json` can't end up malformed, but it can still race with a concurrent [`remove_item`]
+/// the same way two takes already can.
 pub async fn reset_placement(
     pool: &SqlitePool,
     location: &Location,
@@ -150,7 +179,7 @@ pub async fn reset_placement(
 ) -> Result<(), PersistenceError> {
     let items_json = serde_json::to_string(items)?;
     sqlx::query(
-        "UPDATE room_features SET current_state = ?, items_json = ? \
+        "UPDATE room_features SET current_state = ?, items_json = ?, settings_json = '{}' \
          WHERE world_id = ? AND dungeon_id = ? AND room_id = ? AND feature_definition_id = ?",
     )
     .bind(default_state)

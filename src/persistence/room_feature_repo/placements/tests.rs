@@ -337,6 +337,63 @@ async fn reset_placement_overwrites_modified_state_and_items() {
 }
 
 #[tokio::test]
+async fn insert_placement_if_missing_defaults_to_empty_settings() {
+    let db = Database::connect_in_memory().await.unwrap();
+    setup(&db).await;
+    upsert_definition(db.pool(), &chest_feature())
+        .await
+        .unwrap();
+
+    insert_placement_if_missing(db.pool(), &test_location(), "chest", "closed", &[])
+        .await
+        .unwrap();
+
+    let found = find_by_location(db.pool(), &test_location()).await.unwrap();
+    assert!(found[0].settings.is_empty());
+}
+
+#[tokio::test]
+async fn update_settings_changes_settings() {
+    let db = Database::connect_in_memory().await.unwrap();
+    setup(&db).await;
+    upsert_definition(db.pool(), &chest_feature())
+        .await
+        .unwrap();
+    let (id, _) = insert_placement_if_missing(db.pool(), &test_location(), "chest", "closed", &[])
+        .await
+        .unwrap();
+
+    let mut settings = HashMap::new();
+    settings.insert("locked_by".to_string(), serde_json::json!("key_1"));
+    update_settings(db.pool(), id, &settings).await.unwrap();
+
+    let found = find_by_location(db.pool(), &test_location()).await.unwrap();
+    assert_eq!(found[0].settings, settings);
+}
+
+#[tokio::test]
+async fn reset_placement_resets_settings_to_empty() {
+    let db = Database::connect_in_memory().await.unwrap();
+    setup(&db).await;
+    upsert_definition(db.pool(), &chest_feature())
+        .await
+        .unwrap();
+    let (id, _) = insert_placement_if_missing(db.pool(), &test_location(), "chest", "closed", &[])
+        .await
+        .unwrap();
+    let mut settings = HashMap::new();
+    settings.insert("locked_by".to_string(), serde_json::json!("key_1"));
+    update_settings(db.pool(), id, &settings).await.unwrap();
+
+    reset_placement(db.pool(), &test_location(), "chest", "closed", &[])
+        .await
+        .unwrap();
+
+    let found = find_by_location(db.pool(), &test_location()).await.unwrap();
+    assert!(found[0].settings.is_empty());
+}
+
+#[tokio::test]
 async fn reset_placement_is_noop_for_missing_placement() {
     let db = Database::connect_in_memory().await.unwrap();
     setup(&db).await;
