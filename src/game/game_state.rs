@@ -6,7 +6,7 @@ use sqlx::SqlitePool;
 use tokio::sync::RwLock;
 use tokio::sync::broadcast;
 
-use crate::game::component::{Ability, ItemDefinition};
+use crate::game::component::{Ability, ItemDefinition, Location};
 use crate::game::config::character_config::DEFAULT_AGENT_OFFLINE_FALLBACK;
 use crate::game::config::{
     AttributeConfig, CharacterConfig, ClassConfig, FactionConfig, InventoryConfig, MudConfig,
@@ -29,6 +29,9 @@ pub struct PendingActivation {
 
 mod character_sync;
 mod definition_cache;
+mod entity_spawn;
+
+pub use entity_spawn::EntitySpawnError;
 
 pub struct GameState {
     pub config_path: Option<PathBuf>,
@@ -138,6 +141,19 @@ impl GameState {
         character_sync::sync(self, pool).await
     }
 
+    /// Creates a new character from `config_id` at `location` outside the normal map-sync
+    /// cycle — e.g. for scripts or effects spawning entities mid-tick. Persists the entity
+    /// (so it survives a restart/resync) and makes it immediately visible in
+    /// `active_characters`. Returns the new character's id.
+    pub async fn spawn_character(
+        &self,
+        pool: &SqlitePool,
+        config_id: &str,
+        location: Location,
+    ) -> Result<i64, EntitySpawnError> {
+        entity_spawn::spawn(self, pool, config_id, location).await
+    }
+
     /// Refreshes the `abilities` and `item_definitions` caches from the database, which is the
     /// durable source of truth kept current by `sync_universe_config`.
     pub async fn refresh_definition_caches(
@@ -179,7 +195,6 @@ impl GameState {
         epoch
     }
 
-    /// The entity's current activation epoch, or 0 if it has never been activated.
     pub async fn current_activation_epoch(&self, entity_id: i64) -> u64 {
         *self
             .activation_epochs
