@@ -3,9 +3,9 @@ use std::sync::Arc;
 use axum::Json;
 use axum::extract::State;
 use serde::Serialize;
+use tokio::sync::oneshot;
 use tracing::info;
 
-use crate::game::game_loop;
 use crate::network::server::state::AppState;
 
 #[derive(Serialize)]
@@ -15,9 +15,17 @@ pub struct DebugTickResponse {
 
 /// Runs exactly one tick of the game loop on demand, out of band from the real-time ticker.
 /// Only registered when the server is started with `--enable-test-api` — see
-/// `AppState::test_api_enabled`.
+/// `AppState::test_api_enabled`. Requests the tick from the dedicated game-loop thread rather
+/// than calling `game_loop::run_once` here directly — that can hold a non-`Send` Boa `Context`
+/// across an await, which an axum handler's future can't.
 pub async fn debug_tick_handler(State(state): State<Arc<AppState>>) -> Json<DebugTickResponse> {
-    let tick = game_loop::run_once(&state.game_state, &state.db).await;
+    let (reply_tx, reply_rx) = oneshot::channel();
+    state
+        .debug_tick_tx
+        .send(reply_tx)
+        .await
+        .expect("game loop thread should still be running");
+    let tick = reply_rx.await.expect("game loop thread dropped the reply");
     info!(tick, "POST /debug/tick");
     Json(DebugTickResponse { tick })
 }
@@ -35,16 +43,22 @@ mod tests {
     use tokio::sync::RwLock;
 
     async fn test_app_state() -> Arc<AppState> {
+        let game_state = Arc::new(GameState::load(None).unwrap());
+        let db = Database::connect_in_memory().await.unwrap();
+        let debug_tick_tx =
+            crate::network::server::game_loop_thread::spawn(game_state.clone(), db.clone())
+                .unwrap();
         Arc::new(AppState {
             server_session: ServerSession {
                 id: "srv".to_string(),
                 name: None,
             },
-            game_state: Arc::new(GameState::load(None).unwrap()),
-            db: Database::connect_in_memory().await.unwrap(),
+            game_state,
+            db,
             connections: Arc::new(RwLock::new(HashMap::new())),
             next_connection_seq: Arc::new(std::sync::atomic::AtomicU64::new(1)),
             test_api_enabled: true,
+            debug_tick_tx,
         })
     }
 
